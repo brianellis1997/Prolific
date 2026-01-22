@@ -203,7 +203,7 @@ async def stream_content_generation(
 ):
     """Stream the content generation workflow with progress updates.
 
-    Yields intermediate states for progress tracking.
+    Yields intermediate states for progress tracking, and final state at end.
 
     Args:
         topic: Main topic for the content
@@ -215,7 +215,8 @@ async def stream_content_generation(
         max_iterations: Maximum iterations
 
     Yields:
-        Intermediate states with phase info and progress
+        Intermediate states with phase info and progress.
+        Final yield includes _final_state with complete state.
     """
     from prolific.agent.state import create_initial_state
 
@@ -231,21 +232,35 @@ async def stream_content_generation(
 
     graph = get_content_generation_graph()
 
+    accumulated_state = dict(initial_state)
+
     async for state in graph.astream(initial_state):
         node_name = list(state.keys())[0] if state else "unknown"
         node_state = state.get(node_name, {})
 
+        for key, value in node_state.items():
+            if value is not None:
+                accumulated_state[key] = value
+
+        messages = node_state.get("messages", [])
+        message_contents = []
+        for m in messages[-3:]:
+            if hasattr(m, "content"):
+                message_contents.append(m.content)
+            elif isinstance(m, str):
+                message_contents.append(m)
+
         yield {
             "node": node_name,
-            "phase": node_state.get("current_phase", "unknown"),
+            "phase": node_state.get("current_phase", node_name),
             "iteration": node_state.get("iteration_count", 0),
-            "messages": [
-                m.content for m in node_state.get("messages", [])[-3:]
-            ],
-            "source_count": len(node_state.get("approved_sources", [])),
-            "claim_count": len(node_state.get("claims", [])),
-            "chapter_count": len(node_state.get("draft_chunks", [])),
+            "messages": message_contents,
+            "source_count": len(accumulated_state.get("approved_sources", [])),
+            "claim_count": len(accumulated_state.get("claims", [])),
+            "chapter_count": len(accumulated_state.get("draft_chunks", [])),
             "word_count": sum(
-                c.word_count for c in node_state.get("draft_chunks", [])
+                c.word_count for c in accumulated_state.get("draft_chunks", [])
             ),
         }
+
+    yield {"_final_state": accumulated_state}

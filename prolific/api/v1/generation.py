@@ -116,6 +116,7 @@ async def stream_content(request: GenerationRequest):
     is being generated, useful for long-running generations.
     """
     async def generate() -> AsyncGenerator[str, None]:
+        final_state = None
         try:
             style_preferences = {
                 "tone": request.style_tone,
@@ -131,9 +132,38 @@ async def stream_content(request: GenerationRequest):
                 style_preferences=style_preferences,
                 max_iterations=request.max_iterations,
             ):
-                yield f"data: {json.dumps(progress)}\n\n"
+                if progress.get("_final_state"):
+                    final_state = progress["_final_state"]
+                else:
+                    yield f"data: {json.dumps(progress)}\n\n"
 
-            yield f"data: {json.dumps({'status': 'complete'})}\n\n"
+            if final_state:
+                draft_chunks = final_state.get("draft_chunks", [])
+                chapter_briefs = {b.chapter_id: b for b in final_state.get("chapter_briefs", [])}
+
+                content = []
+                for chunk in sorted(draft_chunks, key=lambda c: chapter_briefs.get(c.chapter_id, type("", (), {"chapter_number": 0})).chapter_number):
+                    brief = chapter_briefs.get(chunk.chapter_id)
+                    content.append({
+                        "chapter_number": brief.chapter_number if brief else 0,
+                        "title": brief.title if brief else "Untitled",
+                        "content": chunk.content,
+                        "word_count": chunk.word_count,
+                    })
+
+                result = {
+                    "status": "complete",
+                    "topic": request.topic,
+                    "word_count": sum(c.word_count for c in draft_chunks),
+                    "chapter_count": len(draft_chunks),
+                    "source_count": len(final_state.get("approved_sources", [])),
+                    "claim_count": len(final_state.get("claims", [])),
+                    "content": content,
+                    "warnings": final_state.get("warnings", []),
+                }
+                yield f"data: {json.dumps(result)}\n\n"
+            else:
+                yield f"data: {json.dumps({'status': 'complete'})}\n\n"
 
         except Exception as e:
             logger.error(f"Streaming generation failed: {e}")
@@ -143,8 +173,10 @@ async def stream_content(request: GenerationRequest):
         generate(),
         media_type="text/event-stream",
         headers={
-            "Cache-Control": "no-cache",
+            "Cache-Control": "no-cache, no-store, must-revalidate",
             "Connection": "keep-alive",
+            "X-Accel-Buffering": "no",
+            "Access-Control-Allow-Origin": "*",
         },
     )
 

@@ -97,12 +97,16 @@ async def verify_node(state: ContentGenerationState) -> dict:
             except Exception as e:
                 logger.warning(f"Could not fetch content from {candidate.url}: {e}")
 
+            source_type = credibility_result.get("source_type", candidate.source_type)
+            if source_type == "unknown" or source_type not in ["academic", "news", "book", "website", "primary"]:
+                source_type = "website"
+
             approved = ApprovedSource(
                 id=uuid4(),
                 candidate_id=candidate.id,
                 url=candidate.url,
                 title=candidate.title,
-                source_type=credibility_result.get("source_type", candidate.source_type),
+                source_type=source_type,
                 author=fetch_result.get("author") if content else None,
                 publication_date=None,
                 credibility_score=credibility_score,

@@ -26,10 +26,12 @@ class Settings(BaseSettings):
     openrouter_base_url: str = "https://openrouter.ai/api/v1"
 
     # Tiered Model Selection (cost optimization)
-    research_model: str = "openai/gpt-4o-mini"
-    extraction_model: str = "anthropic/claude-3-5-haiku-20241022"
-    writing_model: str = "anthropic/claude-sonnet-4-20250514"
-    verification_model: str = "anthropic/claude-3-5-haiku-20241022"
+    # Fast/cheap models for research, extraction, verification
+    research_model: str = "google/gemini-3-flash-preview"
+    extraction_model: str = "google/gemini-3-flash-preview"
+    verification_model: str = "google/gemini-3-flash-preview"
+    # High quality model for writing
+    writing_model: str = "anthropic/claude-sonnet-4.5"
 
     # Embeddings
     openai_api_key: str = ""

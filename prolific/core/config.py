@@ -59,6 +59,11 @@ class Settings(BaseSettings):
     draft_chunk_budget: int = 1500
     evidence_budget: int = 4000
 
+    # Cross-check configuration
+    cross_check_similarity_threshold: float = 0.75  # Min similarity for LLM check
+    cross_check_corroboration_threshold: float = 0.85  # High similarity = corroboration
+    cross_check_max_llm_comparisons: int = 100  # Max LLM calls for conflict detection
+
     # Generation defaults
     default_depth: Literal["overview", "standard", "deep", "exhaustive"] = "standard"
     default_style_tone: Literal[

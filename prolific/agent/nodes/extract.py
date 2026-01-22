@@ -56,14 +56,17 @@ async def extract_node(state: ContentGenerationState) -> dict:
             "messages": [AIMessage(content="No new sources to extract from.")],
         }
 
-    logger.info(f"Extracting from {len(sources_to_extract)} sources")
+    logger.info(f"=== EXTRACTION PHASE ===")
+    logger.info(f"Sources to process: {len(sources_to_extract)}")
+    logger.info(f"Expected LLM calls: ~{len(sources_to_extract) * 3} (3 per source: claims, quotes, stats)")
 
     all_claims = []
     all_evidence = []
 
-    for source in sources_to_extract:
+    for source_idx, source in enumerate(sources_to_extract, 1):
         try:
-            logger.info(f"Extracting from: {source.title}")
+            logger.info(f"[{source_idx}/{len(sources_to_extract)}] Extracting from: {source.title}")
+            logger.info(f"  - LLM call 1/3: Extracting claims...")
 
             claims_result = await extract_claims_from_text.ainvoke({
                 "text": source.full_text,
@@ -97,6 +100,7 @@ async def extract_node(state: ContentGenerationState) -> dict:
                 )
                 all_claims.append(claim)
 
+            logger.info(f"  - LLM call 2/3: Extracting quotes...")
             quotes_result = await extract_key_quotes.ainvoke({
                 "text": source.full_text,
                 "topic": state["topic"],
@@ -113,6 +117,7 @@ async def extract_node(state: ContentGenerationState) -> dict:
                 )
                 all_evidence.append(evidence)
 
+            logger.info(f"  - LLM call 3/3: Extracting statistics...")
             stats_result = await extract_statistics.ainvoke({
                 "text": source.full_text,
             })
@@ -137,6 +142,8 @@ async def extract_node(state: ContentGenerationState) -> dict:
                     topic_tags=["statistic", "data"],
                 )
                 all_claims.append(claim)
+
+            logger.info(f"  - Source complete: {len(claims_result)} claims, {len(quotes_result)} quotes, {len(stats_result)} stats")
 
         except Exception as e:
             logger.error(f"Extraction failed for {source.title}: {e}")

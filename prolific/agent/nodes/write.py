@@ -77,7 +77,9 @@ async def write_node(state: ContentGenerationState) -> dict:
             "messages": [AIMessage(content="All chapters already written.")],
         }
 
-    logger.info(f"Writing {len(briefs_to_write)} chapters")
+    logger.info(f"=== WRITING PHASE ===")
+    logger.info(f"Chapters to write: {len(briefs_to_write)}")
+    logger.info(f"Expected LLM calls: {len(briefs_to_write)} (1 per chapter, using premium writing model)")
 
     llm_service = get_llm_service()
     embedding_service = get_embedding_service()
@@ -94,9 +96,10 @@ async def write_node(state: ContentGenerationState) -> dict:
 
     draft_chunks = []
 
-    for brief in briefs_to_write:
+    for brief_idx, brief in enumerate(briefs_to_write, 1):
         try:
-            logger.info(f"Writing chapter {brief.chapter_number}: {brief.title}")
+            logger.info(f"[{brief_idx}/{len(briefs_to_write)}] Writing chapter {brief.chapter_number}: {brief.title}")
+            logger.info(f"  - Target: {brief.word_count_target} words, {len(brief.required_claims)} required claims")
 
             context_parts = []
 

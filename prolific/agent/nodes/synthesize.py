@@ -70,10 +70,12 @@ async def synthesize_node(state: ContentGenerationState) -> dict:
     Returns:
         Dict with chapter_briefs and outline to merge into state
     """
-    logger.info("Synthesize node starting")
+    logger.info("=== SYNTHESIS PHASE ===")
 
     claims = state.get("claims", [])
     verified_claims = [c for c in claims if c.status == ClaimStatus.VERIFIED]
+
+    logger.info(f"Total claims: {len(claims)}, Verified: {len(verified_claims)}")
 
     if not verified_claims:
         logger.warning("No verified claims available for synthesis")
@@ -89,7 +91,7 @@ async def synthesize_node(state: ContentGenerationState) -> dict:
     if global_memory and global_memory.outline_ids:
         logger.info("Using existing outline")
     else:
-        logger.info("Generating new outline")
+        logger.info("Generating new outline (1 LLM call for outline structure)")
 
     llm_service = get_llm_service()
 

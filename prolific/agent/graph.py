@@ -232,6 +232,18 @@ async def stream_content_generation(
 
     graph = get_content_generation_graph()
 
+    from prolific.agent.state import merge_artifacts_by_id, merge_dicts
+
+    # Fields that use list merging (merge_artifacts_by_id reducer)
+    LIST_MERGE_FIELDS = {
+        "claims", "approved_sources", "evidence_snippets", "source_candidates",
+        "chapter_briefs", "draft_chunks", "content_gaps"
+    }
+    # Fields that use simple append (operator.add reducer)
+    APPEND_FIELDS = {"messages", "errors", "warnings"}
+    # Fields that use dict merging
+    DICT_MERGE_FIELDS = {"local_memories"}
+
     accumulated_state = dict(initial_state)
 
     async for state in graph.astream(initial_state):
@@ -240,7 +252,22 @@ async def stream_content_generation(
 
         for key, value in node_state.items():
             if value is not None:
-                accumulated_state[key] = value
+                if key in LIST_MERGE_FIELDS:
+                    # Use the same reducer as LangGraph state
+                    accumulated_state[key] = merge_artifacts_by_id(
+                        accumulated_state.get(key, []), value
+                    )
+                elif key in APPEND_FIELDS:
+                    # Append lists
+                    accumulated_state[key] = accumulated_state.get(key, []) + value
+                elif key in DICT_MERGE_FIELDS:
+                    # Merge dicts
+                    accumulated_state[key] = merge_dicts(
+                        accumulated_state.get(key, {}), value
+                    )
+                else:
+                    # Replace value (scalars, global_memory, etc.)
+                    accumulated_state[key] = value
 
         messages = node_state.get("messages", [])
         message_contents = []

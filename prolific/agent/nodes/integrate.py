@@ -36,7 +36,7 @@ async def integrate_node(state: ContentGenerationState) -> dict:
     Returns:
         Dict with updated draft_chunks, warnings, and phase info
     """
-    logger.info("Integrate node starting")
+    logger.info("=== INTEGRATION PHASE ===")
 
     draft_chunks = state.get("draft_chunks", [])
     global_memory = state.get("global_memory")
@@ -55,6 +55,9 @@ async def integrate_node(state: ContentGenerationState) -> dict:
         key=lambda c: chapter_briefs.get(c.chapter_id, type("", (), {"chapter_number": 0})).chapter_number
     )
 
+    logger.info(f"Chapters to integrate: {len(sorted_chunks)}")
+    logger.info(f"Expected LLM calls: ~{len(sorted_chunks) * 2 + len(sorted_chunks) - 1 + 1} (dedup + style per chapter, transitions, consistency)")
+
     warnings = []
     updated_chunks = []
 
@@ -69,7 +72,11 @@ async def integrate_node(state: ContentGenerationState) -> dict:
         logger.warning(f"Could not initialize deduplication: {e}")
         use_dedup = False
 
-    for chunk in sorted_chunks:
+    for chunk_idx, chunk in enumerate(sorted_chunks, 1):
+        brief = chapter_briefs.get(chunk.chapter_id)
+        chapter_num = brief.chapter_number if brief else "?"
+        logger.info(f"[{chunk_idx}/{len(sorted_chunks)}] Processing chapter {chapter_num}")
+
         chunk_copy = chunk.model_copy()
 
         if use_dedup:

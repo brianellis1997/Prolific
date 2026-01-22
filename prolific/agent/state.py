@@ -22,32 +22,29 @@ from prolific.schemas.memory import GlobalBookMemory, LocalChapterMemory
 
 
 def merge_artifacts_by_id[T](left: list[T], right: list[T]) -> list[T]:
-    """Reducer that extends lists without duplicates by ID.
+    """Reducer that merges lists by ID, with right items updating left items.
 
     Used for artifact lists where each item has a unique ID.
+    Right items with matching IDs replace left items (to support updates).
     """
-    seen_ids = set()
-    merged = []
+    items_by_id = {}
+    items_without_id = []
 
     for item in left:
         item_id = getattr(item, "id", None)
         if item_id is not None:
-            if item_id not in seen_ids:
-                merged.append(item)
-                seen_ids.add(item_id)
+            items_by_id[item_id] = item
         else:
-            merged.append(item)
+            items_without_id.append(item)
 
     for item in right:
         item_id = getattr(item, "id", None)
         if item_id is not None:
-            if item_id not in seen_ids:
-                merged.append(item)
-                seen_ids.add(item_id)
+            items_by_id[item_id] = item
         else:
-            merged.append(item)
+            items_without_id.append(item)
 
-    return merged
+    return list(items_by_id.values()) + items_without_id
 
 
 def merge_dicts[K, V](left: dict[K, V], right: dict[K, V]) -> dict[K, V]:

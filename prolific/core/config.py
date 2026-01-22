@@ -1,0 +1,73 @@
+"""Application configuration using Pydantic BaseSettings."""
+
+from functools import lru_cache
+from typing import Literal
+
+from pydantic_settings import BaseSettings, SettingsConfigDict
+
+
+class Settings(BaseSettings):
+    """Application settings loaded from environment variables."""
+
+    model_config = SettingsConfigDict(
+        env_file=".env",
+        env_file_encoding="utf-8",
+        case_sensitive=False,
+        extra="ignore",
+    )
+
+    # API
+    api_title: str = "Prolific Content Generation API"
+    api_version: str = "0.1.0"
+    api_prefix: str = "/api/v1"
+
+    # LLM Configuration
+    openrouter_api_key: str = ""
+    openrouter_base_url: str = "https://openrouter.ai/api/v1"
+
+    # Tiered Model Selection (cost optimization)
+    research_model: str = "openai/gpt-4o-mini"
+    extraction_model: str = "anthropic/claude-3-5-haiku-20241022"
+    writing_model: str = "anthropic/claude-sonnet-4-20250514"
+    verification_model: str = "anthropic/claude-3-5-haiku-20241022"
+
+    # Embeddings
+    openai_api_key: str = ""
+    embedding_model: str = "text-embedding-3-small"
+    embedding_dimension: int = 1536
+
+    # Web Search
+    tavily_api_key: str = ""
+
+    # Database
+    database_url: str = "sqlite+aiosqlite:///./prolific.db"
+
+    # ChromaDB
+    chroma_persist_path: str = "./chroma_data"
+
+    # Workflow Limits
+    max_research_iterations: int = 5
+    max_sources_per_topic: int = 20
+    max_claims_per_source: int = 50
+    max_concurrent_extractions: int = 5
+    max_concurrent_writers: int = 3
+
+    # Token Budgets for RAG
+    book_memory_budget: int = 2000
+    draft_chunk_budget: int = 1500
+    evidence_budget: int = 4000
+
+    # Generation defaults
+    default_depth: Literal["overview", "standard", "deep", "exhaustive"] = "standard"
+    default_style_tone: Literal[
+        "academic", "conversational", "technical", "journalistic"
+    ] = "academic"
+
+
+@lru_cache
+def get_settings() -> Settings:
+    """Get cached settings instance."""
+    return Settings()
+
+
+settings = get_settings()

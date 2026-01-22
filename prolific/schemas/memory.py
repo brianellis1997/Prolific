@@ -80,6 +80,9 @@ class GlobalBookMemory(BaseModel):
     metaphors_used: list[str] = Field(default_factory=list)
     examples_used: list[str] = Field(default_factory=list)
 
+    # Final output sections
+    references_section: str = ""  # Compiled bibliography
+
     # Timestamps
     created_at: datetime = Field(default_factory=datetime.utcnow)
     updated_at: datetime = Field(default_factory=datetime.utcnow)

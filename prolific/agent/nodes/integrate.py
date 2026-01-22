@@ -41,6 +41,7 @@ async def integrate_node(state: ContentGenerationState) -> dict:
     draft_chunks = state.get("draft_chunks", [])
     global_memory = state.get("global_memory")
     chapter_briefs = {b.chapter_id: b for b in state.get("chapter_briefs", [])}
+    approved_sources = state.get("approved_sources", [])
 
     if not draft_chunks:
         logger.info("No draft chunks to integrate")
@@ -85,6 +86,7 @@ async def integrate_node(state: ContentGenerationState) -> dict:
                 dedup_result = await dedup_gate.check_chunk(
                     chunk_embedding=chunk_embedding,
                     chapter_id=str(chunk.chapter_id),
+                    chunk_content=chunk.content,
                 )
 
                 if not dedup_result.is_acceptable:
@@ -175,6 +177,27 @@ async def integrate_node(state: ContentGenerationState) -> dict:
     high_repetition = any(c.repetition_score > 0.7 for c in updated_chunks)
     style_issues = any(c.style_compliance_score < 0.6 for c in updated_chunks)
 
+    # Compile references section
+    references_lines = []
+    for idx, source in enumerate(approved_sources, 1):
+        # Format: [N] Author (Year). Title. URL
+        author = source.author or "Unknown"
+        year = source.publication_date.year if source.publication_date else "n.d."
+        title = source.title
+        url = source.url
+
+        ref_line = f"[{idx}] {author} ({year}). {title}. {url}"
+        references_lines.append(ref_line)
+
+    references_section = ""
+    if references_lines:
+        references_section = "\n\n---\n\n## References\n\n" + "\n\n".join(references_lines)
+        logger.info(f"Compiled {len(references_lines)} references")
+
+    # Store references in global_memory for final output
+    if global_memory and references_section:
+        global_memory.references_section = references_section
+
     logger.info(
         f"Integration complete. {len(warnings)} warnings. "
         f"High repetition: {high_repetition}, Style issues: {style_issues}"
@@ -182,12 +205,13 @@ async def integrate_node(state: ContentGenerationState) -> dict:
 
     return {
         "draft_chunks": updated_chunks,
+        "global_memory": global_memory,
         "warnings": warnings,
         "current_phase": "replan",
         "integration_complete": True,
         "messages": [
             AIMessage(
-                content=f"Integration complete. {len(warnings)} issues found."
+                content=f"Integration complete. {len(warnings)} issues found. {len(references_lines)} references compiled."
             )
         ],
     }

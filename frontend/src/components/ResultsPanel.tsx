@@ -30,6 +30,7 @@ interface ResultsPanelProps {
       content: string;
       word_count: number;
     }>;
+    references?: string;
     warnings: string[];
   };
   onReset: () => void;
@@ -38,14 +39,20 @@ interface ResultsPanelProps {
 export function ResultsPanel({ result, onReset }: ResultsPanelProps) {
   const [currentChapter, setCurrentChapter] = useState(0);
   const [copied, setCopied] = useState(false);
+  const [showReferences, setShowReferences] = useState(false);
 
   const hasContent = result.content && result.content.length > 0;
   const chapter = hasContent ? result.content[currentChapter] : null;
+  const hasReferences = result.references && result.references.length > 0;
 
   const copyToClipboard = async () => {
-    const fullContent = result.content
+    let fullContent = result.content
       .map((c) => `# ${c.title}\n\n${c.content}`)
       .join('\n\n---\n\n');
+
+    if (result.references) {
+      fullContent += result.references;
+    }
 
     await navigator.clipboard.writeText(fullContent);
     setCopied(true);
@@ -53,9 +60,13 @@ export function ResultsPanel({ result, onReset }: ResultsPanelProps) {
   };
 
   const downloadMarkdown = () => {
-    const fullContent = result.content
+    let fullContent = result.content
       .map((c) => `# ${c.title}\n\n${c.content}`)
       .join('\n\n---\n\n');
+
+    if (result.references) {
+      fullContent += result.references;
+    }
 
     const blob = new Blob([fullContent], { type: 'text/markdown' });
     const url = URL.createObjectURL(blob);
@@ -141,9 +152,12 @@ export function ResultsPanel({ result, onReset }: ResultsPanelProps) {
                 {result.content.map((ch, index) => (
                   <button
                     key={index}
-                    onClick={() => setCurrentChapter(index)}
+                    onClick={() => {
+                      setCurrentChapter(index);
+                      setShowReferences(false);
+                    }}
                     className={`w-full text-left px-3 py-2 rounded-lg text-sm transition-colors ${
-                      currentChapter === index
+                      currentChapter === index && !showReferences
                         ? 'bg-primary-100 text-primary-700'
                         : 'hover:bg-gray-100 text-gray-700'
                     }`}
@@ -154,6 +168,21 @@ export function ResultsPanel({ result, onReset }: ResultsPanelProps) {
                     </div>
                   </button>
                 ))}
+                {hasReferences && (
+                  <button
+                    onClick={() => setShowReferences(true)}
+                    className={`w-full text-left px-3 py-2 rounded-lg text-sm transition-colors mt-2 border-t border-gray-200 pt-3 ${
+                      showReferences
+                        ? 'bg-primary-100 text-primary-700'
+                        : 'hover:bg-gray-100 text-gray-700'
+                    }`}
+                  >
+                    <div className="font-medium">References</div>
+                    <div className="text-xs text-gray-500">
+                      {result.source_count} sources
+                    </div>
+                  </button>
+                )}
               </nav>
             </div>
           </div>
@@ -161,45 +190,69 @@ export function ResultsPanel({ result, onReset }: ResultsPanelProps) {
           {/* Content View */}
           <div className="col-span-3">
             <div className="bg-white rounded-xl border border-gray-200 shadow-sm">
-              {/* Chapter Header */}
-              <div className="border-b border-gray-200 px-6 py-4">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <div className="text-sm text-gray-500">
-                      Chapter {chapter.chapter_number}
+              {showReferences ? (
+                <>
+                  {/* References Header */}
+                  <div className="border-b border-gray-200 px-6 py-4">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <div className="text-sm text-gray-500">Bibliography</div>
+                        <h2 className="text-xl font-bold text-gray-900">References</h2>
+                      </div>
+                      <div className="text-sm text-gray-500">
+                        {result.source_count} sources cited
+                      </div>
                     </div>
-                    <h2 className="text-xl font-bold text-gray-900">
-                      {chapter.title}
-                    </h2>
                   </div>
-                  <div className="flex items-center gap-2">
-                    <button
-                      onClick={() => setCurrentChapter(Math.max(0, currentChapter - 1))}
-                      disabled={currentChapter === 0}
-                      className="p-2 rounded-lg hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed"
-                    >
-                      <ChevronLeft className="w-5 h-5" />
-                    </button>
-                    <span className="text-sm text-gray-500">
-                      {currentChapter + 1} / {result.content.length}
-                    </span>
-                    <button
-                      onClick={() =>
-                        setCurrentChapter(Math.min(result.content.length - 1, currentChapter + 1))
-                      }
-                      disabled={currentChapter === result.content.length - 1}
-                      className="p-2 rounded-lg hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed"
-                    >
-                      <ChevronRight className="w-5 h-5" />
-                    </button>
-                  </div>
-                </div>
-              </div>
 
-              {/* Chapter Content */}
-              <div className="px-8 py-6 prose prose-lg max-w-none">
-                <ReactMarkdown>{chapter.content}</ReactMarkdown>
-              </div>
+                  {/* References Content */}
+                  <div className="px-8 py-6 prose prose-lg max-w-none">
+                    <ReactMarkdown>{result.references || ''}</ReactMarkdown>
+                  </div>
+                </>
+              ) : (
+                <>
+                  {/* Chapter Header */}
+                  <div className="border-b border-gray-200 px-6 py-4">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <div className="text-sm text-gray-500">
+                          Chapter {chapter.chapter_number}
+                        </div>
+                        <h2 className="text-xl font-bold text-gray-900">
+                          {chapter.title}
+                        </h2>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <button
+                          onClick={() => setCurrentChapter(Math.max(0, currentChapter - 1))}
+                          disabled={currentChapter === 0}
+                          className="p-2 rounded-lg hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                          <ChevronLeft className="w-5 h-5" />
+                        </button>
+                        <span className="text-sm text-gray-500">
+                          {currentChapter + 1} / {result.content.length}
+                        </span>
+                        <button
+                          onClick={() =>
+                            setCurrentChapter(Math.min(result.content.length - 1, currentChapter + 1))
+                          }
+                          disabled={currentChapter === result.content.length - 1}
+                          className="p-2 rounded-lg hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                          <ChevronRight className="w-5 h-5" />
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Chapter Content */}
+                  <div className="px-8 py-6 prose prose-lg max-w-none">
+                    <ReactMarkdown>{chapter.content}</ReactMarkdown>
+                  </div>
+                </>
+              )}
             </div>
           </div>
         </div>

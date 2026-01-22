@@ -21,6 +21,7 @@ from prolific.agent.nodes import (
     write_node,
 )
 from prolific.agent.state import ContentGenerationState
+from prolific.services.checkpointer import get_checkpointer_service
 
 logger = logging.getLogger(__name__)
 
@@ -59,7 +60,7 @@ def should_continue_after_replan(
         return "done"
 
 
-def build_content_generation_graph() -> StateGraph:
+def build_content_generation_graph(checkpointer=None) -> StateGraph:
     """Build the main content generation workflow graph.
 
     The graph follows this flow:
@@ -72,6 +73,9 @@ def build_content_generation_graph() -> StateGraph:
     7. Summarize: Update book memory
     8. Integrate: Check consistency
     9. Replan: Decide to continue or finish
+
+    Args:
+        checkpointer: Optional checkpointer for persistence
 
     Returns:
         Compiled StateGraph ready for execution
@@ -129,18 +133,19 @@ def build_content_generation_graph() -> StateGraph:
         },
     )
 
-    return graph.compile()
+    return graph.compile(checkpointer=checkpointer)
 
 
-_compiled_graph = None
+async def get_content_generation_graph_with_checkpointer():
+    """Get compiled graph with checkpointer for persistence."""
+    checkpointer_service = get_checkpointer_service()
+    saver = await checkpointer_service.get_saver()
+    return build_content_generation_graph(checkpointer=saver)
 
 
 def get_content_generation_graph() -> StateGraph:
-    """Get the singleton compiled graph instance."""
-    global _compiled_graph
-    if _compiled_graph is None:
-        _compiled_graph = build_content_generation_graph()
-    return _compiled_graph
+    """Get compiled graph without checkpointer (for backward compatibility)."""
+    return build_content_generation_graph(checkpointer=None)
 
 
 async def run_content_generation(
@@ -151,8 +156,9 @@ async def run_content_generation(
     depth: str = "standard",
     style_preferences: dict[str, str] | None = None,
     max_iterations: int = 5,
-) -> ContentGenerationState:
-    """Run the content generation workflow.
+    thread_id: str | None = None,
+) -> tuple[ContentGenerationState, str]:
+    """Run the content generation workflow with persistence.
 
     Args:
         topic: Main topic for the content
@@ -162,34 +168,55 @@ async def run_content_generation(
         depth: Depth level (overview, standard, deep, exhaustive)
         style_preferences: Writing style preferences
         max_iterations: Maximum research-write iterations
+        thread_id: Optional thread ID to resume from. If None, starts new generation.
 
     Returns:
-        Final state with all generated content and artifacts
+        Tuple of (final state, thread_id) for recovery
     """
     from prolific.agent.state import create_initial_state
 
-    initial_state = create_initial_state(
-        topic=topic,
-        subtopics=subtopics,
-        focus_areas=focus_areas,
-        target_word_count=target_word_count,
-        depth=depth,
-        style_preferences=style_preferences,
-        max_iterations=max_iterations,
-    )
+    checkpointer_service = get_checkpointer_service()
 
-    graph = get_content_generation_graph()
+    if thread_id is None:
+        thread_id = checkpointer_service.generate_thread_id()
+        initial_state = create_initial_state(
+            topic=topic,
+            subtopics=subtopics,
+            focus_areas=focus_areas,
+            target_word_count=target_word_count,
+            depth=depth,
+            style_preferences=style_preferences,
+            max_iterations=max_iterations,
+        )
+        logger.info(f"Starting new content generation for topic: {topic}, thread_id: {thread_id}")
+    else:
+        existing_state = await checkpointer_service.get_thread_state(thread_id)
+        if existing_state:
+            initial_state = existing_state
+            logger.info(f"Resuming content generation from thread_id: {thread_id}")
+        else:
+            initial_state = create_initial_state(
+                topic=topic,
+                subtopics=subtopics,
+                focus_areas=focus_areas,
+                target_word_count=target_word_count,
+                depth=depth,
+                style_preferences=style_preferences,
+                max_iterations=max_iterations,
+            )
+            logger.info(f"Thread not found, starting new generation with thread_id: {thread_id}")
 
-    logger.info(f"Starting content generation for topic: {topic}")
+    graph = await get_content_generation_graph_with_checkpointer()
+    config = {"configurable": {"thread_id": thread_id}}
 
-    final_state = await graph.ainvoke(initial_state)
+    final_state = await graph.ainvoke(initial_state, config=config)
 
     logger.info(
-        f"Content generation complete. "
+        f"Content generation complete. thread_id: {thread_id}, "
         f"Words: {final_state.get('global_memory', {}).current_word_count if final_state.get('global_memory') else 0}"
     )
 
-    return final_state
+    return final_state, thread_id
 
 
 async def stream_content_generation(
@@ -200,10 +227,12 @@ async def stream_content_generation(
     depth: str = "standard",
     style_preferences: dict[str, str] | None = None,
     max_iterations: int = 5,
+    thread_id: str | None = None,
 ):
-    """Stream the content generation workflow with progress updates.
+    """Stream the content generation workflow with progress updates and persistence.
 
     Yields intermediate states for progress tracking, and final state at end.
+    Uses checkpointing for persistence so generation can be resumed if interrupted.
 
     Args:
         topic: Main topic for the content
@@ -213,60 +242,88 @@ async def stream_content_generation(
         depth: Depth level
         style_preferences: Writing style preferences
         max_iterations: Maximum iterations
+        thread_id: Optional thread ID to resume from. If None, starts new generation.
 
     Yields:
         Intermediate states with phase info and progress.
-        Final yield includes _final_state with complete state.
+        Final yield includes _final_state with complete state and thread_id.
     """
     from prolific.agent.state import create_initial_state
 
-    initial_state = create_initial_state(
-        topic=topic,
-        subtopics=subtopics,
-        focus_areas=focus_areas,
-        target_word_count=target_word_count,
-        depth=depth,
-        style_preferences=style_preferences,
-        max_iterations=max_iterations,
-    )
+    checkpointer_service = get_checkpointer_service()
 
-    graph = get_content_generation_graph()
+    if thread_id is None:
+        thread_id = checkpointer_service.generate_thread_id()
+        initial_state = create_initial_state(
+            topic=topic,
+            subtopics=subtopics,
+            focus_areas=focus_areas,
+            target_word_count=target_word_count,
+            depth=depth,
+            style_preferences=style_preferences,
+            max_iterations=max_iterations,
+        )
+        logger.info(f"Starting new streamed generation for topic: {topic}, thread_id: {thread_id}")
+    else:
+        existing_state = await checkpointer_service.get_thread_state(thread_id)
+        if existing_state:
+            initial_state = existing_state
+            logger.info(f"Resuming streamed generation from thread_id: {thread_id}")
+        else:
+            initial_state = create_initial_state(
+                topic=topic,
+                subtopics=subtopics,
+                focus_areas=focus_areas,
+                target_word_count=target_word_count,
+                depth=depth,
+                style_preferences=style_preferences,
+                max_iterations=max_iterations,
+            )
+            logger.info(f"Thread not found, starting new streamed generation with thread_id: {thread_id}")
+
+    graph = await get_content_generation_graph_with_checkpointer()
+    config = {"configurable": {"thread_id": thread_id}}
 
     from prolific.agent.state import merge_artifacts_by_id, merge_dicts
 
-    # Fields that use list merging (merge_artifacts_by_id reducer)
     LIST_MERGE_FIELDS = {
         "claims", "approved_sources", "evidence_snippets", "source_candidates",
         "chapter_briefs", "draft_chunks", "content_gaps"
     }
-    # Fields that use simple append (operator.add reducer)
     APPEND_FIELDS = {"messages", "errors", "warnings"}
-    # Fields that use dict merging
     DICT_MERGE_FIELDS = {"local_memories"}
 
     accumulated_state = dict(initial_state)
 
-    async for state in graph.astream(initial_state):
+    yield {
+        "thread_id": thread_id,
+        "node": "init",
+        "phase": "starting",
+        "iteration": 0,
+        "messages": [f"Starting generation with thread_id: {thread_id}"],
+        "source_count": 0,
+        "claim_count": 0,
+        "chapter_count": 0,
+        "word_count": 0,
+    }
+
+    async for state in graph.astream(initial_state, config=config):
         node_name = list(state.keys())[0] if state else "unknown"
         node_state = state.get(node_name, {})
 
         for key, value in node_state.items():
             if value is not None:
                 if key in LIST_MERGE_FIELDS:
-                    # Use the same reducer as LangGraph state
                     accumulated_state[key] = merge_artifacts_by_id(
                         accumulated_state.get(key, []), value
                     )
                 elif key in APPEND_FIELDS:
-                    # Append lists
                     accumulated_state[key] = accumulated_state.get(key, []) + value
                 elif key in DICT_MERGE_FIELDS:
-                    # Merge dicts
                     accumulated_state[key] = merge_dicts(
                         accumulated_state.get(key, {}), value
                     )
                 else:
-                    # Replace value (scalars, global_memory, etc.)
                     accumulated_state[key] = value
 
         messages = node_state.get("messages", [])
@@ -278,6 +335,7 @@ async def stream_content_generation(
                 message_contents.append(m)
 
         yield {
+            "thread_id": thread_id,
             "node": node_name,
             "phase": node_state.get("current_phase", node_name),
             "iteration": node_state.get("iteration_count", 0),
@@ -290,4 +348,4 @@ async def stream_content_generation(
             ),
         }
 
-    yield {"_final_state": accumulated_state}
+    yield {"_final_state": accumulated_state, "thread_id": thread_id}

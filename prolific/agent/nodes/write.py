@@ -31,12 +31,17 @@ Style requirements:
 - Tone: {tone}
 - Formality: {formality}
 - Use contractions: {contractions}
-- Citation style: {citation_style}
 
 Word count target: {word_target} words (min: {word_min}, max: {word_max})
 
+CITATION INSTRUCTIONS:
+When incorporating facts from the required claims below, include the bracketed citation number [N] inline.
+For example: "Studies show that certain bacteria play a key role in vaginal health [1]."
+Multiple citations can be combined: "Recent research [2, 3] demonstrates..."
+Place citations naturally within sentences after the relevant fact, not at paragraph ends.
+
 IMPORTANT CONSTRAINTS:
-1. You MUST incorporate the required claims with proper citations
+1. You MUST incorporate the required claims WITH their [N] citation numbers shown in the claims list
 2. Do NOT repeat content from previous chapters (see context below)
 3. Maintain consistent terminology with the glossary
 4. Write engaging, well-structured prose
@@ -63,6 +68,14 @@ async def write_node(state: ContentGenerationState) -> dict:
     chapter_briefs = state.get("chapter_briefs", [])
     existing_chunks = state.get("draft_chunks", [])
     claims = {c.id: c for c in state.get("claims", [])}
+    approved_sources = {s.id: s for s in state.get("approved_sources", [])}
+
+    # Build global reference list from all approved sources
+    source_to_ref_num = {}
+    ref_num_to_source = {}
+    for idx, source in enumerate(state.get("approved_sources", []), 1):
+        source_to_ref_num[source.id] = idx
+        ref_num_to_source[idx] = source
 
     written_chapters = {chunk.chapter_id for chunk in existing_chunks}
     briefs_to_write = [
@@ -122,14 +135,27 @@ async def write_node(state: ContentGenerationState) -> dict:
                     logger.warning(f"RAG retrieval failed: {e}")
 
             required_claims_text = []
+            chapter_ref_nums = set()  # Track which references are used in this chapter
             for claim_id in brief.required_claims:
                 claim = claims.get(claim_id)
                 if claim and claim.status == ClaimStatus.VERIFIED:
-                    required_claims_text.append(f"- {claim.statement}")
+                    # Get reference numbers for this claim's sources
+                    ref_nums = []
+                    for source_id in claim.source_ids:
+                        if source_id in source_to_ref_num:
+                            ref_num = source_to_ref_num[source_id]
+                            ref_nums.append(ref_num)
+                            chapter_ref_nums.add(ref_num)
+
+                    if ref_nums:
+                        citation = "[" + ", ".join(str(n) for n in sorted(ref_nums)) + "]"
+                        required_claims_text.append(f"- {claim.statement} {citation}")
+                    else:
+                        required_claims_text.append(f"- {claim.statement}")
 
             if required_claims_text:
                 context_parts.append(
-                    "## Required Claims (MUST include with citations):\n"
+                    "## Required Claims (include the [N] citation when using each fact):\n"
                     + "\n".join(required_claims_text)
                 )
 
@@ -151,7 +177,6 @@ async def write_node(state: ContentGenerationState) -> dict:
                     tone=style_guide.tone if style_guide else "academic",
                     formality=style_guide.formality_level if style_guide else 0.7,
                     contractions="yes" if style_guide and style_guide.use_contractions else "no",
-                    citation_style=style_guide.citation_style if style_guide else "inline",
                     word_target=brief.word_count_target,
                     word_min=brief.word_count_min,
                     word_max=brief.word_count_max,

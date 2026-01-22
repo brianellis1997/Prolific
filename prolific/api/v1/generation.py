@@ -9,6 +9,7 @@ from pydantic import BaseModel, Field
 import json
 
 from prolific.agent.graph import run_content_generation, stream_content_generation
+from prolific.services.checkpointer import get_checkpointer_service
 
 logger = logging.getLogger(__name__)
 
@@ -26,18 +27,21 @@ class GenerationRequest(BaseModel):
     style_tone: str = Field(default="academic", description="Writing tone")
     citation_style: str = Field(default="inline", description="Citation style")
     max_iterations: int = Field(default=3, ge=1, le=10, description="Max research iterations")
+    thread_id: str | None = Field(default=None, description="Thread ID to resume from (optional)")
 
 
 class GenerationResponse(BaseModel):
     """Response from content generation."""
 
     status: str
+    thread_id: str = ""  # For resume capability
     topic: str
     word_count: int
     chapter_count: int
     source_count: int
     claim_count: int
     content: list[dict]  # List of chapter contents
+    references: str = ""  # Bibliography section
     warnings: list[str]
 
 
@@ -59,7 +63,8 @@ async def create_content(request: GenerationRequest):
     """Generate content for a topic.
 
     This endpoint runs the full content generation pipeline
-    and returns the complete result.
+    and returns the complete result. Pass thread_id to resume
+    a previous generation.
     """
     try:
         logger.info(f"Starting content generation for: {request.topic}")
@@ -69,7 +74,7 @@ async def create_content(request: GenerationRequest):
             "citation_style": request.citation_style,
         }
 
-        final_state = await run_content_generation(
+        final_state, thread_id = await run_content_generation(
             topic=request.topic,
             subtopics=request.subtopics,
             focus_areas=request.focus_areas,
@@ -77,6 +82,7 @@ async def create_content(request: GenerationRequest):
             depth=request.depth,
             style_preferences=style_preferences,
             max_iterations=request.max_iterations,
+            thread_id=request.thread_id,
         )
 
         draft_chunks = final_state.get("draft_chunks", [])
@@ -92,14 +98,19 @@ async def create_content(request: GenerationRequest):
                 "word_count": chunk.word_count,
             })
 
+        global_memory = final_state.get("global_memory")
+        references = global_memory.references_section if global_memory else ""
+
         return GenerationResponse(
             status="complete",
+            thread_id=thread_id,
             topic=request.topic,
             word_count=sum(c.word_count for c in draft_chunks),
             chapter_count=len(draft_chunks),
             source_count=len(final_state.get("approved_sources", [])),
             claim_count=len(final_state.get("claims", [])),
             content=content,
+            references=references,
             warnings=final_state.get("warnings", []),
         )
 
@@ -114,9 +125,11 @@ async def stream_content(request: GenerationRequest):
 
     This endpoint streams progress updates as the content
     is being generated, useful for long-running generations.
+    Pass thread_id to resume a previous generation.
     """
     async def generate() -> AsyncGenerator[str, None]:
         final_state = None
+        thread_id = None
         try:
             style_preferences = {
                 "tone": request.style_tone,
@@ -131,10 +144,13 @@ async def stream_content(request: GenerationRequest):
                 depth=request.depth,
                 style_preferences=style_preferences,
                 max_iterations=request.max_iterations,
+                thread_id=request.thread_id,
             ):
                 if progress.get("_final_state"):
                     final_state = progress["_final_state"]
+                    thread_id = progress.get("thread_id", thread_id)
                 else:
+                    thread_id = progress.get("thread_id", thread_id)
                     yield f"data: {json.dumps(progress)}\n\n"
 
             if final_state:
@@ -151,23 +167,28 @@ async def stream_content(request: GenerationRequest):
                         "word_count": chunk.word_count,
                     })
 
+                global_memory = final_state.get("global_memory")
+                references = global_memory.references_section if global_memory else ""
+
                 result = {
                     "status": "complete",
+                    "thread_id": thread_id,
                     "topic": request.topic,
                     "word_count": sum(c.word_count for c in draft_chunks),
                     "chapter_count": len(draft_chunks),
                     "source_count": len(final_state.get("approved_sources", [])),
                     "claim_count": len(final_state.get("claims", [])),
                     "content": content,
+                    "references": references,
                     "warnings": final_state.get("warnings", []),
                 }
                 yield f"data: {json.dumps(result)}\n\n"
             else:
-                yield f"data: {json.dumps({'status': 'complete'})}\n\n"
+                yield f"data: {json.dumps({'status': 'complete', 'thread_id': thread_id})}\n\n"
 
         except Exception as e:
             logger.error(f"Streaming generation failed: {e}")
-            yield f"data: {json.dumps({'status': 'error', 'error': str(e)})}\n\n"
+            yield f"data: {json.dumps({'status': 'error', 'error': str(e), 'thread_id': thread_id})}\n\n"
 
     return StreamingResponse(
         generate(),
@@ -179,6 +200,90 @@ async def stream_content(request: GenerationRequest):
             "Access-Control-Allow-Origin": "*",
         },
     )
+
+
+@router.get("/threads")
+async def list_threads():
+    """List all generation threads with their status.
+
+    Returns a list of threads that can be resumed.
+    """
+    try:
+        checkpointer_service = get_checkpointer_service()
+        threads = await checkpointer_service.list_threads()
+        return {"threads": threads}
+    except Exception as e:
+        logger.error(f"Failed to list threads: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/threads/{thread_id}")
+async def get_thread(thread_id: str):
+    """Get the current state of a specific generation thread.
+
+    Args:
+        thread_id: The thread ID to retrieve
+    """
+    try:
+        checkpointer_service = get_checkpointer_service()
+        state = await checkpointer_service.get_thread_state(thread_id)
+        if state is None:
+            raise HTTPException(status_code=404, detail="Thread not found")
+
+        draft_chunks = state.get("draft_chunks", [])
+        chapter_briefs = {b.chapter_id: b for b in state.get("chapter_briefs", [])}
+
+        content = []
+        for chunk in sorted(draft_chunks, key=lambda c: chapter_briefs.get(c.chapter_id, type("", (), {"chapter_number": 0})).chapter_number):
+            brief = chapter_briefs.get(chunk.chapter_id)
+            content.append({
+                "chapter_number": brief.chapter_number if brief else 0,
+                "title": brief.title if brief else "Untitled",
+                "content": chunk.content,
+                "word_count": chunk.word_count,
+            })
+
+        global_memory = state.get("global_memory")
+        references = global_memory.references_section if global_memory else ""
+
+        return {
+            "thread_id": thread_id,
+            "topic": state.get("topic", "Unknown"),
+            "phase": state.get("current_phase", "unknown"),
+            "iteration": state.get("iteration_count", 0),
+            "word_count": sum(c.word_count for c in draft_chunks),
+            "chapter_count": len(draft_chunks),
+            "source_count": len(state.get("approved_sources", [])),
+            "claim_count": len(state.get("claims", [])),
+            "content": content,
+            "references": references,
+            "warnings": state.get("warnings", []),
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Failed to get thread {thread_id}: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.delete("/threads/{thread_id}")
+async def delete_thread(thread_id: str):
+    """Delete a generation thread and its checkpoints.
+
+    Args:
+        thread_id: The thread ID to delete
+    """
+    try:
+        checkpointer_service = get_checkpointer_service()
+        deleted = await checkpointer_service.delete_thread(thread_id)
+        if not deleted:
+            raise HTTPException(status_code=404, detail="Thread not found")
+        return {"status": "deleted", "thread_id": thread_id}
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Failed to delete thread {thread_id}: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 @router.get("/health")

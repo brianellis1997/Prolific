@@ -88,7 +88,7 @@ class WebFetchService:
                     config=trafilatura_config,
                 )
 
-                if extracted:
+                if extracted and isinstance(extracted, dict):
                     content = extracted.get("text", "") or ""
                     title = extracted.get("title") or self._extract_title_from_html(html)
                     author = extracted.get("author")
@@ -96,13 +96,13 @@ class WebFetchService:
                     publish_date = self._parse_date(date_str)
 
                     if not author:
-                        author = self._extract_author_from_html(html)
+                        author = self._extract_author_from_html(html, url)
                     if not publish_date:
                         publish_date = self._extract_date_from_html(html)
                 else:
-                    content = ""
+                    content = extract(html, url=url, config=trafilatura_config) or ""
                     title = self._extract_title_from_html(html)
-                    author = self._extract_author_from_html(html)
+                    author = self._extract_author_from_html(html, url)
                     publish_date = self._extract_date_from_html(html)
             else:
                 content = html
@@ -142,8 +142,8 @@ class WebFetchService:
                 return html[start:end].strip()
         return None
 
-    def _extract_author_from_html(self, html: str) -> str | None:
-        """Extract author from HTML meta tags."""
+    def _extract_author_from_html(self, html: str, url: str = "") -> str | None:
+        """Extract author from HTML meta tags or infer from source."""
         patterns = [
             r'<meta[^>]+name=["\']author["\'][^>]+content=["\'](.*?)["\']',
             r'<meta[^>]+content=["\'](.*?)["\'][^>]+name=["\']author["\']',
@@ -151,13 +151,38 @@ class WebFetchService:
             r'<meta[^>]+content=["\'](.*?)["\'][^>]+property=["\']article:author["\']',
             r'"author":\s*\{\s*"name":\s*"([^"]+)"',
             r'"author":\s*"([^"]+)"',
+            r'<span[^>]+class="[^"]*author[^"]*"[^>]*>([^<]+)</span>',
+            r'<a[^>]+rel=["\']author["\'][^>]*>([^<]+)</a>',
+            r'class="byline[^"]*"[^>]*>(?:By\s*)?([^<]+)<',
         ]
         for pattern in patterns:
             match = re.search(pattern, html, re.IGNORECASE)
             if match:
                 author = match.group(1).strip()
-                if author and author.lower() not in ["unknown", "anonymous", ""]:
+                if author and author.lower() not in ["unknown", "anonymous", "", "null"]:
                     return author
+
+        if url:
+            url_lower = url.lower()
+            if "wikipedia.org" in url_lower:
+                return "Wikipedia Contributors"
+            elif "imdb.com" in url_lower:
+                return "IMDb"
+            elif "themoviedb.org" in url_lower or "tmdb" in url_lower:
+                return "TMDB"
+            elif "britannica.com" in url_lower:
+                return "Encyclopaedia Britannica"
+            elif "bbc.com" in url_lower or "bbc.co.uk" in url_lower:
+                return "BBC"
+            elif "nytimes.com" in url_lower:
+                return "The New York Times"
+            elif "theguardian.com" in url_lower:
+                return "The Guardian"
+            elif "reuters.com" in url_lower:
+                return "Reuters"
+            elif "apnews.com" in url_lower:
+                return "Associated Press"
+
         return None
 
     def _extract_date_from_html(self, html: str) -> datetime | None:
@@ -165,10 +190,18 @@ class WebFetchService:
         patterns = [
             r'<meta[^>]+property=["\']article:published_time["\'][^>]+content=["\'](.*?)["\']',
             r'<meta[^>]+content=["\'](.*?)["\'][^>]+property=["\']article:published_time["\']',
+            r'<meta[^>]+property=["\']article:modified_time["\'][^>]+content=["\'](.*?)["\']',
             r'<meta[^>]+name=["\']date["\'][^>]+content=["\'](.*?)["\']',
             r'<meta[^>]+name=["\']publish[_-]?date["\'][^>]+content=["\'](.*?)["\']',
+            r'<meta[^>]+name=["\']DC\.date["\'][^>]+content=["\'](.*?)["\']',
+            r'<meta[^>]+name=["\']last-modified["\'][^>]+content=["\'](.*?)["\']',
             r'"datePublished":\s*"([^"]+)"',
             r'"publishedDate":\s*"([^"]+)"',
+            r'"dateModified":\s*"([^"]+)"',
+            r'"dateCreated":\s*"([^"]+)"',
+            r'<time[^>]+datetime=["\']([^"\']+)["\']',
+            r'class="[^"]*date[^"]*"[^>]*>(\d{1,2}\s+\w+\s+\d{4})',
+            r'(\d{4}-\d{2}-\d{2}T\d{2}:\d{2})',
         ]
         for pattern in patterns:
             match = re.search(pattern, html, re.IGNORECASE)

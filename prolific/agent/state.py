@@ -106,6 +106,7 @@ class ContentGenerationState(TypedDict):
     current_chapter_index: int
     iteration_count: int
     max_iterations: int
+    remediation_count: int  # Number of quality remediation passes
 
     # === STATUS FLAGS ===
     research_complete: bool
@@ -115,6 +116,7 @@ class ContentGenerationState(TypedDict):
     writing_complete: bool
     integration_complete: bool
     needs_replan: bool
+    needs_remediation: bool  # True if quality issues need remediation
 
     # === ERROR HANDLING ===
     errors: Annotated[list[str], operator.add]
@@ -191,6 +193,7 @@ def create_initial_state(
         current_chapter_index=0,
         iteration_count=0,
         max_iterations=max_iterations,
+        remediation_count=0,
         research_complete=False,
         verification_complete=False,
         extraction_complete=False,
@@ -198,6 +201,7 @@ def create_initial_state(
         writing_complete=False,
         integration_complete=False,
         needs_replan=False,
+        needs_remediation=False,
         errors=[],
         warnings=[],
     )

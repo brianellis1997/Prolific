@@ -17,12 +17,13 @@ logger = logging.getLogger(__name__)
 
 
 class GapAnalysis(BaseModel):
-    """Analysis of content gaps."""
+    """Analysis of content gaps and quality issues."""
 
     has_critical_gaps: bool
+    has_critical_quality_issues: bool = False
     gaps: list[dict] = Field(default_factory=list)
     suggested_queries: list[str] = Field(default_factory=list)
-    recommendation: str = Field(description="continue or finish")
+    recommendation: str = Field(description="continue, remediate, or finish")
 
 
 REPLAN_SYSTEM_PROMPT = """You are a content quality analyst reviewing a long-form document in progress.
@@ -39,14 +40,21 @@ Research iterations so far: {iteration_count} / {max_iterations}
 Recent warnings/issues:
 {warnings}
 
+Quality Issues (from integration):
+{quality_issues_text}
+
 Analyze whether:
 1. The content adequately covers the topic
 2. There are significant gaps in coverage
 3. More research is needed
-4. We're ready to finalize
+4. There are critical quality issues that need remediation before finishing
+5. We're ready to finalize
 
 Identify specific gaps if any, with priority (critical, high, medium, low).
-Suggest search queries for any gaps found."""
+Suggest search queries for any gaps found.
+
+Set has_critical_quality_issues=true if there are unfixed critical quality issues (repetition, contradictions, etc.)
+Recommend "remediate" if quality issues need another pass, "continue" for more research, or "finish" if ready."""
 
 
 async def replan_node(state: ContentGenerationState) -> dict:
@@ -70,6 +78,7 @@ async def replan_node(state: ContentGenerationState) -> dict:
     draft_chunks = state.get("draft_chunks", [])
     claims = state.get("claims", [])
     warnings = state.get("warnings", [])
+    quality_issues = state.get("quality_issues", [])
 
     verified_claims = [c for c in claims if c.status == ClaimStatus.VERIFIED]
     current_words = sum(chunk.word_count for chunk in draft_chunks)
@@ -109,6 +118,18 @@ async def replan_node(state: ContentGenerationState) -> dict:
 
     warnings_text = "\n".join(warnings[-10:]) if warnings else "No warnings."
 
+    unfixed_issues = [q for q in quality_issues if not getattr(q, 'fix_applied', False)]
+    critical_unfixed = [q for q in unfixed_issues if q.severity in ["critical", "major"]]
+
+    if quality_issues:
+        quality_lines = []
+        for q in quality_issues[:10]:
+            status = "FIXED" if getattr(q, 'fix_applied', False) else "UNFIXED"
+            quality_lines.append(f"- [{status}] {q.issue_type} ({q.severity}): {q.description[:100]}")
+        quality_issues_text = "\n".join(quality_lines)
+    else:
+        quality_issues_text = "No quality issues identified."
+
     system_message = SystemMessage(
         content=REPLAN_SYSTEM_PROMPT.format(
             topic=state["topic"],
@@ -120,6 +141,7 @@ async def replan_node(state: ContentGenerationState) -> dict:
             iteration_count=iteration_count,
             max_iterations=max_iterations,
             warnings=warnings_text,
+            quality_issues_text=quality_issues_text,
         )
     )
 
@@ -174,18 +196,43 @@ Should we continue researching or is the content complete enough to finish?"""
         )
         content_gaps.append(content_gap)
 
+    remediation_count = state.get("remediation_count", 0)
+    max_remediations = 2
+
+    should_remediate = (
+        (result.recommendation == "remediate" or result.has_critical_quality_issues)
+        and len(critical_unfixed) > 0
+        and remediation_count < max_remediations
+    )
+
     should_continue = (
         result.recommendation == "continue"
         and result.has_critical_gaps
         and iteration_count < max_iterations
     )
 
-    if should_continue:
+    if should_remediate:
+        logger.info(f"Quality issues need remediation ({len(critical_unfixed)} critical unfixed)")
+        return {
+            "content_gaps": content_gaps,
+            "iteration_count": iteration_count,
+            "remediation_count": remediation_count + 1,
+            "needs_replan": True,
+            "needs_remediation": True,
+            "current_phase": "quality_remediate",
+            "messages": [
+                AIMessage(
+                    content=f"Routing to quality remediation: {len(critical_unfixed)} critical issues unfixed."
+                )
+            ],
+        }
+    elif should_continue:
         logger.info(f"Gaps identified. Continuing research (iteration {iteration_count})")
         return {
             "content_gaps": content_gaps,
             "iteration_count": iteration_count,
             "needs_replan": True,
+            "needs_remediation": False,
             "current_phase": "research",
             "messages": [
                 AIMessage(
@@ -199,6 +246,7 @@ Should we continue researching or is the content complete enough to finish?"""
             "content_gaps": content_gaps,
             "iteration_count": iteration_count,
             "needs_replan": False,
+            "needs_remediation": False,
             "current_phase": "done",
             "messages": [
                 AIMessage(

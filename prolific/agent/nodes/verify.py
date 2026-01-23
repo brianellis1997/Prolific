@@ -141,6 +141,8 @@ async def verify_node(state: ContentGenerationState) -> dict:
 
             content = None
             content_hash = ""
+            publish_date = None
+            fetch_result = {}
             try:
                 fetch_result = await fetch_url_content.ainvoke({"url": candidate.url})
                 content = fetch_result.get("content", "")

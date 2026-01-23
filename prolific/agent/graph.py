@@ -57,9 +57,11 @@ def should_continue_after_synthesize(
 
 def should_continue_after_replan(
     state: ContentGenerationState,
-) -> Literal["research", "done"]:
-    """Route after replan: continue research or finish."""
-    if state.get("needs_replan", False):
+) -> Literal["research", "quality_remediate", "done"]:
+    """Route after replan: continue research, remediate quality issues, or finish."""
+    if state.get("needs_remediation", False):
+        return "quality_remediate"
+    elif state.get("needs_replan", False):
         return "research"
     else:
         return "done"
@@ -225,6 +227,7 @@ def build_content_generation_graph(checkpointer=None) -> StateGraph:
         should_continue_after_replan,
         {
             "research": "research",
+            "quality_remediate": "quality_remediate",
             "done": END,
         },
     )

@@ -64,13 +64,13 @@ def embed_visuals_in_chapter(
 
     image_blocks = []
     for intent, asset in images_to_embed:
-        if asset.url:
+        if asset.base64_data:
+            mime = f"image/{asset.format}" if asset.format != "jpg" else "image/jpeg"
+            image_url = f"data:{mime};base64,{asset.base64_data}"
+        elif asset.url:
             image_url = asset.url
         elif asset.file_path:
             image_url = asset.file_path
-        elif asset.base64_data:
-            mime = f"image/{asset.format}" if asset.format != "jpg" else "image/jpeg"
-            image_url = f"data:{mime};base64,{asset.base64_data[:100]}..."
         else:
             continue
 

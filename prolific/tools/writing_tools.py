@@ -48,12 +48,13 @@ async def check_style_compliance(
     """
     llm_service = get_llm_service()
 
-    system_prompt = """Analyze this content for style compliance.
+    contractions_text = "allowed" if use_contractions else "not allowed"
+    system_prompt = f"""Analyze this content for style compliance.
 
 Expected style:
-- Tone: {tone}
-- Formality: {formality} (0=casual, 1=formal)
-- Contractions: {"allowed" if use_contractions else "not allowed"}
+- Tone: {style_tone}
+- Formality: {formality_level} (0=casual, 1=formal)
+- Contractions: {contractions_text}
 
 Check for:
 - Tone consistency (academic, conversational, etc.)
@@ -65,11 +66,7 @@ Check for:
 Provide specific issues and actionable suggestions."""
 
     messages = [
-        SystemMessage(content=system_prompt.format(
-            tone=style_tone,
-            formality=formality_level,
-            use_contractions=use_contractions
-        )),
+        SystemMessage(content=system_prompt),
         HumanMessage(content=f"Content to analyze:\n\n{content[:5000]}")
     ]
 

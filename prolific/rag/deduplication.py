@@ -109,6 +109,7 @@ class DeduplicationGate:
         chunk_embedding: list[float],
         chapter_id: str,
         chunk_content: str | None = None,
+        thread_id: str | None = None,
     ) -> DeduplicationResult:
         """Check if a draft chunk has too much text repetition.
 
@@ -119,6 +120,7 @@ class DeduplicationGate:
             chunk_embedding: Embedding of the new chunk (for RAG retrieval)
             chapter_id: Current chapter ID (excluded from comparison)
             chunk_content: The actual text content for n-gram comparison
+            thread_id: Thread ID to filter by (prevents cross-contamination)
 
         Returns:
             DeduplicationResult with acceptance status and warnings
@@ -136,6 +138,7 @@ class DeduplicationGate:
             query_embedding=chunk_embedding,
             n_results=5,
             exclude_chapter_id=chapter_id,
+            thread_id=thread_id,
         )
 
         if not results["documents"] or not results["documents"][0]:
@@ -197,6 +200,7 @@ class DeduplicationGate:
         text: str,
         chapter_id: str,
         embedding_fn,
+        thread_id: str | None = None,
     ) -> DeduplicationResult:
         """Convenience method that generates embedding and checks.
 
@@ -204,9 +208,10 @@ class DeduplicationGate:
             text: Text to check
             chapter_id: Current chapter ID
             embedding_fn: Async function to generate embedding from text
+            thread_id: Thread ID to filter by (prevents cross-contamination)
 
         Returns:
             DeduplicationResult
         """
         embedding = await embedding_fn(text)
-        return await self.check_chunk(embedding, chapter_id, chunk_content=text)
+        return await self.check_chunk(embedding, chapter_id, chunk_content=text, thread_id=thread_id)

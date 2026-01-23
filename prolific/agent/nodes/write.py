@@ -2,9 +2,13 @@
 
 The Writer Agent generates draft chunks following the chapter briefs,
 incorporating verified claims and maintaining style consistency.
+
+For long chapters (>3000 words), content is split into sections with
+separate LLM calls to maintain quality and avoid context limits.
 """
 
 import logging
+import math
 from uuid import uuid4
 
 from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
@@ -17,6 +21,9 @@ from prolific.rag.indexes import MultiIndexRAG
 from prolific.rag.retrieval import WriterRetrievalService
 
 logger = logging.getLogger(__name__)
+
+SECTION_WORD_THRESHOLD = 3000
+MAX_WORDS_PER_SECTION = 2000
 
 WRITER_SYSTEM_PROMPT = """You are an expert writer creating content for a book/article.
 
@@ -106,6 +113,7 @@ async def write_node(state: ContentGenerationState) -> dict:
 
     global_memory = state.get("global_memory")
     style_guide = global_memory.style_guide if global_memory else None
+    thread_id = state.get("thread_id")
 
     draft_chunks = []
 
@@ -125,6 +133,7 @@ async def write_node(state: ContentGenerationState) -> dict:
                         query_embedding=query_embedding,
                         chapter_id=str(brief.chapter_id),
                         required_claim_ids=[str(cid) for cid in brief.required_claims],
+                        thread_id=thread_id,
                     )
 
                     context_str = retrieval_service.build_writer_context(retrieval_results)

@@ -30,19 +30,22 @@ class CheckpointerService:
         """
         self.db_path = str(db_path or CHECKPOINT_DB_PATH)
         self._saver: AsyncSqliteSaver | None = None
+        self._conn_manager = None
 
     async def get_saver(self) -> AsyncSqliteSaver:
         """Get or create the AsyncSqliteSaver instance."""
         if self._saver is None:
-            self._saver = AsyncSqliteSaver.from_conn_string(self.db_path)
-            await self._saver.setup()
+            # from_conn_string returns an async context manager, need to enter it
+            self._conn_manager = AsyncSqliteSaver.from_conn_string(self.db_path)
+            self._saver = await self._conn_manager.__aenter__()
         return self._saver
 
     async def close(self) -> None:
         """Close the checkpointer connection."""
-        if self._saver is not None:
-            await self._saver.conn.close()
+        if self._conn_manager is not None:
+            await self._conn_manager.__aexit__(None, None, None)
             self._saver = None
+            self._conn_manager = None
 
     @staticmethod
     def generate_thread_id() -> str:

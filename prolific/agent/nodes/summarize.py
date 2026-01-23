@@ -70,6 +70,7 @@ async def summarize_node(state: ContentGenerationState) -> dict:
     chapter_summaries = []
     all_new_terms = []
     total_words = 0
+    thread_id = state.get("thread_id")
 
     for chunk in new_chunks:
         try:
@@ -101,6 +102,7 @@ async def summarize_node(state: ContentGenerationState) -> dict:
                         "chapter_id": str(chunk.chapter_id),
                         "chapter_title": chapter_title,
                     },
+                    thread_id=thread_id,
                 )
 
                 chunk_embedding = await embedding_service.embed_text(chunk.content[:2000])
@@ -111,6 +113,7 @@ async def summarize_node(state: ContentGenerationState) -> dict:
                     embedding=chunk_embedding,
                     chapter_id=str(chunk.chapter_id),
                     chapter_number=brief.chapter_number if brief else 0,
+                    thread_id=thread_id,
                 )
 
             if global_memory:

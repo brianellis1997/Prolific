@@ -74,6 +74,9 @@ class ContentGenerationState(TypedDict):
     depth: str  # "overview", "standard", "deep", "exhaustive"
     style_preferences: dict[str, str]
 
+    # === THREAD ISOLATION ===
+    thread_id: str  # Unique ID to isolate RAG data between generations
+
     # === MESSAGES (for agent communication history) ===
     messages: Annotated[list[BaseMessage], operator.add]
 
@@ -118,6 +121,7 @@ def create_initial_state(
     depth: str = "standard",
     style_preferences: dict[str, str] | None = None,
     max_iterations: int = 5,
+    thread_id: str | None = None,
 ) -> ContentGenerationState:
     """Create initial state for a new content generation run.
 
@@ -129,10 +133,14 @@ def create_initial_state(
         depth: Depth level (overview, standard, deep, exhaustive)
         style_preferences: Writing style preferences
         max_iterations: Maximum research-write iterations
+        thread_id: Unique thread ID for RAG isolation (generated if None)
 
     Returns:
         Initial ContentGenerationState ready for workflow
     """
+    from uuid import uuid4
+    if thread_id is None:
+        thread_id = str(uuid4())
     from prolific.schemas.memory import StyleGuide
 
     style_guide = StyleGuide()
@@ -157,6 +165,7 @@ def create_initial_state(
         target_word_count=target_word_count,
         depth=depth,
         style_preferences=style_preferences or {},
+        thread_id=thread_id,
         messages=[],
         source_candidates=[],
         approved_sources=[],

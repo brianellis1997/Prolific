@@ -71,6 +71,7 @@ class WriterRetrievalService:
         query_embedding: list[float],
         chapter_id: str,
         required_claim_ids: list[str] | None = None,
+        thread_id: str | None = None,
     ) -> dict[str, Any]:
         """Retrieve context for a writer within budget constraints.
 
@@ -78,6 +79,7 @@ class WriterRetrievalService:
             query_embedding: Embedding of the chapter brief/topic
             chapter_id: Current chapter ID (excluded from de-dup check)
             required_claim_ids: Claim IDs that must be included
+            thread_id: Thread ID to filter by (prevents cross-contamination)
 
         Returns:
             Dict with book_context, similar_drafts, evidence, and flags
@@ -90,7 +92,7 @@ class WriterRetrievalService:
         }
 
         book_results = self.rag.query_book_memory(
-            query_embedding=query_embedding, n_results=10
+            query_embedding=query_embedding, n_results=10, thread_id=thread_id
         )
         if book_results["documents"] and book_results["documents"][0]:
             results["book_context"] = self._truncate_to_budget(
@@ -101,6 +103,7 @@ class WriterRetrievalService:
             query_embedding=query_embedding,
             n_results=15,
             exclude_chapter_id=chapter_id,
+            thread_id=thread_id,
         )
         if draft_results["documents"] and draft_results["documents"][0]:
             for doc, dist, meta in zip(
@@ -136,7 +139,7 @@ class WriterRetrievalService:
                 )
 
         evidence_query_results = self.rag.query_evidence(
-            query_embedding=query_embedding, n_results=20
+            query_embedding=query_embedding, n_results=20, thread_id=thread_id
         )
         if evidence_query_results["documents"] and evidence_query_results["documents"][0]:
             remaining_budget = self.evidence_budget - sum(

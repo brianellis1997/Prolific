@@ -76,16 +76,20 @@ class MultiIndexRAG:
         text: str,
         embedding: list[float],
         metadata: dict[str, Any] | None = None,
+        thread_id: str | None = None,
     ) -> None:
         """Add a document to the book memory index.
 
         Use for: rolling summaries, chapter outlines, glossary entries, style examples.
         """
+        meta = metadata or {}
+        if thread_id:
+            meta["thread_id"] = thread_id
         self.book_memory_index.add(
             ids=[doc_id],
             embeddings=[embedding],
             documents=[text],
-            metadatas=[metadata or {}],
+            metadatas=[meta],
         )
 
     def add_to_draft_chunks(
@@ -96,6 +100,7 @@ class MultiIndexRAG:
         chapter_id: str,
         chapter_number: int,
         metadata: dict[str, Any] | None = None,
+        thread_id: str | None = None,
     ) -> None:
         """Add a draft chunk to the draft index.
 
@@ -103,6 +108,8 @@ class MultiIndexRAG:
         """
         meta = metadata or {}
         meta.update({"chapter_id": chapter_id, "chapter_number": chapter_number})
+        if thread_id:
+            meta["thread_id"] = thread_id
 
         self.draft_chunk_index.add(
             ids=[chunk_id],
@@ -119,6 +126,7 @@ class MultiIndexRAG:
         source_id: str,
         claim_ids: list[str] | None = None,
         metadata: dict[str, Any] | None = None,
+        thread_id: str | None = None,
     ) -> None:
         """Add evidence or claim to the evidence index.
 
@@ -128,6 +136,8 @@ class MultiIndexRAG:
         meta.update(
             {"source_id": source_id, "claim_ids": ",".join(claim_ids or [])}
         )
+        if thread_id:
+            meta["thread_id"] = thread_id
 
         self.evidence_index.add(
             ids=[evidence_id],
@@ -141,15 +151,20 @@ class MultiIndexRAG:
         query_embedding: list[float],
         n_results: int = 5,
         where: dict[str, Any] | None = None,
+        thread_id: str | None = None,
     ) -> dict[str, Any]:
         """Query the book memory index for context.
 
         Returns summaries, outlines, glossary relevant to the query.
+        Filters by thread_id if provided to prevent cross-contamination.
         """
+        effective_where = dict(where) if where else {}
+        if thread_id:
+            effective_where["thread_id"] = thread_id
         return self.book_memory_index.query(
             query_embeddings=[query_embedding],
             n_results=n_results,
-            where=where,
+            where=effective_where if effective_where else None,
             include=["documents", "metadatas", "distances"],
         )
 
@@ -158,14 +173,24 @@ class MultiIndexRAG:
         query_embedding: list[float],
         n_results: int = 10,
         exclude_chapter_id: str | None = None,
+        thread_id: str | None = None,
     ) -> dict[str, Any]:
         """Query draft chunks for de-duplication checking.
 
         Optionally exclude the current chapter from results.
+        Filters by thread_id if provided to prevent cross-contamination.
         """
-        where = None
+        where_conditions = []
         if exclude_chapter_id:
-            where = {"chapter_id": {"$ne": exclude_chapter_id}}
+            where_conditions.append({"chapter_id": {"$ne": exclude_chapter_id}})
+        if thread_id:
+            where_conditions.append({"thread_id": thread_id})
+
+        where = None
+        if len(where_conditions) == 1:
+            where = where_conditions[0]
+        elif len(where_conditions) > 1:
+            where = {"$and": where_conditions}
 
         return self.draft_chunk_index.query(
             query_embeddings=[query_embedding],
@@ -179,14 +204,24 @@ class MultiIndexRAG:
         query_embedding: list[float],
         n_results: int = 10,
         source_id: str | None = None,
+        thread_id: str | None = None,
     ) -> dict[str, Any]:
         """Query evidence index for supporting material.
 
         Optionally filter by source.
+        Filters by thread_id if provided to prevent cross-contamination.
         """
-        where = None
+        where_conditions = []
         if source_id:
-            where = {"source_id": source_id}
+            where_conditions.append({"source_id": source_id})
+        if thread_id:
+            where_conditions.append({"thread_id": thread_id})
+
+        where = None
+        if len(where_conditions) == 1:
+            where = where_conditions[0]
+        elif len(where_conditions) > 1:
+            where = {"$and": where_conditions}
 
         return self.evidence_index.query(
             query_embeddings=[query_embedding],

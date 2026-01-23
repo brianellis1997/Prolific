@@ -187,6 +187,7 @@ async def run_content_generation(
             depth=depth,
             style_preferences=style_preferences,
             max_iterations=max_iterations,
+            thread_id=thread_id,
         )
         logger.info(f"Starting new content generation for topic: {topic}, thread_id: {thread_id}")
     else:
@@ -203,6 +204,7 @@ async def run_content_generation(
                 depth=depth,
                 style_preferences=style_preferences,
                 max_iterations=max_iterations,
+                thread_id=thread_id,
             )
             logger.info(f"Thread not found, starting new generation with thread_id: {thread_id}")
 
@@ -262,6 +264,7 @@ async def stream_content_generation(
             depth=depth,
             style_preferences=style_preferences,
             max_iterations=max_iterations,
+            thread_id=thread_id,
         )
         logger.info(f"Starting new streamed generation for topic: {topic}, thread_id: {thread_id}")
     else:
@@ -278,6 +281,7 @@ async def stream_content_generation(
                 depth=depth,
                 style_preferences=style_preferences,
                 max_iterations=max_iterations,
+                thread_id=thread_id,
             )
             logger.info(f"Thread not found, starting new streamed generation with thread_id: {thread_id}")
 

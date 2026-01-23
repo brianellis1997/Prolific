@@ -1,7 +1,8 @@
 """Web content fetching and extraction service.
 
 Fetches URLs and extracts main content using trafilatura
-for clean text extraction.
+for clean text extraction. Special handling for YouTube
+to extract transcripts instead of parsing heavy HTML.
 """
 
 import hashlib
@@ -10,10 +11,22 @@ import re
 from dataclasses import dataclass
 from datetime import datetime
 from dateutil import parser as date_parser
+from urllib.parse import urlparse, parse_qs
 
 import httpx
 from trafilatura import extract, bare_extraction
 from trafilatura.settings import use_config
+
+try:
+    from youtube_transcript_api import YouTubeTranscriptApi
+    from youtube_transcript_api._errors import (
+        TranscriptsDisabled,
+        NoTranscriptFound,
+        VideoUnavailable,
+    )
+    YOUTUBE_TRANSCRIPT_AVAILABLE = True
+except ImportError:
+    YOUTUBE_TRANSCRIPT_AVAILABLE = False
 
 logger = logging.getLogger(__name__)
 
@@ -42,6 +55,8 @@ class WebFetchService:
     removes boilerplate and extracts main article content.
     """
 
+    YOUTUBE_DOMAINS = {"youtube.com", "www.youtube.com", "youtu.be", "m.youtube.com"}
+
     def __init__(self, timeout: int = 30):
         """Initialize web fetch service.
 
@@ -58,6 +73,116 @@ class WebFetchService:
         )
         logger.info("WebFetchService initialized")
 
+    def _is_youtube_url(self, url: str) -> bool:
+        """Check if URL is a YouTube video URL."""
+        try:
+            parsed = urlparse(url)
+            return parsed.netloc.lower() in self.YOUTUBE_DOMAINS
+        except Exception:
+            return False
+
+    def _extract_youtube_video_id(self, url: str) -> str | None:
+        """Extract video ID from YouTube URL."""
+        try:
+            parsed = urlparse(url)
+            if parsed.netloc.lower() == "youtu.be":
+                return parsed.path.strip("/")
+            if "youtube.com" in parsed.netloc.lower():
+                if "/watch" in parsed.path:
+                    query = parse_qs(parsed.query)
+                    return query.get("v", [None])[0]
+                elif "/shorts/" in parsed.path or "/embed/" in parsed.path:
+                    parts = parsed.path.split("/")
+                    for i, part in enumerate(parts):
+                        if part in ("shorts", "embed") and i + 1 < len(parts):
+                            return parts[i + 1]
+        except Exception as e:
+            logger.warning(f"Failed to extract YouTube video ID from {url}: {e}")
+        return None
+
+    async def _fetch_youtube_transcript(self, url: str) -> FetchedContent | None:
+        """Fetch YouTube video transcript.
+
+        Args:
+            url: YouTube video URL
+
+        Returns:
+            FetchedContent with transcript, or None if unavailable
+        """
+        if not YOUTUBE_TRANSCRIPT_AVAILABLE:
+            logger.warning("youtube-transcript-api not installed, skipping YouTube transcript")
+            return None
+
+        video_id = self._extract_youtube_video_id(url)
+        if not video_id:
+            logger.warning(f"Could not extract video ID from {url}")
+            return None
+
+        try:
+            transcript_list = YouTubeTranscriptApi.list_transcripts(video_id)
+
+            transcript = None
+            try:
+                transcript = transcript_list.find_transcript(['en'])
+            except NoTranscriptFound:
+                try:
+                    transcript = transcript_list.find_generated_transcript(['en'])
+                except NoTranscriptFound:
+                    for t in transcript_list:
+                        transcript = t.translate('en')
+                        break
+
+            if not transcript:
+                logger.info(f"No transcript available for YouTube video {video_id}")
+                return None
+
+            transcript_data = transcript.fetch()
+
+            full_text = " ".join(entry["text"] for entry in transcript_data)
+            full_text = re.sub(r'\s+', ' ', full_text).strip()
+
+            video_title = f"YouTube Video {video_id}"
+            try:
+                response = await self._client.get(
+                    f"https://www.youtube.com/oembed?url=https://www.youtube.com/watch?v={video_id}&format=json"
+                )
+                if response.status_code == 200:
+                    oembed = response.json()
+                    video_title = oembed.get("title", video_title)
+                    author = oembed.get("author_name")
+            except Exception:
+                author = None
+
+            content = f"[YouTube Video Transcript]\n\nTitle: {video_title}\n\n{full_text}"
+            content_hash = hashlib.sha256(content.encode()).hexdigest()[:16]
+            word_count = len(content.split())
+
+            logger.info(f"Fetched YouTube transcript for {video_id}: {word_count} words")
+
+            return FetchedContent(
+                url=url,
+                title=video_title,
+                author=author if 'author' in dir() else None,
+                content=content,
+                publish_date=None,
+                word_count=word_count,
+                content_hash=content_hash,
+                fetch_time=datetime.utcnow(),
+            )
+
+        except TranscriptsDisabled:
+            logger.info(f"Transcripts disabled for YouTube video {video_id}")
+            return None
+        except VideoUnavailable:
+            logger.info(f"YouTube video {video_id} unavailable")
+            return None
+        except NoTranscriptFound:
+            logger.info(f"No transcript found for YouTube video {video_id}")
+            return None
+        except Exception as e:
+            logger.warning(f"Failed to fetch YouTube transcript for {video_id}: {e}")
+            return None
+
     async def fetch(
         self,
         url: str,
@@ -72,6 +197,22 @@ class WebFetchService:
         Returns:
             FetchedContent with extracted text and metadata
         """
+        if self._is_youtube_url(url):
+            youtube_content = await self._fetch_youtube_transcript(url)
+            if youtube_content:
+                return youtube_content
+            logger.info(f"YouTube transcript unavailable for {url}, skipping (video content not extractable)")
+            return FetchedContent(
+                url=url,
+                title="YouTube Video (transcript unavailable)",
+                author=None,
+                content="[Video content - transcript not available]",
+                publish_date=None,
+                word_count=0,
+                content_hash=hashlib.sha256(url.encode()).hexdigest()[:16],
+                fetch_time=datetime.utcnow(),
+            )
+
         try:
             response = await self._client.get(url)
             response.raise_for_status()

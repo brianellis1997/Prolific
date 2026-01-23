@@ -72,32 +72,74 @@ export default function Home() {
         throw new Error('No response body');
       }
 
+      let lastProgress: GenerationProgress | null = null;
+      let receivedComplete = false;
+      let buffer = '';
+
       while (true) {
         const { done, value } = await reader.read();
         if (done) break;
 
-        const chunk = decoder.decode(value);
-        const lines = chunk.split('\n');
+        buffer += decoder.decode(value, { stream: true });
 
+        // SSE messages are delimited by double newlines
+        const messages = buffer.split('\n\n');
+        // Keep the last incomplete message in the buffer
+        buffer = messages.pop() || '';
+
+        for (const message of messages) {
+          const lines = message.split('\n');
+          for (const line of lines) {
+            if (line.startsWith('data: ')) {
+              try {
+                const data = JSON.parse(line.slice(6));
+
+                if (data.status === 'complete') {
+                  receivedComplete = true;
+                  if (data.content) {
+                    setResult(data);
+                    setStatus('complete');
+                  } else {
+                    console.warn('Received complete status without content');
+                  }
+                } else if (data.status === 'error') {
+                  setError(data.error);
+                  setStatus('error');
+                } else if (data.node) {
+                  lastProgress = data;
+                  setProgress(prev => [...prev, data]);
+                }
+              } catch (e) {
+                console.warn('Failed to parse SSE data:', e);
+              }
+            }
+          }
+        }
+      }
+
+      // Process any remaining data in buffer
+      if (buffer.trim()) {
+        const lines = buffer.split('\n');
         for (const line of lines) {
           if (line.startsWith('data: ')) {
             try {
               const data = JSON.parse(line.slice(6));
-
               if (data.status === 'complete' && data.content) {
+                receivedComplete = true;
                 setResult(data);
                 setStatus('complete');
-              } else if (data.status === 'error') {
-                setError(data.error);
-                setStatus('error');
-              } else if (data.node) {
-                setProgress(prev => [...prev, data]);
               }
             } catch {
-              // Skip invalid JSON
+              // Ignore partial data
             }
           }
         }
+      }
+
+      // If stream ended but we never got a complete with content
+      if (!receivedComplete && lastProgress) {
+        setError('Generation stream ended unexpectedly. Check if the backend completed.');
+        setStatus('error');
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Unknown error');

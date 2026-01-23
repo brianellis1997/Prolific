@@ -68,3 +68,4 @@ Thumbs.db
 # Jupyter
 .ipynb_checkpoints/
 CLAUDE.md
+generated_images/

@@ -5,9 +5,15 @@ ensures the final content is coherent and non-repetitive, and
 embeds visual assets into the content.
 """
 
+import base64
 import logging
+from pathlib import Path
+from uuid import uuid4
 
 from langchain_core.messages import AIMessage
+
+IMAGES_DIR = Path(__file__).parent.parent.parent.parent / "generated_images"
+IMAGES_DIR.mkdir(exist_ok=True)
 
 from prolific.agent.state import ContentGenerationState
 from prolific.schemas.artifacts import VisualAsset, VisualIntent
@@ -64,11 +70,20 @@ def embed_visuals_in_chapter(
 
     image_blocks = []
     for intent, asset in images_to_embed:
-        if asset.base64_data:
-            mime = f"image/{asset.format}" if asset.format != "jpg" else "image/jpeg"
-            image_url = f"data:{mime};base64,{asset.base64_data}"
-        elif asset.url:
+        if asset.url:
+            # Internet images - use original URL directly
             image_url = asset.url
+        elif asset.base64_data:
+            # Generated plots - save base64 to file
+            img_filename = f"{uuid4()}.{asset.format or 'png'}"
+            img_path = IMAGES_DIR / img_filename
+            try:
+                img_data = base64.b64decode(asset.base64_data)
+                img_path.write_bytes(img_data)
+                image_url = f"http://localhost:8000/images/{img_filename}"
+            except Exception as e:
+                logger.warning(f"Failed to save image: {e}")
+                continue
         elif asset.file_path:
             image_url = asset.file_path
         else:

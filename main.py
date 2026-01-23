@@ -2,12 +2,17 @@
 
 import logging
 from contextlib import asynccontextmanager
+from pathlib import Path
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 
 from prolific.api.v1.generation import router as generation_router
 from prolific.core.config import settings
+
+IMAGES_DIR = Path(__file__).parent / "generated_images"
+IMAGES_DIR.mkdir(exist_ok=True)
 
 logging.basicConfig(
     level=logging.INFO,
@@ -40,6 +45,9 @@ app.add_middleware(
 )
 
 app.include_router(generation_router, prefix=settings.api_prefix)
+
+# Serve generated images
+app.mount("/images", StaticFiles(directory=str(IMAGES_DIR)), name="images")
 
 
 @app.get("/")

@@ -146,14 +146,16 @@ async def stream_content(request: GenerationRequest):
                 max_iterations=request.max_iterations,
                 thread_id=request.thread_id,
             ):
-                if progress.get("_final_state"):
+                if "_final_state" in progress:
                     final_state = progress["_final_state"]
                     thread_id = progress.get("thread_id", thread_id)
+                    logger.info(f"Captured final_state with {len(final_state.get('draft_chunks', []))} chunks")
                 else:
                     thread_id = progress.get("thread_id", thread_id)
                     yield f"data: {json.dumps(progress)}\n\n"
 
             if final_state:
+                logger.info(f"Final state received. Building result...")
                 draft_chunks = final_state.get("draft_chunks", [])
                 chapter_briefs = {b.chapter_id: b for b in final_state.get("chapter_briefs", [])}
 
@@ -182,8 +184,10 @@ async def stream_content(request: GenerationRequest):
                     "references": references,
                     "warnings": final_state.get("warnings", []),
                 }
+                logger.info(f"Sending complete result: {len(content)} chapters, {result['word_count']} words")
                 yield f"data: {json.dumps(result)}\n\n"
             else:
+                logger.warning("No final_state received - sending empty complete")
                 yield f"data: {json.dumps({'status': 'complete', 'thread_id': thread_id})}\n\n"
 
         except Exception as e:

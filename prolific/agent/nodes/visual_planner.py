@@ -41,30 +41,34 @@ class VisualPlanResult(BaseModel):
     chapter_plans: list[ChapterVisualPlan] = Field(default_factory=list)
 
 
-VISUAL_PLANNER_PROMPT = """You are a visual content strategist helping to plan illustrations, charts, and images for written content.
+VISUAL_PLANNER_PROMPT = """You are a visual content strategist planning illustrations, charts, and images for written content.
 
-Analyze the following chapter briefs and determine where visual elements would enhance understanding and engagement.
+Analyze the chapter briefs and recommend visuals based on the ACTUAL CONTENT - not arbitrary quotas.
 
 Content Style: {style}
 Target Audience: {audience}
 
-Consider adding visuals when:
-1. Data or statistics are presented (charts/plots)
-2. Complex concepts need illustration (diagrams)
-3. Comparisons are made (comparison charts, tables)
-4. Processes or workflows are described (flowcharts)
-5. Abstract ideas could benefit from imagery (illustrations)
-6. Breaking up long text sections (relevant images)
+ADD VISUALS WHEN THE CONTENT WARRANTS IT:
+- Statistics, data, or trends → "plot" (bar chart, line graph, pie chart)
+- Processes, workflows, systems → "diagram" (flowchart, architecture diagram)
+- Comparisons between items → "plot" or "diagram" (comparison chart)
+- Abstract concepts that need illustration → "image_web" (relevant imagery)
+- Long text-heavy sections → "image_web" (break up with relevant images)
+
+DO NOT ADD VISUALS:
+- Just to fill space or meet a quota
+- For simple concepts that are clear from text alone
+- When the content is narrative/opinion-based without data
 
 For each visual, specify:
-- visual_type: "plot" for data, "diagram" for processes, "image_web" for stock/retrieved images
+- visual_type: "plot" for data visualization, "diagram" for processes/relationships, "image_web" for retrieved images
 - purpose: "explain", "compare", "show_trend", "illustrate", or "evidence"
-- description: What the visual should show
-- search_queries: 2-3 queries to find or generate the visual
-- placement: Where in the chapter (e.g., "after introduction", "with statistics section")
-- priority: "required" for essential visuals, "recommended" for helpful ones, "optional" for nice-to-have
+- description: Exactly what the visual should show (be specific)
+- search_queries: 2-3 queries to find or generate it
+- placement: Where in the chapter
+- priority: "required" if content is unclear without it, "recommended" if helpful, "optional" if nice-to-have
 
-Limit to 1-3 visuals per chapter. Focus on quality over quantity.
+Be judicious. A philosophy essay might need 0-1 visuals. A data analysis might need 5+ charts per chapter. Let the content dictate the visuals.
 
 Chapter Briefs:
 {chapter_briefs}
@@ -101,7 +105,7 @@ async def visual_planner_node(state: ContentGenerationState) -> dict:
         style = global_memory.style_guide.tone
 
     audience = "general"
-    if state.get("depth") == "technical" or state.get("depth") == "deep":
+    if style in ["technical", "academic", "scientific"]:
         audience = "technical"
 
     briefs_text = "\n\n".join(
@@ -164,7 +168,7 @@ async def visual_planner_node(state: ContentGenerationState) -> dict:
         if not brief:
             continue
 
-        for rec in chapter_plan.recommendations[:3]:
+        for rec in chapter_plan.recommendations[:10]:
             visual_type = type_mapping.get(rec.visual_type.lower(), VisualType.IMAGE_WEB)
             purpose = purpose_mapping.get(rec.purpose.lower(), VisualPurpose.ILLUSTRATE)
 

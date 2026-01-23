@@ -32,6 +32,8 @@ class Settings(BaseSettings):
     verification_model: str = "google/gemini-3-flash-preview"
     # High quality model for writing
     writing_model: str = "anthropic/claude-sonnet-4.5"
+    # Multimodal model for vision tasks (image evaluation, diagram understanding)
+    vision_model: str = "google/gemini-3-flash-preview"
 
     # Embeddings
     openai_api_key: str = ""

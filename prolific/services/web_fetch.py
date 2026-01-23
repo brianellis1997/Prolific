@@ -6,11 +6,13 @@ for clean text extraction.
 
 import hashlib
 import logging
+import re
 from dataclasses import dataclass
 from datetime import datetime
+from dateutil import parser as date_parser
 
 import httpx
-from trafilatura import extract, fetch_url
+from trafilatura import extract, bare_extraction
 from trafilatura.settings import use_config
 
 logger = logging.getLogger(__name__)
@@ -76,26 +78,32 @@ class WebFetchService:
             html = response.text
 
             if extract_main_content:
-                result = extract(
+                extracted = bare_extraction(
                     html,
                     url=url,
                     include_comments=False,
                     include_tables=True,
                     include_links=False,
-                    output_format="txt",
+                    with_metadata=True,
                     config=trafilatura_config,
                 )
-                content = result or ""
 
-                metadata = extract(
-                    html,
-                    url=url,
-                    output_format="xml",
-                    config=trafilatura_config,
-                )
-                title = self._extract_title(html, metadata)
-                author = self._extract_author(metadata)
-                publish_date = self._extract_date(metadata)
+                if extracted:
+                    content = extracted.get("text", "") or ""
+                    title = extracted.get("title") or self._extract_title_from_html(html)
+                    author = extracted.get("author")
+                    date_str = extracted.get("date")
+                    publish_date = self._parse_date(date_str)
+
+                    if not author:
+                        author = self._extract_author_from_html(html)
+                    if not publish_date:
+                        publish_date = self._extract_date_from_html(html)
+                else:
+                    content = ""
+                    title = self._extract_title_from_html(html)
+                    author = self._extract_author_from_html(html)
+                    publish_date = self._extract_date_from_html(html)
             else:
                 content = html
                 title = None
@@ -125,14 +133,8 @@ class WebFetchService:
             logger.error(f"Error fetching {url}: {e}")
             raise
 
-    def _extract_title(self, html: str, metadata: str | None) -> str | None:
-        """Extract title from HTML or metadata."""
-        if metadata and "<title>" in metadata:
-            start = metadata.find("<title>") + 7
-            end = metadata.find("</title>")
-            if end > start:
-                return metadata[start:end].strip()
-
+    def _extract_title_from_html(self, html: str) -> str | None:
+        """Extract title from HTML."""
         if "<title>" in html:
             start = html.find("<title>") + 7
             end = html.find("</title>")
@@ -140,26 +142,54 @@ class WebFetchService:
                 return html[start:end].strip()
         return None
 
-    def _extract_author(self, metadata: str | None) -> str | None:
-        """Extract author from metadata."""
-        if metadata and 'author="' in metadata:
-            start = metadata.find('author="') + 8
-            end = metadata.find('"', start)
-            if end > start:
-                return metadata[start:end].strip()
+    def _extract_author_from_html(self, html: str) -> str | None:
+        """Extract author from HTML meta tags."""
+        patterns = [
+            r'<meta[^>]+name=["\']author["\'][^>]+content=["\'](.*?)["\']',
+            r'<meta[^>]+content=["\'](.*?)["\'][^>]+name=["\']author["\']',
+            r'<meta[^>]+property=["\']article:author["\'][^>]+content=["\'](.*?)["\']',
+            r'<meta[^>]+content=["\'](.*?)["\'][^>]+property=["\']article:author["\']',
+            r'"author":\s*\{\s*"name":\s*"([^"]+)"',
+            r'"author":\s*"([^"]+)"',
+        ]
+        for pattern in patterns:
+            match = re.search(pattern, html, re.IGNORECASE)
+            if match:
+                author = match.group(1).strip()
+                if author and author.lower() not in ["unknown", "anonymous", ""]:
+                    return author
         return None
 
-    def _extract_date(self, metadata: str | None) -> datetime | None:
-        """Extract publish date from metadata."""
-        if metadata and 'date="' in metadata:
-            start = metadata.find('date="') + 6
-            end = metadata.find('"', start)
-            if end > start:
-                date_str = metadata[start:end].strip()
-                try:
-                    return datetime.fromisoformat(date_str.replace("Z", "+00:00"))
-                except ValueError:
-                    pass
+    def _extract_date_from_html(self, html: str) -> datetime | None:
+        """Extract publish date from HTML meta tags."""
+        patterns = [
+            r'<meta[^>]+property=["\']article:published_time["\'][^>]+content=["\'](.*?)["\']',
+            r'<meta[^>]+content=["\'](.*?)["\'][^>]+property=["\']article:published_time["\']',
+            r'<meta[^>]+name=["\']date["\'][^>]+content=["\'](.*?)["\']',
+            r'<meta[^>]+name=["\']publish[_-]?date["\'][^>]+content=["\'](.*?)["\']',
+            r'"datePublished":\s*"([^"]+)"',
+            r'"publishedDate":\s*"([^"]+)"',
+        ]
+        for pattern in patterns:
+            match = re.search(pattern, html, re.IGNORECASE)
+            if match:
+                parsed = self._parse_date(match.group(1))
+                if parsed:
+                    return parsed
+        return None
+
+    def _parse_date(self, date_str: str | None) -> datetime | None:
+        """Parse date string into datetime using multiple formats."""
+        if not date_str:
+            return None
+        try:
+            return date_parser.parse(date_str)
+        except (ValueError, TypeError):
+            pass
+        try:
+            return datetime.fromisoformat(date_str.replace("Z", "+00:00"))
+        except ValueError:
+            pass
         return None
 
     async def close(self):

@@ -213,3 +213,153 @@ class ContentGap(BaseModel):
 
     class Config:
         frozen = False
+
+
+class VisualType(str, Enum):
+    """Types of visual assets."""
+
+    IMAGE_WEB = "image_web"  # Retrieved from the web
+    IMAGE_GENERATED = "image_generated"  # AI-generated
+    PLOT = "plot"  # Data visualization (matplotlib, seaborn)
+    DIAGRAM = "diagram"  # Flowchart, architecture diagram
+    TABLE = "table"  # Data table
+
+
+class VisualPurpose(str, Enum):
+    """Purpose of a visual in the content."""
+
+    EXPLAIN = "explain"  # Explain a concept
+    COMPARE = "compare"  # Compare options/data
+    SHOW_TREND = "show_trend"  # Display data trends
+    ILLUSTRATE = "illustrate"  # Add visual interest
+    EVIDENCE = "evidence"  # Support a claim with data
+
+
+class VisualIntent(BaseModel):
+    """Describes a visual that should be created/retrieved.
+
+    Created by Visual Planner to specify what visual is needed.
+    """
+
+    id: UUID = Field(default_factory=uuid4)
+    chapter_id: UUID
+    section_index: int = 0
+    placement_hint: str = ""  # e.g., "after paragraph 3"
+
+    visual_type: VisualType
+    purpose: VisualPurpose
+    description: str  # What the visual should show
+    search_queries: list[str] = Field(default_factory=list)  # For web retrieval
+
+    related_claims: list[UUID] = Field(default_factory=list)
+    data_requirements: dict[str, Any] = Field(default_factory=dict)
+
+    priority: Literal["required", "recommended", "optional"] = "recommended"
+    style_constraints: list[str] = Field(default_factory=list)
+
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+
+    class Config:
+        frozen = False
+
+
+class FigureSpec(BaseModel):
+    """Specification for generating a data plot.
+
+    Used by Plot Generator to create matplotlib/seaborn visualizations.
+    """
+
+    id: UUID = Field(default_factory=uuid4)
+    intent_id: UUID  # Reference to VisualIntent
+
+    chart_type: Literal[
+        "line", "bar", "scatter", "histogram", "heatmap",
+        "pie", "box", "area", "timeline"
+    ]
+    title: str
+    x_label: str = ""
+    y_label: str = ""
+
+    data_source: Literal["claim_data", "external_url", "inline", "synthetic"]
+    data: dict[str, Any] = Field(default_factory=dict)  # Inline data
+    data_url: str | None = None  # External data source
+
+    aggregation: str | None = None  # e.g., "sum", "mean", "count"
+    filters: dict[str, Any] = Field(default_factory=dict)
+
+    style_theme: str = "default"  # matplotlib/seaborn theme
+    color_palette: str | None = None
+    figure_size: tuple[int, int] = (10, 6)
+
+    code_language: Literal["python"] = "python"
+    generated_code: str | None = None
+
+    class Config:
+        frozen = False
+
+
+class VisualAsset(BaseModel):
+    """A generated or retrieved visual asset.
+
+    The final visual that can be inserted into the content.
+    """
+
+    id: UUID = Field(default_factory=uuid4)
+    intent_id: UUID  # Reference to VisualIntent
+    figure_spec_id: UUID | None = None  # If from FigureSpec
+
+    visual_type: VisualType
+    source: Literal["generated", "web", "plot"]
+
+    file_path: str | None = None  # Local path to image
+    url: str | None = None  # Original URL if from web
+    base64_data: str | None = None  # Inline image data
+
+    caption: str = ""
+    alt_text: str = ""
+
+    width: int | None = None
+    height: int | None = None
+    format: Literal["png", "svg", "jpg", "webp"] = "png"
+
+    provenance: dict[str, Any] = Field(default_factory=dict)
+    license_info: str | None = None
+    attribution: str | None = None
+
+    quality_score: float = Field(ge=0.0, le=1.0, default=0.7)
+    relevance_score: float = Field(ge=0.0, le=1.0, default=0.7)
+
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+
+    class Config:
+        frozen = False
+
+
+class QualityIssue(BaseModel):
+    """A quality issue identified during integration.
+
+    Used for tracking and auto-remediation of content issues.
+    """
+
+    id: UUID = Field(default_factory=uuid4)
+    issue_type: Literal[
+        "repetition", "missing_citation", "style_mismatch",
+        "contradiction", "poor_transition", "factual_error",
+        "unclear_writing", "missing_context"
+    ]
+    severity: Literal["critical", "major", "minor"] = "minor"
+    description: str
+
+    location_chapter_id: UUID | None = None
+    location_section: str | None = None
+    location_text: str | None = None  # Snippet of problematic text
+
+    suggested_fix: str = ""
+    auto_fixable: bool = False
+    fix_applied: bool = False
+
+    confidence: float = Field(ge=0.0, le=1.0, default=0.7)
+    identified_at: datetime = Field(default_factory=datetime.utcnow)
+
+    class Config:
+        frozen = False

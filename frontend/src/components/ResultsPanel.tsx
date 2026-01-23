@@ -129,13 +129,18 @@ export function ResultsPanel({ result, onReset }: ResultsPanelProps) {
       {/* Warnings */}
       {result.warnings.length > 0 && (
         <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 mb-6">
-          <div className="flex items-center gap-2 text-amber-800 mb-2">
-            <AlertTriangle className="w-5 h-5" />
-            <span className="font-medium">Quality Notes</span>
+          <div className="flex items-center justify-between gap-2 text-amber-800 mb-2">
+            <div className="flex items-center gap-2">
+              <AlertTriangle className="w-5 h-5" />
+              <span className="font-medium">Quality Notes</span>
+            </div>
+            <span className="text-sm text-amber-600">
+              {result.warnings.length} issue{result.warnings.length !== 1 ? 's' : ''}
+            </span>
           </div>
-          <ul className="text-sm text-amber-700 space-y-1">
-            {result.warnings.slice(0, 5).map((warning, i) => (
-              <li key={i}>• {warning}</li>
+          <ul className="text-sm text-amber-700 space-y-1 max-h-48 overflow-y-auto">
+            {result.warnings.map((warning, i) => (
+              <li key={i} className="py-1">• {warning}</li>
             ))}
           </ul>
         </div>

@@ -12,15 +12,20 @@ from langgraph.graph import END, START, StateGraph
 from prolific.agent.nodes import (
     cross_check_node,
     extract_node,
+    image_retriever_node,
     integrate_node,
+    plot_generator_node,
+    quality_remediate_node,
     replan_node,
     research_node,
     summarize_node,
     synthesize_node,
     verify_node,
+    visual_planner_node,
     write_node,
 )
 from prolific.agent.state import ContentGenerationState
+from prolific.schemas.artifacts import VisualType
 from prolific.services.checkpointer import get_checkpointer_service
 
 logger = logging.getLogger(__name__)
@@ -60,19 +65,84 @@ def should_continue_after_replan(
         return "done"
 
 
+def should_generate_visuals(
+    state: ContentGenerationState,
+) -> Literal["visual_planner", "write"]:
+    """Route after synthesize: plan visuals if this is the first iteration, else write."""
+    visual_intents = state.get("visual_intents", [])
+    iteration = state.get("iteration_count", 0)
+    if iteration == 0 and not visual_intents:
+        return "visual_planner"
+    else:
+        return "write"
+
+
+def route_visual_generation(
+    state: ContentGenerationState,
+) -> Literal["plot_generator", "image_retriever", "write"]:
+    """Determine which visual generation node to run first based on visual intents.
+
+    Priority: plots first (generated locally), then images (web retrieval).
+    Both nodes route to write when done.
+    """
+    visual_intents = state.get("visual_intents", [])
+    existing_assets = {str(a.intent_id) for a in state.get("visual_assets", [])}
+
+    needs_plots = any(
+        intent.visual_type == VisualType.PLOT
+        and str(intent.id) not in existing_assets
+        for intent in visual_intents
+    )
+    needs_images = any(
+        intent.visual_type == VisualType.IMAGE_WEB
+        and str(intent.id) not in existing_assets
+        for intent in visual_intents
+    )
+
+    if needs_plots:
+        return "plot_generator"
+    elif needs_images:
+        return "image_retriever"
+    else:
+        return "write"
+
+
+def route_after_plot_generator(
+    state: ContentGenerationState,
+) -> Literal["image_retriever", "write"]:
+    """After generating plots, check if images are also needed."""
+    visual_intents = state.get("visual_intents", [])
+    existing_assets = {str(a.intent_id) for a in state.get("visual_assets", [])}
+
+    needs_images = any(
+        intent.visual_type == VisualType.IMAGE_WEB
+        and str(intent.id) not in existing_assets
+        for intent in visual_intents
+    )
+
+    if needs_images:
+        return "image_retriever"
+    else:
+        return "write"
+
+
 def build_content_generation_graph(checkpointer=None) -> StateGraph:
     """Build the main content generation workflow graph.
 
     The graph follows this flow:
     1. Research: Find sources
-    2. Verify: Validate sources
+    2. Verify: Validate sources (dynamic limit based on word count/depth)
     3. Extract: Extract claims from sources
     4. Cross-check: Verify claims across sources
     5. Synthesize: Create chapter briefs
-    6. Write: Generate content
-    7. Summarize: Update book memory
-    8. Integrate: Check consistency
-    9. Replan: Decide to continue or finish
+    6. Visual Planning: Plan images, plots, diagrams for chapters
+    7. Plot Generator: Generate matplotlib/seaborn visualizations
+    8. Image Retriever: Fetch images from the web
+    9. Write: Generate content
+    10. Summarize: Update book memory
+    11. Integrate: Check consistency
+    12. Quality Remediate: Auto-fix quality issues
+    13. Replan: Decide to continue or finish
 
     Args:
         checkpointer: Optional checkpointer for persistence
@@ -87,9 +157,13 @@ def build_content_generation_graph(checkpointer=None) -> StateGraph:
     graph.add_node("extract", extract_node)
     graph.add_node("cross_check", cross_check_node)
     graph.add_node("synthesize", synthesize_node)
+    graph.add_node("visual_planner", visual_planner_node)
+    graph.add_node("plot_generator", plot_generator_node)
+    graph.add_node("image_retriever", image_retriever_node)
     graph.add_node("write", write_node)
     graph.add_node("summarize", summarize_node)
     graph.add_node("integrate", integrate_node)
+    graph.add_node("quality_remediate", quality_remediate_node)
     graph.add_node("replan", replan_node)
 
     graph.add_edge(START, "research")
@@ -113,16 +187,38 @@ def build_content_generation_graph(checkpointer=None) -> StateGraph:
         "synthesize",
         should_continue_after_synthesize,
         {
-            "write": "write",
+            "write": "visual_planner",
             "replan": "replan",
         },
     )
+
+    graph.add_conditional_edges(
+        "visual_planner",
+        route_visual_generation,
+        {
+            "plot_generator": "plot_generator",
+            "image_retriever": "image_retriever",
+            "write": "write",
+        },
+    )
+
+    graph.add_conditional_edges(
+        "plot_generator",
+        route_after_plot_generator,
+        {
+            "image_retriever": "image_retriever",
+            "write": "write",
+        },
+    )
+    graph.add_edge("image_retriever", "write")
 
     graph.add_edge("write", "summarize")
 
     graph.add_edge("summarize", "integrate")
 
-    graph.add_edge("integrate", "replan")
+    graph.add_edge("integrate", "quality_remediate")
+
+    graph.add_edge("quality_remediate", "replan")
 
     graph.add_conditional_edges(
         "replan",
@@ -292,7 +388,8 @@ async def stream_content_generation(
 
     LIST_MERGE_FIELDS = {
         "claims", "approved_sources", "evidence_snippets", "source_candidates",
-        "chapter_briefs", "draft_chunks", "content_gaps"
+        "chapter_briefs", "draft_chunks", "content_gaps", "visual_intents",
+        "visual_assets", "quality_issues"
     }
     APPEND_FIELDS = {"messages", "errors", "warnings"}
     DICT_MERGE_FIELDS = {"local_memories"}
@@ -350,6 +447,9 @@ async def stream_content_generation(
             "word_count": sum(
                 c.word_count for c in accumulated_state.get("draft_chunks", [])
             ),
+            "visual_intent_count": len(accumulated_state.get("visual_intents", [])),
+            "visual_asset_count": len(accumulated_state.get("visual_assets", [])),
+            "quality_issue_count": len(accumulated_state.get("quality_issues", [])),
         }
 
     yield {"_final_state": accumulated_state, "thread_id": thread_id}

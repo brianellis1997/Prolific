@@ -16,7 +16,10 @@ from prolific.schemas.artifacts import (
     ContentGap,
     DraftChunk,
     EvidenceSnippet,
+    QualityIssue,
     SourceCandidate,
+    VisualAsset,
+    VisualIntent,
 )
 from prolific.schemas.memory import GlobalBookMemory, LocalChapterMemory
 
@@ -88,6 +91,11 @@ class ContentGenerationState(TypedDict):
     chapter_briefs: Annotated[list[ChapterBrief], merge_artifacts_by_id]
     draft_chunks: Annotated[list[DraftChunk], merge_artifacts_by_id]
     content_gaps: Annotated[list[ContentGap], merge_artifacts_by_id]
+
+    # === VISUAL ARTIFACTS ===
+    visual_intents: Annotated[list[VisualIntent], merge_artifacts_by_id]
+    visual_assets: Annotated[list[VisualAsset], merge_artifacts_by_id]
+    quality_issues: Annotated[list[QualityIssue], merge_artifacts_by_id]
 
     # === MEMORY ===
     global_memory: Annotated[GlobalBookMemory, replace_value]
@@ -174,6 +182,9 @@ def create_initial_state(
         chapter_briefs=[],
         draft_chunks=[],
         content_gaps=[],
+        visual_intents=[],
+        visual_assets=[],
+        quality_issues=[],
         global_memory=global_memory,
         local_memories={},
         current_phase="research",

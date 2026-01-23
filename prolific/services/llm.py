@@ -16,7 +16,7 @@ from prolific.core.config import settings
 
 logger = logging.getLogger(__name__)
 
-ModelTier = Literal["research", "extraction", "writing", "verification"]
+ModelTier = Literal["research", "extraction", "writing", "verification", "vision"]
 
 
 class LLMService:
@@ -45,6 +45,7 @@ class LLMService:
             "extraction": settings.extraction_model,
             "writing": settings.writing_model,
             "verification": settings.verification_model,
+            "vision": settings.vision_model,
         }
 
         self._llm_cache: dict[str, ChatOpenAI] = {}
@@ -129,6 +130,92 @@ class LLMService:
         llm = self.get_llm(tier, temperature)
         structured_llm = llm.with_structured_output(output_schema)
         return await structured_llm.ainvoke(messages)
+
+    async def invoke_with_image(
+        self,
+        prompt: str,
+        image_base64: str,
+        image_format: str = "png",
+        tier: ModelTier = "vision",
+        temperature: float = 0.3,
+    ) -> str:
+        """Invoke the LLM with an image for multimodal analysis.
+
+        Args:
+            prompt: Text prompt describing what to analyze
+            image_base64: Base64-encoded image data
+            image_format: Image format (png, jpg, webp)
+            tier: Model tier to use (defaults to vision)
+            temperature: Sampling temperature
+
+        Returns:
+            Model's text response about the image
+        """
+        from langchain_core.messages import HumanMessage
+
+        mime_type = f"image/{image_format}"
+        if image_format == "jpg":
+            mime_type = "image/jpeg"
+
+        message = HumanMessage(
+            content=[
+                {"type": "text", "text": prompt},
+                {
+                    "type": "image_url",
+                    "image_url": {
+                        "url": f"data:{mime_type};base64,{image_base64}",
+                    },
+                },
+            ]
+        )
+
+        llm = self.get_llm(tier, temperature)
+        response = await llm.ainvoke([message])
+        return response.content
+
+    async def invoke_with_image_structured(
+        self,
+        prompt: str,
+        image_base64: str,
+        output_schema: type,
+        image_format: str = "png",
+        tier: ModelTier = "vision",
+        temperature: float = 0.3,
+    ) -> Any:
+        """Invoke the LLM with an image and get structured output.
+
+        Args:
+            prompt: Text prompt describing what to analyze
+            image_base64: Base64-encoded image data
+            output_schema: Pydantic model for structured output
+            image_format: Image format (png, jpg, webp)
+            tier: Model tier to use (defaults to vision)
+            temperature: Sampling temperature
+
+        Returns:
+            Parsed output matching the schema
+        """
+        from langchain_core.messages import HumanMessage
+
+        mime_type = f"image/{image_format}"
+        if image_format == "jpg":
+            mime_type = "image/jpeg"
+
+        message = HumanMessage(
+            content=[
+                {"type": "text", "text": prompt},
+                {
+                    "type": "image_url",
+                    "image_url": {
+                        "url": f"data:{mime_type};base64,{image_base64}",
+                    },
+                },
+            ]
+        )
+
+        llm = self.get_llm(tier, temperature)
+        structured_llm = llm.with_structured_output(output_schema)
+        return await structured_llm.ainvoke([message])
 
 
 _llm_service: LLMService | None = None

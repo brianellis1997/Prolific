@@ -27,6 +27,7 @@ class WriterRetrievalService:
         book_memory_budget: int | None = None,
         draft_chunk_budget: int | None = None,
         evidence_budget: int | None = None,
+        previous_content_budget: int | None = None,
     ):
         """Initialize retrieval service with budget limits.
 
@@ -35,11 +36,13 @@ class WriterRetrievalService:
             book_memory_budget: Token budget for book memory (default from config)
             draft_chunk_budget: Token budget for draft chunks (default from config)
             evidence_budget: Token budget for evidence (default from config)
+            previous_content_budget: Token budget for previous chapter content (default 1500)
         """
         self.rag = rag
         self.book_memory_budget = book_memory_budget or settings.book_memory_budget
         self.draft_chunk_budget = draft_chunk_budget or settings.draft_chunk_budget
         self.evidence_budget = evidence_budget or settings.evidence_budget
+        self.previous_content_budget = previous_content_budget or 1500
 
     def _estimate_tokens(self, text: str) -> int:
         """Estimate token count for text (rough heuristic: 1 token ≈ 4 chars)."""
@@ -87,6 +90,7 @@ class WriterRetrievalService:
         results = {
             "book_context": [],
             "similar_drafts": [],
+            "previous_content": [],
             "evidence": [],
             "repetition_warnings": [],
         }
@@ -106,25 +110,35 @@ class WriterRetrievalService:
             thread_id=thread_id,
         )
         if draft_results["documents"] and draft_results["documents"][0]:
+            relevant_snippets = []
             for doc, dist, meta in zip(
                 draft_results["documents"][0],
                 draft_results["distances"][0],
                 draft_results["metadatas"][0],
             ):
                 similarity = 1 - dist
+                chapter_num = meta.get("chapter_number", "unknown")
                 entry = {
                     "text": doc,
                     "similarity": similarity,
-                    "chapter_number": meta.get("chapter_number", "unknown"),
+                    "chapter_number": chapter_num,
                     "avoid": similarity > 0.70,
                 }
                 results["similar_drafts"].append(entry)
 
                 if similarity > 0.70:
                     results["repetition_warnings"].append(
-                        f"High similarity ({similarity:.0%}) with chapter "
-                        f"{meta.get('chapter_number', 'unknown')}"
+                        f"High similarity ({similarity:.0%}) with chapter {chapter_num}"
                     )
+
+                if 0.40 <= similarity <= 0.70:
+                    relevant_snippets.append({
+                        "text": doc[:800],
+                        "chapter_number": chapter_num,
+                        "similarity": similarity,
+                    })
+
+            results["previous_content"] = relevant_snippets[:5]
 
             draft_texts = [d["text"] for d in results["similar_drafts"]]
             results["similar_drafts_text"] = self._truncate_to_budget(
@@ -169,6 +183,15 @@ class WriterRetrievalService:
             for ctx in retrieval_results["book_context"]:
                 sections.append(f"- {ctx}")
             sections.append("")
+
+        if retrieval_results.get("previous_content"):
+            sections.append("## Relevant Content from Previous Chapters (reference but don't repeat)")
+            for snippet in retrieval_results["previous_content"]:
+                chapter_num = snippet.get("chapter_number", "?")
+                text = snippet.get("text", "")
+                sections.append(f"**Chapter {chapter_num}:**")
+                sections.append(f'"{text}..."')
+                sections.append("")
 
         if retrieval_results.get("repetition_warnings"):
             sections.append("## AVOID REPETITION - Similar Content Exists:")

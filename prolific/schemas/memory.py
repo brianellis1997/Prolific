@@ -72,6 +72,12 @@ class GlobalBookMemory(BaseModel):
     # Progress tracking
     completed_chapters: list[UUID] = Field(default_factory=list)
     rolling_summary: str = ""  # Updated after each chapter
+
+    # Hierarchical summaries for long documents
+    chapter_summaries: list[str] = Field(default_factory=list)  # Individual chapter summaries
+    part_summaries: list[str] = Field(default_factory=list)  # Summaries of groups of chapters
+    chapters_per_part: int = 5  # How many chapters before creating a part summary
+
     topics_covered: set[str] = Field(default_factory=set)
     topics_remaining: set[str] = Field(default_factory=set)
 

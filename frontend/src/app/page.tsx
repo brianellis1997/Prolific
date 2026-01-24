@@ -1,10 +1,11 @@
 'use client';
 
 import { useState } from 'react';
+import Link from 'next/link';
 import { GenerationForm } from '@/components/GenerationForm';
 import { ProgressPanel } from '@/components/ProgressPanel';
 import { ResultsPanel } from '@/components/ResultsPanel';
-import { BookOpen, Sparkles } from 'lucide-react';
+import { BookOpen, Sparkles, Clock } from 'lucide-react';
 
 export type GenerationStatus = 'idle' | 'generating' | 'complete' | 'error';
 
@@ -22,6 +23,7 @@ export interface GenerationProgress {
 export interface GenerationResult {
   status: string;
   topic: string;
+  thread_id?: string;
   word_count: number;
   chapter_count: number;
   source_count: number;
@@ -32,6 +34,7 @@ export interface GenerationResult {
     content: string;
     word_count: number;
   }>;
+  references?: string;
   warnings: string[];
 }
 
@@ -161,23 +164,34 @@ export default function Home() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
-              <div className="bg-primary-500 p-2 rounded-lg">
-                <BookOpen className="w-6 h-6 text-white" />
-              </div>
-              <div>
-                <h1 className="text-xl font-bold text-gray-900">Prolific</h1>
-                <p className="text-sm text-gray-500">AI Content Generation</p>
-              </div>
+              <Link href="/" className="flex items-center gap-3">
+                <div className="bg-primary-500 p-2 rounded-lg">
+                  <BookOpen className="w-6 h-6 text-white" />
+                </div>
+                <div>
+                  <h1 className="text-xl font-bold text-gray-900">Prolific</h1>
+                  <p className="text-sm text-gray-500">AI Content Generation</p>
+                </div>
+              </Link>
             </div>
-            {status !== 'idle' && (
-              <button
-                onClick={handleReset}
-                className="text-sm text-gray-600 hover:text-gray-900 flex items-center gap-1"
+            <nav className="flex items-center gap-4">
+              {status !== 'idle' && (
+                <button
+                  onClick={handleReset}
+                  className="text-sm text-gray-600 hover:text-gray-900 flex items-center gap-1 px-3 py-2 rounded-lg hover:bg-gray-100"
+                >
+                  <Sparkles className="w-4 h-4" />
+                  New Generation
+                </button>
+              )}
+              <Link
+                href="/history"
+                className="text-sm text-gray-600 hover:text-gray-900 flex items-center gap-1 px-3 py-2 rounded-lg hover:bg-gray-100"
               >
-                <Sparkles className="w-4 h-4" />
-                New Generation
-              </button>
-            )}
+                <Clock className="w-4 h-4" />
+                History
+              </Link>
+            </nav>
           </div>
         </div>
       </header>

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import ReactMarkdown from 'react-markdown';
 import {
   BookOpen,
@@ -20,6 +20,7 @@ interface ResultsPanelProps {
   result: {
     status: string;
     topic: string;
+    thread_id?: string;
     word_count: number;
     chapter_count: number;
     source_count: number;
@@ -40,6 +41,25 @@ export function ResultsPanel({ result, onReset }: ResultsPanelProps) {
   const [currentChapter, setCurrentChapter] = useState(0);
   const [copied, setCopied] = useState(false);
   const [showReferences, setShowReferences] = useState(false);
+  const [downloadingPdf, setDownloadingPdf] = useState(false);
+  const [showDownloadMenu, setShowDownloadMenu] = useState(false);
+  const downloadMenuRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (downloadMenuRef.current && !downloadMenuRef.current.contains(event.target as Node)) {
+        setShowDownloadMenu(false);
+      }
+    };
+
+    if (showDownloadMenu) {
+      document.addEventListener('mousedown', handleClickOutside);
+    }
+
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [showDownloadMenu]);
 
   const hasContent = result.content && result.content.length > 0;
   const chapter = hasContent ? result.content[currentChapter] : null;
@@ -75,6 +95,39 @@ export function ResultsPanel({ result, onReset }: ResultsPanelProps) {
     a.download = `${result.topic.replace(/[^a-z0-9]/gi, '_').toLowerCase()}.md`;
     a.click();
     URL.revokeObjectURL(url);
+    setShowDownloadMenu(false);
+  };
+
+  const downloadPdf = async () => {
+    if (!result.thread_id) {
+      alert('PDF download requires a thread ID. Please try generating again.');
+      return;
+    }
+
+    setDownloadingPdf(true);
+    setShowDownloadMenu(false);
+
+    try {
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+      const response = await fetch(`${apiUrl}/generation/threads/${result.thread_id}/pdf`);
+
+      if (!response.ok) {
+        throw new Error('Failed to generate PDF');
+      }
+
+      const blob = await response.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `${result.topic.replace(/[^a-z0-9]/gi, '_').toLowerCase()}.pdf`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch (error) {
+      console.error('PDF download failed:', error);
+      alert('Failed to download PDF. Please try again.');
+    } finally {
+      setDownloadingPdf(false);
+    }
   };
 
   return (
@@ -107,13 +160,35 @@ export function ResultsPanel({ result, onReset }: ResultsPanelProps) {
               )}
               {copied ? 'Copied!' : 'Copy All'}
             </button>
-            <button
-              onClick={downloadMarkdown}
-              className="flex items-center gap-2 px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700"
-            >
-              <Download className="w-4 h-4" />
-              Download
-            </button>
+            <div className="relative" ref={downloadMenuRef}>
+              <button
+                onClick={() => setShowDownloadMenu(!showDownloadMenu)}
+                disabled={downloadingPdf}
+                className="flex items-center gap-2 px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 disabled:opacity-50"
+              >
+                <Download className="w-4 h-4" />
+                {downloadingPdf ? 'Generating PDF...' : 'Download'}
+              </button>
+              {showDownloadMenu && (
+                <div className="absolute right-0 mt-2 w-48 bg-white rounded-lg shadow-lg border border-gray-200 py-1 z-10">
+                  <button
+                    onClick={downloadMarkdown}
+                    className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 flex items-center gap-2"
+                  >
+                    <FileText className="w-4 h-4" />
+                    Markdown (.md)
+                  </button>
+                  <button
+                    onClick={downloadPdf}
+                    disabled={!result.thread_id}
+                    className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    <BookOpen className="w-4 h-4" />
+                    PDF with images
+                  </button>
+                </div>
+              )}
+            </div>
           </div>
         </div>
       </div>

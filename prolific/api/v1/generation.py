@@ -4,7 +4,7 @@ import logging
 from typing import AsyncGenerator
 
 from fastapi import APIRouter, HTTPException
-from fastapi.responses import StreamingResponse
+from fastapi.responses import Response, StreamingResponse
 from pydantic import BaseModel, Field
 import json
 
@@ -287,6 +287,80 @@ async def delete_thread(thread_id: str):
         raise
     except Exception as e:
         logger.error(f"Failed to delete thread {thread_id}: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/threads/{thread_id}/pdf")
+async def download_thread_pdf(thread_id: str):
+    """Download a generation thread as a PDF.
+
+    Args:
+        thread_id: The thread ID to export as PDF
+    """
+    from prolific.services.pdf_export import generate_pdf
+
+    try:
+        checkpointer_service = get_checkpointer_service()
+        state = await checkpointer_service.get_thread_state(thread_id)
+        if state is None:
+            raise HTTPException(status_code=404, detail="Thread not found")
+
+        topic = state.get("topic", "Untitled")
+        draft_chunks = state.get("draft_chunks", [])
+        chapter_briefs = {b.chapter_id: b for b in state.get("chapter_briefs", [])}
+        approved_sources = state.get("approved_sources", [])
+        visual_assets = state.get("visual_assets", [])
+
+        chapters = []
+        for chunk in sorted(draft_chunks, key=lambda c: chapter_briefs.get(c.chapter_id, type("", (), {"chapter_number": 0})).chapter_number):
+            brief = chapter_briefs.get(chunk.chapter_id)
+            chapters.append({
+                "chapter_number": brief.chapter_number if brief else 0,
+                "title": brief.title if brief else "Untitled",
+                "content": chunk.content,
+            })
+
+        references = None
+        if approved_sources:
+            ref_lines = ["\n## Bibliography\n"]
+            for i, source in enumerate(approved_sources, 1):
+                author = getattr(source, 'author', None) or 'Unknown'
+                title = getattr(source, 'title', 'Untitled')
+                url = getattr(source, 'url', '')
+                pub_date = getattr(source, 'publication_date', None)
+
+                date_str = ""
+                if pub_date:
+                    try:
+                        date_str = f" ({pub_date.strftime('%Y')})"
+                    except:
+                        pass
+
+                ref_lines.append(f"{i}. {author}. \"{title}\"{date_str}. {url}\n")
+            references = "\n".join(ref_lines)
+
+        pdf_bytes = generate_pdf(
+            chapters=chapters,
+            topic=topic,
+            references=references,
+            visual_assets=visual_assets if visual_assets else None,
+        )
+
+        safe_filename = "".join(c if c.isalnum() or c in " -_" else "_" for c in topic)[:50]
+        filename = f"{safe_filename}.pdf"
+
+        return Response(
+            content=pdf_bytes,
+            media_type="application/pdf",
+            headers={
+                "Content-Disposition": f'attachment; filename="{filename}"',
+            },
+        )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Failed to generate PDF for thread {thread_id}: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 

@@ -20,7 +20,7 @@ from prolific.tools.verification_tools import (
 
 logger = logging.getLogger(__name__)
 
-CREDIBILITY_THRESHOLD = 0.5
+CREDIBILITY_THRESHOLD = 0.6
 
 # Target sources per depth - NOT forced minimums, just targets for replan to consider
 DEPTH_TARGETS = {
@@ -173,6 +173,12 @@ async def verify_node(state: ContentGenerationState) -> dict:
 
             except Exception as e:
                 logger.warning(f"Could not fetch content from {candidate.url}: {e}")
+                continue
+
+            # Only approve sources with actual fetchable content
+            if not content or not content.strip():
+                logger.info(f"No content fetched, skipping: {candidate.url}")
+                continue
 
             source_type = credibility_result.get("source_type", candidate.source_type)
             if source_type == "unknown" or source_type not in ["academic", "news", "book", "website", "primary"]:

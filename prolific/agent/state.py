@@ -118,6 +118,11 @@ class ContentGenerationState(TypedDict):
     needs_replan: bool
     needs_remediation: bool  # True if quality issues need remediation
 
+    # === SOURCE TRACKING ===
+    source_shortage: bool  # True if approved sources < target
+    source_shortage_amount: int  # How many sources below target
+    source_target: int  # Target number of sources based on depth/word count
+
     # === ERROR HANDLING ===
     errors: Annotated[list[str], operator.add]
     warnings: Annotated[list[str], operator.add]
@@ -202,6 +207,9 @@ def create_initial_state(
         integration_complete=False,
         needs_replan=False,
         needs_remediation=False,
+        source_shortage=False,
+        source_shortage_amount=0,
+        source_target=10,
         errors=[],
         warnings=[],
     )

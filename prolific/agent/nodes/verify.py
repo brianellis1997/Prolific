@@ -22,84 +22,64 @@ logger = logging.getLogger(__name__)
 
 CREDIBILITY_THRESHOLD = 0.5
 
-DEPTH_MULTIPLIERS = {
-    "overview": 0.5,
-    "standard": 1.0,
-    "deep": 1.5,
-    "exhaustive": 2.0,
+# Target sources per depth - NOT forced minimums, just targets for replan to consider
+DEPTH_TARGETS = {
+    "overview": 5,
+    "standard": 10,
+    "deep": 20,
+    "exhaustive": 35,
 }
 
-MIN_SOURCES = 10
 MAX_SOURCES = 150
-SOURCES_PER_2K_WORDS = 1
-SOURCES_PER_REPLAN = 10
 
 
-def calculate_dynamic_source_limit(
+def calculate_source_target(
     target_word_count: int,
     depth: str,
-    iteration_count: int = 0,
 ) -> int:
-    """Calculate dynamic source limit based on content requirements.
+    """Calculate target source count based on content requirements.
 
-    The limit scales with:
-    - Target word count: ~1 source per 2000 words
-    - Depth level: multiplier for deeper research
-    - Iteration count: additional sources allowed per replan cycle
+    This is a TARGET, not a minimum - we never force bad sources.
+    If we don't meet the target, replan can trigger more research.
 
     Args:
         target_word_count: Target word count for the content
         depth: Depth level (overview, standard, deep, exhaustive)
-        iteration_count: Current iteration number (allows expansion on replan)
 
     Returns:
-        Dynamic source limit between MIN_SOURCES and MAX_SOURCES
+        Target source count (not enforced, just advisory)
     """
-    base_sources = target_word_count // 2000 * SOURCES_PER_2K_WORDS
+    # Base: ~1.5 sources per 2000 words
+    word_based = int((target_word_count / 2000) * 1.5)
 
-    depth_multiplier = DEPTH_MULTIPLIERS.get(depth, 1.0)
-    scaled_sources = int(base_sources * depth_multiplier)
+    # Depth target
+    depth_target = DEPTH_TARGETS.get(depth, 10)
 
-    replan_bonus = iteration_count * SOURCES_PER_REPLAN
-
-    total = scaled_sources + replan_bonus
-
-    return max(MIN_SOURCES, min(total, MAX_SOURCES))
+    # Use higher of word-based or depth target
+    return max(word_based, depth_target)
 
 
 async def verify_node(state: ContentGenerationState) -> dict:
     """Verify source candidates and produce approved sources.
 
     This node:
-    1. Evaluates each candidate's credibility
-    2. Checks recency for time-sensitive topics
-    3. Fetches content for approved sources
-    4. Creates ApprovedSource artifacts
-
-    Source limit is dynamically calculated based on:
-    - target_word_count: More words = more sources needed
-    - depth: Deeper research = more sources
-    - iteration_count: Replan cycles can expand the limit
+    1. Evaluates ALL candidates (scores each one)
+    2. Keeps all that pass the threshold (quality-based, not count-based)
+    3. Sorts by score, caps at MAX_SOURCES
+    4. Reports if below target so replan can trigger more research
 
     Args:
         state: Current workflow state
 
     Returns:
-        Dict with approved_sources to merge into state
+        Dict with approved_sources and source_shortage flag
     """
     target_word_count = state.get("target_word_count", 50000)
     depth = state.get("depth", "standard")
-    iteration_count = state.get("iteration_count", 0)
 
-    source_limit = calculate_dynamic_source_limit(
+    source_target = calculate_source_target(
         target_word_count=target_word_count,
         depth=depth,
-        iteration_count=iteration_count,
-    )
-
-    logger.info(
-        f"Verify node starting with {len(state['source_candidates'])} candidates. "
-        f"Dynamic source limit: {source_limit} (words={target_word_count}, depth={depth}, iter={iteration_count})"
     )
 
     candidates = state.get("source_candidates", [])
@@ -109,6 +89,11 @@ async def verify_node(state: ContentGenerationState) -> dict:
         c for c in candidates if c.id not in existing_approved
     ]
 
+    logger.info(
+        f"Verify node starting with {len(candidates_to_verify)} candidates. "
+        f"Target: {source_target} sources (depth={depth})"
+    )
+
     if not candidates_to_verify:
         logger.info("No new candidates to verify")
         return {
@@ -117,10 +102,16 @@ async def verify_node(state: ContentGenerationState) -> dict:
             "messages": [AIMessage(content="No new sources to verify.")],
         }
 
-    approved_sources = []
+    # Score ALL candidates - collect (candidate, score, credibility_result) tuples
+    scored_candidates = []
     rejected_count = 0
 
-    for candidate in candidates_to_verify[:source_limit * 2]:
+    logger.info(f"Scoring all {len(candidates_to_verify)} candidates...")
+
+    for idx, candidate in enumerate(candidates_to_verify):
+        if idx > 0 and idx % 50 == 0:
+            logger.info(f"  Progress: {idx}/{len(candidates_to_verify)} candidates scored")
+
         try:
             credibility_result = await assess_source_credibility.ainvoke({
                 "url": candidate.url,
@@ -129,20 +120,42 @@ async def verify_node(state: ContentGenerationState) -> dict:
             })
 
             if credibility_result["recommendation"] == "reject":
-                logger.info(f"Rejected source: {candidate.url} - {credibility_result['concerns']}")
                 rejected_count += 1
                 continue
 
             credibility_score = credibility_result["credibility_score"]
             if credibility_score < CREDIBILITY_THRESHOLD:
-                logger.info(f"Low credibility ({credibility_score}): {candidate.url}")
                 rejected_count += 1
                 continue
 
+            # Passed threshold - add to scored list
+            scored_candidates.append((candidate, credibility_score, credibility_result))
+
+        except Exception as e:
+            logger.warning(f"Error scoring {candidate.url}: {e}")
+            continue
+
+    logger.info(
+        f"Scoring complete: {len(scored_candidates)} passed threshold, "
+        f"{rejected_count} rejected"
+    )
+
+    # Sort by score (highest first) and cap at MAX_SOURCES
+    scored_candidates.sort(key=lambda x: x[1], reverse=True)
+    top_candidates = scored_candidates[:MAX_SOURCES]
+
+    logger.info(f"Keeping top {len(top_candidates)} sources (max={MAX_SOURCES})")
+
+    # Now fetch content and create ApprovedSource for each
+    approved_sources = []
+
+    for candidate, credibility_score, credibility_result in top_candidates:
+        try:
             content = None
             content_hash = ""
             publish_date = None
             fetch_result = {}
+
             try:
                 fetch_result = await fetch_url_content.ainvoke({"url": candidate.url})
                 content = fetch_result.get("content", "")
@@ -155,7 +168,7 @@ async def verify_node(state: ContentGenerationState) -> dict:
                         "topic": state["topic"],
                     })
                     if recency_result.get("staleness_risk") == "high":
-                        logger.info(f"Stale source: {candidate.url}")
+                        logger.info(f"Stale source skipped: {candidate.url}")
                         continue
 
             except Exception as e:
@@ -201,30 +214,34 @@ async def verify_node(state: ContentGenerationState) -> dict:
                 credibility_score=credibility_score,
                 content_hash=content_hash,
                 full_text=content,
-                topics_covered=candidate.metadata.get("topics", []),
+                topics_covered=candidate.metadata.get("topics", []) if candidate.metadata else [],
                 verification_notes="; ".join(credibility_result.get("strengths", [])),
             )
             approved_sources.append(approved)
 
-            if len(approved_sources) >= source_limit:
-                logger.info(f"Reached dynamic source limit of {source_limit}")
-                break
-
         except Exception as e:
-            logger.error(f"Error verifying {candidate.url}: {e}")
+            logger.error(f"Error processing approved source {candidate.url}: {e}")
             continue
 
+    # Check if we're below target
+    source_shortage = len(approved_sources) < source_target
+    shortage_amount = source_target - len(approved_sources) if source_shortage else 0
+
     logger.info(
-        f"Verification complete: {len(approved_sources)} approved, {rejected_count} rejected"
+        f"Verification complete: {len(approved_sources)} approved, {rejected_count} rejected. "
+        f"Target: {source_target}. Shortage: {shortage_amount if source_shortage else 'None'}"
     )
+
+    message = f"Verified {len(approved_sources)} sources (target: {source_target})."
+    if source_shortage:
+        message += f" {shortage_amount} below target - may need more research."
 
     return {
         "approved_sources": approved_sources,
+        "source_shortage": source_shortage,
+        "source_shortage_amount": shortage_amount,
+        "source_target": source_target,
         "current_phase": "extract",
         "verification_complete": True,
-        "messages": [
-            AIMessage(
-                content=f"Verified {len(approved_sources)} sources. {rejected_count} rejected."
-            )
-        ],
+        "messages": [AIMessage(content=message)],
     }

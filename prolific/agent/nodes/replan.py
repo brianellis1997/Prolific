@@ -37,6 +37,11 @@ Chapters completed: {chapters_completed}
 Verified claims available: {claim_count}
 Research iterations so far: {iteration_count} / {max_iterations}
 
+Source Status:
+- Approved sources: {approved_sources}
+- Target sources: {source_target}
+- Source shortage: {source_shortage_text}
+
 Recent warnings/issues:
 {warnings}
 
@@ -46,13 +51,14 @@ Quality Issues (from integration):
 Analyze whether:
 1. The content adequately covers the topic
 2. There are significant gaps in coverage
-3. More research is needed
+3. More research is needed (especially if there's a source shortage)
 4. There are critical quality issues that need remediation before finishing
 5. We're ready to finalize
 
 Identify specific gaps if any, with priority (critical, high, medium, low).
 Suggest search queries for any gaps found.
 
+Set has_critical_gaps=true if there's a significant source shortage OR topic coverage gaps.
 Set has_critical_quality_issues=true if there are unfixed critical quality issues (repetition, contradictions, etc.)
 Recommend "remediate" if quality issues need another pass, "continue" for more research, or "finish" if ready."""
 
@@ -130,6 +136,17 @@ async def replan_node(state: ContentGenerationState) -> dict:
     else:
         quality_issues_text = "No quality issues identified."
 
+    # Get source shortage info from state
+    approved_sources = state.get("approved_sources", [])
+    source_target = state.get("source_target", 10)
+    source_shortage = state.get("source_shortage", False)
+    source_shortage_amount = state.get("source_shortage_amount", 0)
+
+    if source_shortage:
+        source_shortage_text = f"YES - {source_shortage_amount} sources below target. Need more research."
+    else:
+        source_shortage_text = "No - met or exceeded target."
+
     system_message = SystemMessage(
         content=REPLAN_SYSTEM_PROMPT.format(
             topic=state["topic"],
@@ -140,6 +157,9 @@ async def replan_node(state: ContentGenerationState) -> dict:
             claim_count=len(verified_claims),
             iteration_count=iteration_count,
             max_iterations=max_iterations,
+            approved_sources=len(approved_sources),
+            source_target=source_target,
+            source_shortage_text=source_shortage_text,
             warnings=warnings_text,
             quality_issues_text=quality_issues_text,
         )
@@ -205,10 +225,15 @@ Should we continue researching or is the content complete enough to finish?"""
         and remediation_count < max_remediations
     )
 
+    # Continue if: LLM says continue with critical gaps, OR we have a significant source shortage
+    significant_shortage = source_shortage and source_shortage_amount >= 5
+
     should_continue = (
-        result.recommendation == "continue"
-        and result.has_critical_gaps
-        and iteration_count < max_iterations
+        iteration_count < max_iterations
+        and (
+            (result.recommendation == "continue" and result.has_critical_gaps)
+            or significant_shortage
+        )
     )
 
     if should_remediate:
@@ -227,7 +252,14 @@ Should we continue researching or is the content complete enough to finish?"""
             ],
         }
     elif should_continue:
-        logger.info(f"Gaps identified. Continuing research (iteration {iteration_count})")
+        reason = []
+        if result.has_critical_gaps:
+            reason.append(f"{len(content_gaps)} content gaps")
+        if significant_shortage:
+            reason.append(f"source shortage ({source_shortage_amount} below target)")
+        reason_text = " and ".join(reason) if reason else "gaps identified"
+
+        logger.info(f"Continuing research: {reason_text} (iteration {iteration_count})")
         return {
             "content_gaps": content_gaps,
             "iteration_count": iteration_count,
@@ -236,7 +268,7 @@ Should we continue researching or is the content complete enough to finish?"""
             "current_phase": "research",
             "messages": [
                 AIMessage(
-                    content=f"Found {len(content_gaps)} gaps. Starting research iteration {iteration_count}."
+                    content=f"Continuing research: {reason_text}. Starting iteration {iteration_count}."
                 )
             ],
         }

@@ -369,6 +369,7 @@ class BlogPublishRequest(BaseModel):
 
     excerpt: str | None = Field(default=None, description="Custom excerpt (auto-generated if not provided)")
     slug: str | None = Field(default=None, description="Custom slug (auto-generated from topic if not provided)")
+    auto_commit: bool = Field(default=False, description="Auto git commit after publishing")
 
 
 class BlogPublishResponse(BaseModel):
@@ -379,6 +380,8 @@ class BlogPublishResponse(BaseModel):
     slug: str
     title: str
     url: str
+    git_status: str | None = None
+    images_copied: int = 0
 
 
 @router.post("/threads/{thread_id}/blog", response_model=BlogPublishResponse)
@@ -387,12 +390,14 @@ async def publish_to_blog(thread_id: str, request: BlogPublishRequest | None = N
 
     Converts the generated content to a blog-ready markdown file with
     frontmatter and writes it to the blog/content/posts directory.
+    Also copies any images to the blog's public folder.
 
     Args:
         thread_id: The thread ID to publish
         request: Optional customization (excerpt, slug)
     """
     import re
+    import shutil
     from datetime import datetime
     from pathlib import Path
 
@@ -405,9 +410,29 @@ async def publish_to_blog(thread_id: str, request: BlogPublishRequest | None = N
         topic = state.get("topic", "Untitled")
         draft_chunks = state.get("draft_chunks", [])
         chapter_briefs = {b.chapter_id: b for b in state.get("chapter_briefs", [])}
+        visual_assets = state.get("visual_assets", [])
 
         if not draft_chunks:
             raise HTTPException(status_code=400, detail="No content to publish")
+
+        if request and request.slug:
+            slug = request.slug
+        else:
+            slug = re.sub(r'[^a-z0-9]+', '-', topic.lower()).strip('-')
+
+        project_root = Path(__file__).parent.parent.parent.parent
+        blog_images_dir = project_root / "blog" / "public" / "images" / slug
+        blog_images_dir.mkdir(parents=True, exist_ok=True)
+
+        image_path_map = {}
+        for asset in visual_assets:
+            if asset.file_path:
+                src_path = Path(asset.file_path)
+                if src_path.exists():
+                    dest_path = blog_images_dir / src_path.name
+                    shutil.copy2(src_path, dest_path)
+                    image_path_map[asset.file_path] = f"/images/{slug}/{src_path.name}"
+                    logger.info(f"Copied image: {src_path.name}")
 
         sorted_chunks = sorted(
             draft_chunks,
@@ -417,17 +442,15 @@ async def publish_to_blog(thread_id: str, request: BlogPublishRequest | None = N
         content_parts = []
         for chunk in sorted_chunks:
             brief = chapter_briefs.get(chunk.chapter_id)
+            chunk_content = chunk.content
+            for old_path, new_path in image_path_map.items():
+                chunk_content = chunk_content.replace(old_path, new_path)
             if brief and len(sorted_chunks) > 1:
-                content_parts.append(f"## {brief.title}\n\n{chunk.content}")
+                content_parts.append(f"## {brief.title}\n\n{chunk_content}")
             else:
-                content_parts.append(chunk.content)
+                content_parts.append(chunk_content)
 
         full_content = "\n\n".join(content_parts)
-
-        if request and request.slug:
-            slug = request.slug
-        else:
-            slug = re.sub(r'[^a-z0-9]+', '-', topic.lower()).strip('-')
 
         if request and request.excerpt:
             excerpt = request.excerpt
@@ -449,7 +472,6 @@ excerpt: "{excerpt.replace('"', '\\"')}"
 '''
         blog_content = frontmatter + full_content
 
-        project_root = Path(__file__).parent.parent.parent.parent
         blog_posts_dir = project_root / "blog" / "content" / "posts"
 
         if not blog_posts_dir.exists():
@@ -463,12 +485,36 @@ excerpt: "{excerpt.replace('"', '\\"')}"
 
         logger.info(f"Published blog post: {file_path}")
 
+        git_status = None
+        if request and request.auto_commit:
+            import subprocess
+            try:
+                subprocess.run(
+                    ["git", "add", str(file_path), str(blog_images_dir)],
+                    cwd=project_root,
+                    check=True,
+                    capture_output=True,
+                )
+                subprocess.run(
+                    ["git", "commit", "-m", f"Add blog post: {topic}"],
+                    cwd=project_root,
+                    check=True,
+                    capture_output=True,
+                )
+                git_status = "committed"
+                logger.info(f"Git commit successful for: {slug}")
+            except subprocess.CalledProcessError as e:
+                git_status = f"commit_failed: {e.stderr.decode() if e.stderr else str(e)}"
+                logger.warning(f"Git commit failed: {e}")
+
         return BlogPublishResponse(
             status="published",
             file_path=str(file_path),
             slug=slug,
             title=topic,
             url=f"/posts/{slug}",
+            git_status=git_status,
+            images_copied=len(image_path_map),
         )
 
     except HTTPException:

@@ -45,7 +45,12 @@ export function ResultsPanel({ result, onReset }: ResultsPanelProps) {
   const [downloadingPdf, setDownloadingPdf] = useState(false);
   const [showDownloadMenu, setShowDownloadMenu] = useState(false);
   const [publishingBlog, setPublishingBlog] = useState(false);
-  const [blogPublished, setBlogPublished] = useState<{ slug: string; url: string } | null>(null);
+  const [blogPublished, setBlogPublished] = useState<{
+    slug: string;
+    url: string;
+    git_status: string | null;
+    images_copied: number;
+  } | null>(null);
   const downloadMenuRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -133,7 +138,7 @@ export function ResultsPanel({ result, onReset }: ResultsPanelProps) {
     }
   };
 
-  const publishToBlog = async () => {
+  const publishToBlog = async (autoCommit: boolean = false) => {
     if (!result.thread_id) {
       alert('Blog publish requires a thread ID. Please try generating again.');
       return;
@@ -147,7 +152,7 @@ export function ResultsPanel({ result, onReset }: ResultsPanelProps) {
       const response = await fetch(`${apiUrl}/api/v1/generation/threads/${result.thread_id}/blog`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({}),
+        body: JSON.stringify({ auto_commit: autoCommit }),
       });
 
       if (!response.ok) {
@@ -156,7 +161,12 @@ export function ResultsPanel({ result, onReset }: ResultsPanelProps) {
       }
 
       const data = await response.json();
-      setBlogPublished({ slug: data.slug, url: data.url });
+      setBlogPublished({
+        slug: data.slug,
+        url: data.url,
+        git_status: data.git_status,
+        images_copied: data.images_copied,
+      });
     } catch (error) {
       console.error('Blog publish failed:', error);
       alert(error instanceof Error ? error.message : 'Failed to publish to blog. Please try again.');
@@ -223,12 +233,20 @@ export function ResultsPanel({ result, onReset }: ResultsPanelProps) {
                   </button>
                   <div className="border-t border-gray-200 my-1" />
                   <button
-                    onClick={publishToBlog}
+                    onClick={() => publishToBlog(false)}
                     disabled={!result.thread_id || publishingBlog}
                     className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     <Globe className="w-4 h-4" />
                     {publishingBlog ? 'Publishing...' : 'Publish to Blog'}
+                  </button>
+                  <button
+                    onClick={() => publishToBlog(true)}
+                    disabled={!result.thread_id || publishingBlog}
+                    className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    <Globe className="w-4 h-4" />
+                    {publishingBlog ? 'Publishing...' : 'Publish + Git Commit'}
                   </button>
                 </div>
               )}
@@ -245,9 +263,20 @@ export function ResultsPanel({ result, onReset }: ResultsPanelProps) {
               <Globe className="w-5 h-5 text-blue-600" />
               <div>
                 <p className="text-blue-900 font-medium">Published to blog!</p>
-                <p className="text-blue-700 text-sm">
-                  File saved. Run <code className="bg-blue-100 px-1 rounded">git add && git commit && git push</code> to deploy.
-                </p>
+                {blogPublished.images_copied > 0 && (
+                  <p className="text-blue-700 text-sm">
+                    {blogPublished.images_copied} image{blogPublished.images_copied !== 1 ? 's' : ''} copied.
+                  </p>
+                )}
+                {blogPublished.git_status === 'committed' ? (
+                  <p className="text-blue-700 text-sm">
+                    Committed! Run <code className="bg-blue-100 px-1 rounded">git push</code> to deploy.
+                  </p>
+                ) : (
+                  <p className="text-blue-700 text-sm">
+                    Run <code className="bg-blue-100 px-1 rounded">git add . && git commit -m &quot;New post&quot; && git push</code> to deploy.
+                  </p>
+                )}
               </div>
             </div>
             <button

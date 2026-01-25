@@ -364,6 +364,120 @@ async def download_thread_pdf(thread_id: str):
         raise HTTPException(status_code=500, detail=str(e))
 
 
+class BlogPublishRequest(BaseModel):
+    """Request to publish content to the blog."""
+
+    excerpt: str | None = Field(default=None, description="Custom excerpt (auto-generated if not provided)")
+    slug: str | None = Field(default=None, description="Custom slug (auto-generated from topic if not provided)")
+
+
+class BlogPublishResponse(BaseModel):
+    """Response from blog publish."""
+
+    status: str
+    file_path: str
+    slug: str
+    title: str
+    url: str
+
+
+@router.post("/threads/{thread_id}/blog", response_model=BlogPublishResponse)
+async def publish_to_blog(thread_id: str, request: BlogPublishRequest | None = None):
+    """Publish a generation thread to the blog.
+
+    Converts the generated content to a blog-ready markdown file with
+    frontmatter and writes it to the blog/content/posts directory.
+
+    Args:
+        thread_id: The thread ID to publish
+        request: Optional customization (excerpt, slug)
+    """
+    import re
+    from datetime import datetime
+    from pathlib import Path
+
+    try:
+        checkpointer_service = get_checkpointer_service()
+        state = await checkpointer_service.get_thread_state(thread_id)
+        if state is None:
+            raise HTTPException(status_code=404, detail="Thread not found")
+
+        topic = state.get("topic", "Untitled")
+        draft_chunks = state.get("draft_chunks", [])
+        chapter_briefs = {b.chapter_id: b for b in state.get("chapter_briefs", [])}
+
+        if not draft_chunks:
+            raise HTTPException(status_code=400, detail="No content to publish")
+
+        sorted_chunks = sorted(
+            draft_chunks,
+            key=lambda c: chapter_briefs.get(c.chapter_id, type("", (), {"chapter_number": 0})).chapter_number
+        )
+
+        content_parts = []
+        for chunk in sorted_chunks:
+            brief = chapter_briefs.get(chunk.chapter_id)
+            if brief and len(sorted_chunks) > 1:
+                content_parts.append(f"## {brief.title}\n\n{chunk.content}")
+            else:
+                content_parts.append(chunk.content)
+
+        full_content = "\n\n".join(content_parts)
+
+        if request and request.slug:
+            slug = request.slug
+        else:
+            slug = re.sub(r'[^a-z0-9]+', '-', topic.lower()).strip('-')
+
+        if request and request.excerpt:
+            excerpt = request.excerpt
+        else:
+            first_para = full_content.split('\n\n')[0]
+            first_para = re.sub(r'\[([^\]]+)\]\([^)]+\)', r'\1', first_para)
+            first_para = re.sub(r'\*\*([^*]+)\*\*', r'\1', first_para)
+            first_para = re.sub(r'\*([^*]+)\*', r'\1', first_para)
+            excerpt = first_para[:250] + "..." if len(first_para) > 250 else first_para
+
+        today = datetime.now().strftime("%Y-%m-%d")
+
+        frontmatter = f'''---
+title: "{topic}"
+date: "{today}"
+excerpt: "{excerpt.replace('"', '\\"')}"
+---
+
+'''
+        blog_content = frontmatter + full_content
+
+        project_root = Path(__file__).parent.parent.parent.parent
+        blog_posts_dir = project_root / "blog" / "content" / "posts"
+
+        if not blog_posts_dir.exists():
+            raise HTTPException(
+                status_code=500,
+                detail=f"Blog posts directory not found: {blog_posts_dir}"
+            )
+
+        file_path = blog_posts_dir / f"{slug}.md"
+        file_path.write_text(blog_content, encoding="utf-8")
+
+        logger.info(f"Published blog post: {file_path}")
+
+        return BlogPublishResponse(
+            status="published",
+            file_path=str(file_path),
+            slug=slug,
+            title=topic,
+            url=f"/posts/{slug}",
+        )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Failed to publish to blog: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 @router.get("/health")
 async def health_check():
     """Check if the generation service is healthy."""

@@ -13,7 +13,8 @@ import {
   Search,
   MessageSquare,
   AlertTriangle,
-  Sparkles
+  Sparkles,
+  Globe
 } from 'lucide-react';
 
 interface ResultsPanelProps {
@@ -43,6 +44,8 @@ export function ResultsPanel({ result, onReset }: ResultsPanelProps) {
   const [showReferences, setShowReferences] = useState(false);
   const [downloadingPdf, setDownloadingPdf] = useState(false);
   const [showDownloadMenu, setShowDownloadMenu] = useState(false);
+  const [publishingBlog, setPublishingBlog] = useState(false);
+  const [blogPublished, setBlogPublished] = useState<{ slug: string; url: string } | null>(null);
   const downloadMenuRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -130,6 +133,38 @@ export function ResultsPanel({ result, onReset }: ResultsPanelProps) {
     }
   };
 
+  const publishToBlog = async () => {
+    if (!result.thread_id) {
+      alert('Blog publish requires a thread ID. Please try generating again.');
+      return;
+    }
+
+    setPublishingBlog(true);
+    setShowDownloadMenu(false);
+
+    try {
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+      const response = await fetch(`${apiUrl}/api/v1/generation/threads/${result.thread_id}/blog`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({}),
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.detail || 'Failed to publish to blog');
+      }
+
+      const data = await response.json();
+      setBlogPublished({ slug: data.slug, url: data.url });
+    } catch (error) {
+      console.error('Blog publish failed:', error);
+      alert(error instanceof Error ? error.message : 'Failed to publish to blog. Please try again.');
+    } finally {
+      setPublishingBlog(false);
+    }
+  };
+
   return (
     <div className="max-w-6xl mx-auto">
       {/* Success Banner */}
@@ -186,12 +221,44 @@ export function ResultsPanel({ result, onReset }: ResultsPanelProps) {
                     <BookOpen className="w-4 h-4" />
                     PDF with images
                   </button>
+                  <div className="border-t border-gray-200 my-1" />
+                  <button
+                    onClick={publishToBlog}
+                    disabled={!result.thread_id || publishingBlog}
+                    className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    <Globe className="w-4 h-4" />
+                    {publishingBlog ? 'Publishing...' : 'Publish to Blog'}
+                  </button>
                 </div>
               )}
             </div>
           </div>
         </div>
       </div>
+
+      {/* Blog Published Banner */}
+      {blogPublished && (
+        <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 mb-6">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <Globe className="w-5 h-5 text-blue-600" />
+              <div>
+                <p className="text-blue-900 font-medium">Published to blog!</p>
+                <p className="text-blue-700 text-sm">
+                  File saved. Run <code className="bg-blue-100 px-1 rounded">git add && git commit && git push</code> to deploy.
+                </p>
+              </div>
+            </div>
+            <button
+              onClick={() => setBlogPublished(null)}
+              className="text-blue-600 hover:text-blue-800 text-sm"
+            >
+              Dismiss
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Stats Row */}
       <div className="grid grid-cols-4 gap-4 mb-6">

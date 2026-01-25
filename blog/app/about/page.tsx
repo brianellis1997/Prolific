@@ -45,7 +45,7 @@ export default function AboutPage() {
 
       <div className="prose">
         <p className="text-lg text-gray-700 leading-relaxed">
-          I'm a Machine Learning Engineer with over 6 years of experience designing, developing,
+          I&apos;m a Machine Learning Engineer with over 6 years of experience designing, developing,
           and deploying ML models across defense and enterprise environments. Currently building
           production LLM-based agentic systems, RAG pipelines, and fine-tuned transformer models
           for DoD customers.
@@ -81,7 +81,7 @@ export default function AboutPage() {
           <div className="text-gray-700 leading-relaxed">
             <p className="mb-3">
               Before diving into data science, I studied <strong>music composition at Penn State</strong>.
-              I'm a classically trained pianist and composer, with Bach and Chopin being my greatest
+              I&apos;m a classically trained pianist and composer, with Bach and Chopin being my greatest
               inspirations. Music remains a core part of my life—I still compose and perform regularly.
             </p>
             <p>
@@ -100,8 +100,8 @@ export default function AboutPage() {
 
         <h2>What This Blog Covers</h2>
         <p>
-          Here you'll find deep dives into machine learning, AI developments, LLM applications,
-          and explorations of emerging technologies. Some posts are AI-assisted using tools I've
+          Here you&apos;ll find deep dives into machine learning, AI developments, LLM applications,
+          and explorations of emerging technologies. Some posts are AI-assisted using tools I&apos;ve
           built—combining automated research with human curation to create well-researched,
           long-form content.
         </p>
@@ -134,7 +134,7 @@ export default function AboutPage() {
             >
               LinkedIn
             </a>{' '}
-            if you'd like to connect.
+            if you&apos;d like to connect.
           </p>
         </div>
       </div>

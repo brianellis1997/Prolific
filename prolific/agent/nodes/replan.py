@@ -99,6 +99,7 @@ async def replan_node(state: ContentGenerationState) -> dict:
         return {
             "iteration_count": iteration_count,
             "needs_replan": False,
+            "needs_remediation": False,
             "current_phase": "done",
             "messages": [
                 AIMessage(
@@ -112,6 +113,7 @@ async def replan_node(state: ContentGenerationState) -> dict:
         return {
             "iteration_count": iteration_count,
             "needs_replan": False,
+            "needs_remediation": False,
             "current_phase": "done",
             "messages": [
                 AIMessage(
@@ -195,6 +197,7 @@ Should we continue researching or is the content complete enough to finish?"""
             return {
                 "iteration_count": iteration_count,
                 "needs_replan": False,
+                "needs_remediation": False,
                 "current_phase": "done",
                 "messages": [AIMessage(content="Analysis failed but near completion. Finishing.")],
             }
@@ -202,6 +205,7 @@ Should we continue researching or is the content complete enough to finish?"""
             return {
                 "iteration_count": iteration_count,
                 "needs_replan": True,
+                "needs_remediation": False,
                 "current_phase": "research",
                 "messages": [AIMessage(content="Analysis failed. Continuing research.")],
             }

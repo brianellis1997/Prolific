@@ -278,6 +278,7 @@ async def run_content_generation(
 
     if thread_id is None:
         thread_id = checkpointer_service.generate_thread_id()
+        await checkpointer_service.register_thread(thread_id, topic)
         initial_state = create_initial_state(
             topic=topic,
             subtopics=subtopics,
@@ -295,6 +296,7 @@ async def run_content_generation(
             initial_state = existing_state
             logger.info(f"Resuming content generation from thread_id: {thread_id}")
         else:
+            await checkpointer_service.register_thread(thread_id, topic)
             initial_state = create_initial_state(
                 topic=topic,
                 subtopics=subtopics,
@@ -355,6 +357,7 @@ async def stream_content_generation(
 
     if thread_id is None:
         thread_id = checkpointer_service.generate_thread_id()
+        await checkpointer_service.register_thread(thread_id, topic)
         initial_state = create_initial_state(
             topic=topic,
             subtopics=subtopics,
@@ -372,6 +375,7 @@ async def stream_content_generation(
             initial_state = existing_state
             logger.info(f"Resuming streamed generation from thread_id: {thread_id}")
         else:
+            await checkpointer_service.register_thread(thread_id, topic)
             initial_state = create_initial_state(
                 topic=topic,
                 subtopics=subtopics,

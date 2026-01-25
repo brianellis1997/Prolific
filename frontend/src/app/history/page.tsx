@@ -13,6 +13,8 @@ import {
   ChevronRight,
   AlertCircle,
   Loader2,
+  Globe,
+  Calendar,
 } from 'lucide-react';
 
 interface ThreadSummary {
@@ -31,6 +33,7 @@ export default function HistoryPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [publishingId, setPublishingId] = useState<string | null>(null);
 
   const fetchThreads = async () => {
     try {
@@ -96,6 +99,47 @@ export default function HistoryPage() {
       URL.revokeObjectURL(url);
     } catch (err) {
       alert('Failed to download PDF');
+    }
+  };
+
+  const handlePublishBlog = async (threadId: string, autoCommit: boolean = false) => {
+    setPublishingId(threadId);
+    try {
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+      const response = await fetch(`${apiUrl}/api/v1/generation/threads/${threadId}/blog`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ auto_commit: autoCommit }),
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.detail || 'Failed to publish');
+      }
+
+      const data = await response.json();
+      const commitMsg = autoCommit && data.git_status === 'committed'
+        ? ' and committed to git'
+        : '';
+      alert(`Published to blog${commitMsg}! Path: ${data.file_path}`);
+    } catch (err) {
+      alert(err instanceof Error ? err.message : 'Failed to publish to blog');
+    } finally {
+      setPublishingId(null);
+    }
+  };
+
+  const formatDate = (dateStr?: string) => {
+    if (!dateStr) return null;
+    try {
+      const date = new Date(dateStr);
+      return date.toLocaleDateString('en-US', {
+        month: 'short',
+        day: 'numeric',
+        year: 'numeric',
+      });
+    } catch {
+      return null;
     }
   };
 
@@ -222,6 +266,12 @@ export default function HistoryPage() {
                         </span>
                       </div>
                       <div className="flex items-center gap-4 text-sm text-gray-500">
+                        {formatDate(thread.created_at) && (
+                          <span className="flex items-center gap-1">
+                            <Calendar className="w-4 h-4" />
+                            {formatDate(thread.created_at)}
+                          </span>
+                        )}
                         {thread.word_count !== undefined && (
                           <span className="flex items-center gap-1">
                             <FileText className="w-4 h-4" />
@@ -234,9 +284,6 @@ export default function HistoryPage() {
                         {thread.source_count !== undefined && (
                           <span>{thread.source_count} sources</span>
                         )}
-                        <span className="font-mono text-xs text-gray-400">
-                          {thread.thread_id.slice(0, 8)}...
-                        </span>
                       </div>
                     </div>
                     <div className="flex items-center gap-2 ml-4">
@@ -253,6 +300,18 @@ export default function HistoryPage() {
                         title="Download PDF"
                       >
                         <Download className="w-5 h-5" />
+                      </button>
+                      <button
+                        onClick={() => handlePublishBlog(thread.thread_id, true)}
+                        disabled={publishingId === thread.thread_id || thread.phase !== 'done'}
+                        className="p-2 text-gray-600 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors disabled:opacity-50"
+                        title="Publish to Blog + Git Commit"
+                      >
+                        {publishingId === thread.thread_id ? (
+                          <Loader2 className="w-5 h-5 animate-spin" />
+                        ) : (
+                          <Globe className="w-5 h-5" />
+                        )}
                       </button>
                       <button
                         onClick={() => handleDelete(thread.thread_id)}

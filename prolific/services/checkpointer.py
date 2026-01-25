@@ -6,10 +6,12 @@ Uses LangGraph's AsyncSqliteSaver for SQLite-based checkpointing.
 from __future__ import annotations
 
 import logging
+from datetime import datetime
 from pathlib import Path
 from typing import Optional, Union
 from uuid import uuid4
 
+import aiosqlite
 from langgraph.checkpoint.sqlite.aio import AsyncSqliteSaver
 
 from prolific.core.config import settings
@@ -31,11 +33,29 @@ class CheckpointerService:
         self.db_path = str(db_path or CHECKPOINT_DB_PATH)
         self._saver: AsyncSqliteSaver | None = None
         self._conn_manager = None
+        self._metadata_initialized = False
+
+    async def _ensure_metadata_table(self) -> None:
+        """Ensure the thread_metadata table exists."""
+        if self._metadata_initialized:
+            return
+
+        saver = await self.get_saver()
+        await saver.conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS thread_metadata (
+                thread_id TEXT PRIMARY KEY,
+                topic TEXT,
+                created_at TEXT NOT NULL
+            )
+            """
+        )
+        await saver.conn.commit()
+        self._metadata_initialized = True
 
     async def get_saver(self) -> AsyncSqliteSaver:
         """Get or create the AsyncSqliteSaver instance."""
         if self._saver is None:
-            # from_conn_string returns an async context manager, need to enter it
             self._conn_manager = AsyncSqliteSaver.from_conn_string(self.db_path)
             self._saver = await self._conn_manager.__aenter__()
         return self._saver
@@ -47,10 +67,32 @@ class CheckpointerService:
             self._saver = None
             self._conn_manager = None
 
-    @staticmethod
-    def generate_thread_id() -> str:
+    def generate_thread_id(self) -> str:
         """Generate a unique thread ID for a new generation run."""
         return str(uuid4())
+
+    async def register_thread(self, thread_id: str, topic: str) -> None:
+        """Register a new thread with metadata.
+
+        Args:
+            thread_id: The thread ID
+            topic: The topic for this generation
+        """
+        await self._ensure_metadata_table()
+        saver = await self.get_saver()
+
+        created_at = datetime.utcnow().isoformat()
+        try:
+            await saver.conn.execute(
+                """
+                INSERT OR REPLACE INTO thread_metadata (thread_id, topic, created_at)
+                VALUES (?, ?, ?)
+                """,
+                (thread_id, topic, created_at)
+            )
+            await saver.conn.commit()
+        except Exception as e:
+            logger.warning(f"Failed to register thread metadata: {e}")
 
     async def list_threads(self) -> list:
         """List all generation threads with their latest checkpoint info.
@@ -58,20 +100,22 @@ class CheckpointerService:
         Returns:
             List of thread info dicts with id, topic, phase, timestamp
         """
+        await self._ensure_metadata_table()
         saver = await self.get_saver()
 
         threads = []
         try:
             async with saver.conn.execute(
                 """
-                SELECT DISTINCT thread_id
-                FROM checkpoints
-                ORDER BY thread_ts DESC
+                SELECT DISTINCT c.thread_id, m.created_at
+                FROM checkpoints c
+                LEFT JOIN thread_metadata m ON c.thread_id = m.thread_id
+                ORDER BY COALESCE(m.created_at, c.thread_id) DESC
                 """
             ) as cursor:
-                thread_ids = [row[0] async for row in cursor]
+                thread_rows = [(row[0], row[1]) async for row in cursor]
 
-            for thread_id in thread_ids:
+            for thread_id, created_at in thread_rows:
                 config = {"configurable": {"thread_id": thread_id}}
                 checkpoint = await saver.aget(config)
                 if checkpoint:
@@ -88,6 +132,7 @@ class CheckpointerService:
                         "chapter_count": len(channel_values.get("draft_chunks", [])),
                         "source_count": len(channel_values.get("approved_sources", [])),
                         "claim_count": len(channel_values.get("claims", [])),
+                        "created_at": created_at,
                     })
         except Exception as e:
             logger.warning(f"Failed to list threads: {e}")
@@ -120,6 +165,7 @@ class CheckpointerService:
         Returns:
             True if deleted, False if not found
         """
+        await self._ensure_metadata_table()
         saver = await self.get_saver()
         try:
             await saver.conn.execute(
@@ -128,6 +174,10 @@ class CheckpointerService:
             )
             await saver.conn.execute(
                 "DELETE FROM checkpoint_writes WHERE thread_id = ?",
+                (thread_id,)
+            )
+            await saver.conn.execute(
+                "DELETE FROM thread_metadata WHERE thread_id = ?",
                 (thread_id,)
             )
             await saver.conn.commit()

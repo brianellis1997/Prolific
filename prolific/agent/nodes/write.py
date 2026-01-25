@@ -74,6 +74,26 @@ def extract_hyperlinks_used(content: str) -> list[str]:
     return [url for _, url in matches]
 
 
+def strip_leading_heading(content: str) -> str:
+    """Remove any leading heading from content.
+
+    LLMs sometimes include a heading even when asked not to.
+    This strips any leading # heading lines.
+
+    Args:
+        content: Written content that may start with a heading
+
+    Returns:
+        Content with leading heading removed
+    """
+    lines = content.strip().split('\n')
+    while lines and lines[0].strip().startswith('#'):
+        lines.pop(0)
+        while lines and not lines[0].strip():
+            lines.pop(0)
+    return '\n'.join(lines).strip()
+
+
 def build_claims_with_urls(
     claims: dict,
     claim_ids: list,
@@ -189,6 +209,8 @@ Cover these points:
 Target: {word_target} words.
 Remember to use markdown hyperlinks for key entities that have source URLs.
 
+IMPORTANT: Do NOT include a section heading or title at the start - just begin writing the content directly. The heading will be added automatically.
+
 Write the section now."""
     )
 
@@ -200,6 +222,7 @@ Write the section now."""
     )
 
     content = response.content
+    content = strip_leading_heading(content)
     word_count = len(content.split())
     hyperlinks = extract_hyperlinks_used(content)
 

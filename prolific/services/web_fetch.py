@@ -28,6 +28,12 @@ try:
 except ImportError:
     YOUTUBE_TRANSCRIPT_AVAILABLE = False
 
+try:
+    import fitz  # PyMuPDF
+    PDF_EXTRACTION_AVAILABLE = True
+except ImportError:
+    PDF_EXTRACTION_AVAILABLE = False
+
 logger = logging.getLogger(__name__)
 
 trafilatura_config = use_config()
@@ -56,6 +62,7 @@ class WebFetchService:
     """
 
     YOUTUBE_DOMAINS = {"youtube.com", "www.youtube.com", "youtu.be", "m.youtube.com"}
+    PDF_EXTENSIONS = {".pdf"}
 
     def __init__(self, timeout: int = 30):
         """Initialize web fetch service.
@@ -119,29 +126,31 @@ class WebFetchService:
             return None
 
         try:
-            transcript_list = YouTubeTranscriptApi.list_transcripts(video_id)
+            api = YouTubeTranscriptApi()
 
-            transcript = None
+            transcript_data = None
             try:
-                transcript = transcript_list.find_transcript(['en'])
+                fetched = api.fetch(video_id, languages=['en'])
+                transcript_data = fetched.to_raw_data()
             except NoTranscriptFound:
-                try:
-                    transcript = transcript_list.find_generated_transcript(['en'])
-                except NoTranscriptFound:
-                    for t in transcript_list:
-                        transcript = t.translate('en')
+                transcript_list = api.list(video_id)
+                for t in transcript_list:
+                    try:
+                        translated = t.translate('en')
+                        transcript_data = translated.fetch().to_raw_data()
                         break
+                    except Exception:
+                        continue
 
-            if not transcript:
+            if not transcript_data:
                 logger.info(f"No transcript available for YouTube video {video_id}")
                 return None
-
-            transcript_data = transcript.fetch()
 
             full_text = " ".join(entry["text"] for entry in transcript_data)
             full_text = re.sub(r'\s+', ' ', full_text).strip()
 
             video_title = f"YouTube Video {video_id}"
+            author = None
             try:
                 response = await self._client.get(
                     f"https://www.youtube.com/oembed?url=https://www.youtube.com/watch?v={video_id}&format=json"
@@ -151,7 +160,7 @@ class WebFetchService:
                     video_title = oembed.get("title", video_title)
                     author = oembed.get("author_name")
             except Exception:
-                author = None
+                pass
 
             content = f"[YouTube Video Transcript]\n\nTitle: {video_title}\n\n{full_text}"
             content_hash = hashlib.sha256(content.encode()).hexdigest()[:16]
@@ -162,7 +171,7 @@ class WebFetchService:
             return FetchedContent(
                 url=url,
                 title=video_title,
-                author=author if 'author' in dir() else None,
+                author=author,
                 content=content,
                 publish_date=None,
                 word_count=word_count,
@@ -181,6 +190,70 @@ class WebFetchService:
             return None
         except Exception as e:
             logger.warning(f"Failed to fetch YouTube transcript for {video_id}: {e}")
+            return None
+
+    def _is_pdf_url(self, url: str) -> bool:
+        """Check if URL points to a PDF file."""
+        try:
+            parsed = urlparse(url)
+            path_lower = parsed.path.lower()
+            return any(path_lower.endswith(ext) for ext in self.PDF_EXTENSIONS)
+        except Exception:
+            return False
+
+    async def _fetch_pdf_content(self, url: str) -> FetchedContent | None:
+        """Fetch and extract text from a PDF URL.
+
+        Args:
+            url: URL to a PDF file
+
+        Returns:
+            FetchedContent with extracted text, or None if extraction fails
+        """
+        if not PDF_EXTRACTION_AVAILABLE:
+            logger.warning("PyMuPDF not installed, cannot extract PDF content")
+            return None
+
+        try:
+            response = await self._client.get(url)
+            response.raise_for_status()
+            pdf_bytes = response.content
+
+            doc = fitz.open(stream=pdf_bytes, filetype="pdf")
+            num_pages = len(doc)
+            text_parts = []
+            for page_num in range(num_pages):
+                page = doc[page_num]
+                text_parts.append(page.get_text())
+            doc.close()
+
+            content = "\n\n".join(text_parts)
+            content = re.sub(r'\n{3,}', '\n\n', content)
+            content = content.strip()
+
+            if not content:
+                logger.warning(f"PDF extracted but no text content: {url}")
+                return None
+
+            title = url.split("/")[-1].replace(".pdf", "").replace("-", " ").replace("_", " ").title()
+            content_hash = hashlib.sha256(content.encode()).hexdigest()[:16]
+            word_count = len(content.split())
+
+            logger.info(f"Extracted PDF {url}: {word_count} words from {num_pages} pages")
+
+            return FetchedContent(
+                url=url,
+                title=title,
+                author=None,
+                content=f"[PDF Document]\n\n{content}",
+                publish_date=None,
+                word_count=word_count,
+                content_hash=content_hash,
+                fetch_time=datetime.utcnow(),
+            )
+
+        except Exception as e:
+            logger.warning(f"Failed to extract PDF from {url}: {e}")
             return None
 
     async def fetch(
@@ -207,6 +280,22 @@ class WebFetchService:
                 title="YouTube Video (transcript unavailable)",
                 author=None,
                 content="[Video content - transcript not available]",
+                publish_date=None,
+                word_count=0,
+                content_hash=hashlib.sha256(url.encode()).hexdigest()[:16],
+                fetch_time=datetime.utcnow(),
+            )
+
+        if self._is_pdf_url(url):
+            pdf_content = await self._fetch_pdf_content(url)
+            if pdf_content:
+                return pdf_content
+            logger.info(f"PDF extraction failed for {url}")
+            return FetchedContent(
+                url=url,
+                title="PDF Document (extraction failed)",
+                author=None,
+                content="[PDF content - extraction failed]",
                 publish_date=None,
                 word_count=0,
                 content_hash=hashlib.sha256(url.encode()).hexdigest()[:16],
@@ -285,23 +374,28 @@ class WebFetchService:
 
     def _extract_author_from_html(self, html: str, url: str = "") -> str | None:
         """Extract author from HTML meta tags or infer from source."""
+        # Limit HTML size to prevent regex catastrophic backtracking
+        # Meta tags are in <head> which is always in the first 50KB
+        html_limited = html[:50000]
+
+        # Simpler, faster patterns that avoid backtracking
+        # Use {0,200} instead of + to limit backtracking
         patterns = [
-            r'<meta[^>]+name=["\']author["\'][^>]+content=["\'](.*?)["\']',
-            r'<meta[^>]+content=["\'](.*?)["\'][^>]+name=["\']author["\']',
-            r'<meta[^>]+property=["\']article:author["\'][^>]+content=["\'](.*?)["\']',
-            r'<meta[^>]+content=["\'](.*?)["\'][^>]+property=["\']article:author["\']',
-            r'"author":\s*\{\s*"name":\s*"([^"]+)"',
-            r'"author":\s*"([^"]+)"',
-            r'<span[^>]+class="[^"]*author[^"]*"[^>]*>([^<]+)</span>',
-            r'<a[^>]+rel=["\']author["\'][^>]*>([^<]+)</a>',
-            r'class="byline[^"]*"[^>]*>(?:By\s*)?([^<]+)<',
+            r'<meta[^>]{0,200}name=["\']author["\'][^>]{0,200}content=["\']([^"\']{1,200})["\']',
+            r'<meta[^>]{0,200}content=["\']([^"\']{1,200})["\'][^>]{0,200}name=["\']author["\']',
+            r'<meta[^>]{0,200}property=["\']article:author["\'][^>]{0,200}content=["\']([^"\']{1,200})["\']',
+            r'"author":\s*\{\s*"name":\s*"([^"]{1,200})"',
+            r'"author":\s*"([^"]{1,200})"',
         ]
         for pattern in patterns:
-            match = re.search(pattern, html, re.IGNORECASE)
-            if match:
-                author = match.group(1).strip()
-                if author and author.lower() not in ["unknown", "anonymous", "", "null"]:
-                    return author
+            try:
+                match = re.search(pattern, html_limited, re.IGNORECASE)
+                if match:
+                    author = match.group(1).strip()
+                    if author and author.lower() not in ["unknown", "anonymous", "", "null"]:
+                        return author
+            except re.error:
+                continue
 
         if url:
             url_lower = url.lower()
@@ -328,28 +422,28 @@ class WebFetchService:
 
     def _extract_date_from_html(self, html: str) -> datetime | None:
         """Extract publish date from HTML meta tags."""
+        # Limit HTML size to prevent regex catastrophic backtracking
+        html_limited = html[:50000]
+
+        # Simpler patterns with bounded quantifiers to prevent backtracking
         patterns = [
-            r'<meta[^>]+property=["\']article:published_time["\'][^>]+content=["\'](.*?)["\']',
-            r'<meta[^>]+content=["\'](.*?)["\'][^>]+property=["\']article:published_time["\']',
-            r'<meta[^>]+property=["\']article:modified_time["\'][^>]+content=["\'](.*?)["\']',
-            r'<meta[^>]+name=["\']date["\'][^>]+content=["\'](.*?)["\']',
-            r'<meta[^>]+name=["\']publish[_-]?date["\'][^>]+content=["\'](.*?)["\']',
-            r'<meta[^>]+name=["\']DC\.date["\'][^>]+content=["\'](.*?)["\']',
-            r'<meta[^>]+name=["\']last-modified["\'][^>]+content=["\'](.*?)["\']',
-            r'"datePublished":\s*"([^"]+)"',
-            r'"publishedDate":\s*"([^"]+)"',
-            r'"dateModified":\s*"([^"]+)"',
-            r'"dateCreated":\s*"([^"]+)"',
-            r'<time[^>]+datetime=["\']([^"\']+)["\']',
-            r'class="[^"]*date[^"]*"[^>]*>(\d{1,2}\s+\w+\s+\d{4})',
+            r'<meta[^>]{0,200}property=["\']article:published_time["\'][^>]{0,200}content=["\']([^"\']{1,50})["\']',
+            r'<meta[^>]{0,200}property=["\']article:modified_time["\'][^>]{0,200}content=["\']([^"\']{1,50})["\']',
+            r'<meta[^>]{0,200}name=["\']date["\'][^>]{0,200}content=["\']([^"\']{1,50})["\']',
+            r'"datePublished":\s*"([^"]{1,50})"',
+            r'"dateModified":\s*"([^"]{1,50})"',
+            r'<time[^>]{0,100}datetime=["\']([^"\']{1,50})["\']',
             r'(\d{4}-\d{2}-\d{2}T\d{2}:\d{2})',
         ]
         for pattern in patterns:
-            match = re.search(pattern, html, re.IGNORECASE)
-            if match:
-                parsed = self._parse_date(match.group(1))
-                if parsed:
-                    return parsed
+            try:
+                match = re.search(pattern, html_limited, re.IGNORECASE)
+                if match:
+                    parsed = self._parse_date(match.group(1))
+                    if parsed:
+                        return parsed
+            except re.error:
+                continue
         return None
 
     def _parse_date(self, date_str: str | None) -> datetime | None:

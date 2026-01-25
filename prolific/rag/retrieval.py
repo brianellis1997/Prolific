@@ -2,6 +2,7 @@
 
 Manages retrieval budget to keep context size manageable while
 providing writers with relevant information from all three indexes.
+Budgets scale with section word count for longer documents.
 """
 
 import logging
@@ -13,12 +14,18 @@ from prolific.rag.indexes import MultiIndexRAG
 
 logger = logging.getLogger(__name__)
 
+BASE_SECTION_WORDS = 2000
+BASE_EVIDENCE_BUDGET = 4000
+MIN_EVIDENCE_BUDGET = 2000
+MAX_EVIDENCE_BUDGET = 8000
+
 
 class WriterRetrievalService:
     """Manages retrieval budget for writer agents.
 
     Each writer gets a limited token budget from each index
     to prevent context overflow while maintaining coherence.
+    Budgets scale proportionally with section word count targets.
     """
 
     def __init__(
@@ -26,7 +33,7 @@ class WriterRetrievalService:
         rag: MultiIndexRAG,
         book_memory_budget: int | None = None,
         draft_chunk_budget: int | None = None,
-        evidence_budget: int | None = None,
+        base_evidence_budget: int | None = None,
         previous_content_budget: int | None = None,
     ):
         """Initialize retrieval service with budget limits.
@@ -35,14 +42,31 @@ class WriterRetrievalService:
             rag: MultiIndexRAG instance
             book_memory_budget: Token budget for book memory (default from config)
             draft_chunk_budget: Token budget for draft chunks (default from config)
-            evidence_budget: Token budget for evidence (default from config)
+            base_evidence_budget: Base token budget for evidence (scales with word count)
             previous_content_budget: Token budget for previous chapter content (default 1500)
         """
         self.rag = rag
         self.book_memory_budget = book_memory_budget or settings.book_memory_budget
         self.draft_chunk_budget = draft_chunk_budget or settings.draft_chunk_budget
-        self.evidence_budget = evidence_budget or settings.evidence_budget
+        self.base_evidence_budget = base_evidence_budget or settings.evidence_budget
         self.previous_content_budget = previous_content_budget or 1500
+
+    def _calculate_evidence_budget(self, section_word_target: int) -> int:
+        """Calculate evidence budget scaled to section word count.
+
+        Args:
+            section_word_target: Target word count for the section
+
+        Returns:
+            Scaled evidence budget (clamped between min/max)
+        """
+        if section_word_target <= 0:
+            return self.base_evidence_budget
+
+        scale_factor = section_word_target / BASE_SECTION_WORDS
+        scaled_budget = int(self.base_evidence_budget * scale_factor)
+
+        return max(MIN_EVIDENCE_BUDGET, min(MAX_EVIDENCE_BUDGET, scaled_budget))
 
     def _estimate_tokens(self, text: str) -> int:
         """Estimate token count for text (rough heuristic: 1 token ≈ 4 chars)."""
@@ -75,6 +99,7 @@ class WriterRetrievalService:
         chapter_id: str,
         required_claim_ids: list[str] | None = None,
         thread_id: str | None = None,
+        section_word_target: int = BASE_SECTION_WORDS,
     ) -> dict[str, Any]:
         """Retrieve context for a writer within budget constraints.
 
@@ -83,16 +108,24 @@ class WriterRetrievalService:
             chapter_id: Current chapter ID (excluded from de-dup check)
             required_claim_ids: Claim IDs that must be included
             thread_id: Thread ID to filter by (prevents cross-contamination)
+            section_word_target: Target word count for the section (scales evidence budget)
 
         Returns:
             Dict with book_context, similar_drafts, evidence, and flags
         """
+        evidence_budget = self._calculate_evidence_budget(section_word_target)
+        logger.debug(
+            f"Evidence budget: {evidence_budget} tokens "
+            f"(scaled for {section_word_target} word target)"
+        )
+
         results = {
             "book_context": [],
             "similar_drafts": [],
             "previous_content": [],
             "evidence": [],
             "repetition_warnings": [],
+            "evidence_budget_used": evidence_budget,
         }
 
         book_results = self.rag.query_book_memory(
@@ -149,14 +182,14 @@ class WriterRetrievalService:
             evidence_results = self.rag.get_evidence_by_ids(required_claim_ids)
             if evidence_results["documents"]:
                 results["evidence"] = self._truncate_to_budget(
-                    evidence_results["documents"], self.evidence_budget
+                    evidence_results["documents"], evidence_budget
                 )
 
         evidence_query_results = self.rag.query_evidence(
             query_embedding=query_embedding, n_results=20, thread_id=thread_id
         )
         if evidence_query_results["documents"] and evidence_query_results["documents"][0]:
-            remaining_budget = self.evidence_budget - sum(
+            remaining_budget = evidence_budget - sum(
                 self._estimate_tokens(e) for e in results["evidence"]
             )
             if remaining_budget > 0:

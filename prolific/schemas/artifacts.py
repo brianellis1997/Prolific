@@ -126,6 +126,46 @@ class Claim(BaseModel):
         frozen = False
 
 
+class PartOutline(BaseModel):
+    """Top-level division of a long document (e.g., Part I, Part II).
+
+    For documents >50k words, parts provide thematic grouping of chapters.
+    Shorter documents may have no parts (just chapters).
+    """
+
+    id: UUID = Field(default_factory=uuid4)
+    part_number: int
+    title: str
+    theme: str = ""  # Overarching theme of this part
+    summary: str = ""  # 2-3 sentence description
+    chapter_ids: list[UUID] = Field(default_factory=list)
+    estimated_word_count: int = 20000
+    key_themes: list[str] = Field(default_factory=list)
+
+    class Config:
+        frozen = False
+
+
+class SectionOutline(BaseModel):
+    """A section within a chapter.
+
+    Chapters are divided into sections for better organization
+    and to keep each writing unit within manageable context limits.
+    """
+
+    id: UUID = Field(default_factory=uuid4)
+    chapter_id: UUID
+    section_number: int  # 1-indexed within chapter
+    title: str
+    summary: str = ""
+    key_points: list[str] = Field(default_factory=list)
+    estimated_word_count: int = 2000
+    claim_ids: list[UUID] = Field(default_factory=list)  # Claims to cover in this section
+
+    class Config:
+        frozen = False
+
+
 class ChapterOutline(BaseModel):
     """High-level structure for a chapter in the outline.
 
@@ -133,13 +173,13 @@ class ChapterOutline(BaseModel):
     """
 
     id: UUID = Field(default_factory=uuid4)
+    part_id: UUID | None = None  # Reference to parent part (None for short docs)
     chapter_number: int
     title: str
     summary: str = ""  # 2-3 sentence description
     key_topics: list[str] = Field(default_factory=list)
-    estimated_word_count: int = 2000
-    parent_section: str | None = None  # For nested structure (Part I, etc.)
-    subsections: list[str] = Field(default_factory=list)
+    estimated_word_count: int = 5000  # Increased default for longer chapters
+    section_ids: list[UUID] = Field(default_factory=list)  # Ordered section references
 
     class Config:
         frozen = False
@@ -154,19 +194,46 @@ class ChapterBrief(BaseModel):
 
     id: UUID = Field(default_factory=uuid4)
     chapter_id: UUID
+    part_id: UUID | None = None  # Reference to parent part
     chapter_number: int
     title: str
     thesis_statement: str = ""
     required_claims: list[UUID] = Field(default_factory=list)  # MUST include
     optional_claims: list[UUID] = Field(default_factory=list)  # MAY include
     key_points: list[str] = Field(default_factory=list)  # Ordered points to make
+    section_briefs: list["SectionBrief"] = Field(default_factory=list)  # Nested sections
     transitions: dict[str, str] = Field(default_factory=dict)  # from_chapter -> text
     constraints: list[str] = Field(default_factory=list)  # Style/content constraints
+    word_count_target: int = 5000  # Increased for longer chapters
+    word_count_min: int = 4000
+    word_count_max: int = 8000
+    preceding_context: str = ""  # Summary of what came before
+    following_context: str = ""  # What comes after (if known)
+
+    class Config:
+        frozen = False
+
+
+class SectionBrief(BaseModel):
+    """Detailed instructions for writing a section within a chapter.
+
+    Sections are the atomic writing unit - small enough for focused context
+    but large enough to develop ideas properly.
+    """
+
+    id: UUID = Field(default_factory=uuid4)
+    section_id: UUID
+    chapter_id: UUID
+    section_number: int  # 1-indexed within chapter
+    title: str
+    key_points: list[str] = Field(default_factory=list)
+    required_claims: list[UUID] = Field(default_factory=list)
+    claim_urls: dict[str, str] = Field(default_factory=dict)  # claim_id -> source_url for hyperlinks
     word_count_target: int = 2000
     word_count_min: int = 1500
     word_count_max: int = 2500
-    preceding_context: str = ""  # Summary of what came before
-    following_context: str = ""  # What comes after (if known)
+    transition_from_previous: str = ""  # How to connect from previous section
+    transition_to_next: str = ""  # How to lead into next section
 
     class Config:
         frozen = False
@@ -179,13 +246,16 @@ class DraftChunk(BaseModel):
     """
 
     id: UUID = Field(default_factory=uuid4)
+    part_id: UUID | None = None  # Reference to parent part
     chapter_id: UUID
+    section_id: UUID | None = None  # Reference to section (if using sections)
     brief_id: UUID
     section_index: int = 0  # Order within chapter
     content: str
     word_count: int = 0
     claims_referenced: list[UUID] = Field(default_factory=list)
     citations_inline: list[str] = Field(default_factory=list)
+    hyperlinks_used: list[str] = Field(default_factory=list)  # URLs linked in content
     style_compliance_score: float = Field(ge=0.0, le=1.0, default=0.8)
     repetition_score: float = Field(ge=0.0, le=1.0, default=0.0)  # Lower is better
     created_at: datetime = Field(default_factory=datetime.utcnow)

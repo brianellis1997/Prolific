@@ -1,14 +1,12 @@
 """Write node for generating draft content.
 
-The Writer Agent generates draft chunks following the chapter briefs,
-incorporating verified claims and maintaining style consistency.
-
-For long chapters (>3000 words), content is split into sections with
-separate LLM calls to maintain quality and avoid context limits.
+The Writer Agent generates draft chunks section-by-section,
+incorporating verified claims with inline hyperlinks and maintaining
+style consistency across the document.
 """
 
 import logging
-import math
+import re
 from uuid import uuid4
 
 from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
@@ -22,148 +20,174 @@ from prolific.rag.retrieval import WriterRetrievalService
 
 logger = logging.getLogger(__name__)
 
-SECTION_WORD_THRESHOLD = 3000
-MAX_WORDS_PER_SECTION = 2000
+SECTION_WRITER_PROMPT = """You are an expert writer creating a section of a larger document.
 
-WRITER_SYSTEM_PROMPT = """You are an expert writer creating content for a book/article.
-
-Chapter {chapter_num}: {title}
-
-Thesis: {thesis}
-
-Key points to cover:
-{key_points}
-
-Style requirements:
-- Tone: {tone}
-- Formality: {formality}
-- Use contractions: {contractions}
-
-Word count target: {word_target} words (min: {word_min}, max: {word_max})
-
-CITATION INSTRUCTIONS:
-When incorporating facts from the required claims below, include the bracketed citation number [N] inline.
-For example: "Studies show that certain bacteria play a key role in vaginal health [1]."
-Multiple citations can be combined: "Recent research [2, 3] demonstrates..."
-Place citations naturally within sentences after the relevant fact, not at paragraph ends.
-
-IMPORTANT CONSTRAINTS:
-1. You MUST incorporate the required claims WITH their [N] citation numbers shown in the claims list
-2. Do NOT repeat content from previous chapters (see context below)
-3. Maintain consistent terminology with the glossary
-4. Write engaging, well-structured prose
-5. Include smooth transitions between sections
-
-{context}"""
-
-SECTION_SYSTEM_PROMPT = """You are an expert writer creating a SECTION of a chapter.
-
-Chapter {chapter_num}: {title}
-Section {section_num} of {total_sections}: {section_title}
+Chapter {chapter_num}: {chapter_title}
+Section {section_num}: {section_title}
 
 Chapter thesis: {thesis}
 
 This section should cover:
-{section_points}
+{key_points}
 
 Style requirements:
 - Tone: {tone}
-- Formality: {formality}
-- Use contractions: {contractions}
+- Write engaging, well-structured prose
+- Use smooth transitions between paragraphs
 
-Word count target for this section: {word_target} words
+Word count target: {word_target} words (min: {word_min}, max: {word_max})
 
-CITATION INSTRUCTIONS:
-When incorporating facts from the required claims below, include the bracketed citation number [N] inline.
+CITATION AND HYPERLINK INSTRUCTIONS:
+You have access to verified claims with their source URLs. When incorporating facts:
+
+1. Include bracketed citation numbers [N] after relevant facts
+2. For specific entities, products, studies, or organizations mentioned in claims,
+   use markdown hyperlinks to the source: [Entity Name](URL)
+3. Be selective with hyperlinks - only link key terms that readers might want to explore
+4. Don't over-link common terms, only notable proper nouns and specific references
+
+Example:
+"The [Kargu-2 drone](https://example.com/kargu) represents a new class of autonomous weapons [1]."
+
+{claims_section}
 
 IMPORTANT CONSTRAINTS:
-1. You MUST incorporate any relevant claims with their [N] citation numbers
-2. Do NOT repeat content from previous sections or chapters (see context below)
-3. Maintain consistent terminology with the glossary
-4. Write engaging, well-structured prose
-5. {transition_instruction}
+1. Incorporate required claims with citations and strategic hyperlinks
+2. Do NOT repeat content from previous sections (see context below)
+3. Maintain consistent terminology
+4. {transition_instruction}
 
 {context}"""
+
+
+def extract_hyperlinks_used(content: str) -> list[str]:
+    """Extract all URLs used in markdown hyperlinks from content.
+
+    Args:
+        content: Written content with markdown links
+
+    Returns:
+        List of URLs found in hyperlinks
+    """
+    pattern = r'\[([^\]]+)\]\(([^)]+)\)'
+    matches = re.findall(pattern, content)
+    return [url for _, url in matches]
+
+
+def build_claims_with_urls(
+    claims: dict,
+    claim_ids: list,
+    claim_urls: dict[str, str],
+    source_to_ref_num: dict,
+) -> str:
+    """Build claims text with URLs for hyperlink generation.
+
+    Args:
+        claims: Dict of claim_id -> Claim
+        claim_ids: List of claim IDs to include
+        claim_urls: Dict mapping claim_id (str) -> source URL
+        source_to_ref_num: Dict mapping source_id -> reference number
+
+    Returns:
+        Formatted claims text with citation numbers and URLs
+    """
+    claims_lines = []
+
+    for claim_id in claim_ids:
+        claim = claims.get(claim_id)
+        if not claim or claim.status != ClaimStatus.VERIFIED:
+            continue
+
+        ref_nums = []
+        for source_id in claim.source_ids:
+            if source_id in source_to_ref_num:
+                ref_nums.append(source_to_ref_num[source_id])
+
+        citation = f"[{', '.join(str(n) for n in sorted(ref_nums))}]" if ref_nums else ""
+        url = claim_urls.get(str(claim_id), "")
+
+        if url:
+            claims_lines.append(
+                f"- {claim.statement} {citation}\n"
+                f"  Source URL: {url}"
+            )
+        else:
+            claims_lines.append(f"- {claim.statement} {citation}")
+
+    if claims_lines:
+        return (
+            "## Required Claims (use [N] citations, add hyperlinks to key terms):\n"
+            + "\n".join(claims_lines)
+        )
+    return ""
 
 
 async def write_section(
     llm_service,
     chapter_num: int,
-    title: str,
+    chapter_title: str,
     thesis: str,
     section_num: int,
-    total_sections: int,
-    section_points: list[str],
-    section_word_target: int,
+    section_title: str,
+    key_points: list[str],
+    word_target: int,
     style_guide,
-    context: str,
     claims_text: str,
-    previous_section_ending: str | None = None,
-) -> tuple[str, int]:
+    context: str,
+    is_first_section: bool,
+    is_last_section: bool,
+    previous_ending: str | None = None,
+) -> tuple[str, int, list[str]]:
     """Write a single section of a chapter.
 
-    Args:
-        llm_service: LLM service for generation
-        chapter_num: Chapter number
-        title: Chapter title
-        thesis: Chapter thesis statement
-        section_num: Current section number (1-indexed)
-        total_sections: Total number of sections
-        section_points: Key points to cover in this section
-        section_word_target: Word count target for this section
-        style_guide: Style guide for writing
-        context: RAG context and claims
-        claims_text: Required claims text with citations
-        previous_section_ending: Last paragraph of previous section for continuity
-
     Returns:
-        Tuple of (section_content, word_count)
+        Tuple of (content, word_count, hyperlinks_used)
     """
-    section_title = f"Part {section_num}"
-    if section_num == 1:
+    if is_first_section:
         transition_instruction = "Start with an engaging opening for the chapter"
-    elif section_num == total_sections:
-        transition_instruction = "End with a strong conclusion and transition to the next chapter"
+    elif is_last_section:
+        transition_instruction = "End with a strong conclusion and smooth transition"
     else:
         transition_instruction = "Begin with a smooth transition from the previous section"
 
-    section_context_parts = []
+    context_parts = []
     if claims_text:
-        section_context_parts.append(claims_text)
+        context_parts.append(claims_text)
     if context:
-        section_context_parts.append(context)
-    if previous_section_ending:
-        section_context_parts.append(
-            f"## Previous Section Ending (continue naturally from here):\n...{previous_section_ending}"
+        context_parts.append(context)
+    if previous_ending:
+        context_parts.append(
+            f"## Previous Section Ending (continue naturally):\n...{previous_ending}"
         )
 
-    full_context = "\n\n".join(section_context_parts) if section_context_parts else "No additional context."
+    full_context = "\n\n".join(context_parts) if context_parts else "No additional context."
 
     system_message = SystemMessage(
-        content=SECTION_SYSTEM_PROMPT.format(
+        content=SECTION_WRITER_PROMPT.format(
             chapter_num=chapter_num,
-            title=title,
+            chapter_title=chapter_title,
             section_num=section_num,
-            total_sections=total_sections,
             section_title=section_title,
             thesis=thesis,
-            section_points="\n".join(f"- {p}" for p in section_points),
+            key_points="\n".join(f"- {p}" for p in key_points),
             tone=style_guide.tone if style_guide else "academic",
-            formality=style_guide.formality_level if style_guide else 0.7,
-            contractions="yes" if style_guide and style_guide.use_contractions else "no",
-            word_target=section_word_target,
+            word_target=word_target,
+            word_min=int(word_target * 0.8),
+            word_max=int(word_target * 1.2),
+            claims_section=claims_text,
             transition_instruction=transition_instruction,
             context=full_context,
         )
     )
 
     user_message = HumanMessage(
-        content=f"""Write section {section_num} of {total_sections} for chapter {chapter_num}: "{title}"
+        content=f"""Write section {section_num} "{section_title}" for chapter {chapter_num}.
 
 Cover these points:
-{chr(10).join(f'- {p}' for p in section_points)}
+{chr(10).join(f'- {p}' for p in key_points)}
 
-Target: approximately {section_word_target} words.
+Target: {word_target} words.
+Remember to use markdown hyperlinks for key entities that have source URLs.
 
 Write the section now."""
     )
@@ -177,50 +201,18 @@ Write the section now."""
 
     content = response.content
     word_count = len(content.split())
-    return content, word_count
+    hyperlinks = extract_hyperlinks_used(content)
 
-
-def split_points_into_sections(
-    key_points: list[str],
-    word_count_target: int,
-) -> list[tuple[list[str], int]]:
-    """Split key points into sections based on word count target.
-
-    Args:
-        key_points: List of key points to cover
-        word_count_target: Total word count target for the chapter
-
-    Returns:
-        List of (section_points, section_word_target) tuples
-    """
-    num_sections = math.ceil(word_count_target / MAX_WORDS_PER_SECTION)
-    num_sections = max(2, min(num_sections, len(key_points)))
-
-    points_per_section = math.ceil(len(key_points) / num_sections)
-    words_per_section = word_count_target // num_sections
-
-    sections = []
-    for i in range(num_sections):
-        start_idx = i * points_per_section
-        end_idx = min((i + 1) * points_per_section, len(key_points))
-        section_points = key_points[start_idx:end_idx]
-
-        if i == num_sections - 1:
-            section_points = key_points[start_idx:]
-
-        if section_points:
-            sections.append((section_points, words_per_section))
-
-    return sections
+    return content, word_count, hyperlinks
 
 
 async def write_node(state: ContentGenerationState) -> dict:
-    """Generate draft content for chapters.
+    """Generate draft content section-by-section.
 
-    This node (can run in parallel per chapter):
-    1. Retrieves relevant context from RAG
-    2. Incorporates required claims
-    3. Generates draft content following the brief
+    This node:
+    1. Iterates through chapters and their sections
+    2. Retrieves relevant context from RAG
+    3. Writes each section with claims and hyperlinks
     4. Creates DraftChunk artifacts
 
     Args:
@@ -232,14 +224,11 @@ async def write_node(state: ContentGenerationState) -> dict:
     chapter_briefs = state.get("chapter_briefs", [])
     existing_chunks = state.get("draft_chunks", [])
     claims = {c.id: c for c in state.get("claims", [])}
-    approved_sources = {s.id: s for s in state.get("approved_sources", [])}
+    approved_sources = state.get("approved_sources", [])
 
-    # Build global reference list from all approved sources
     source_to_ref_num = {}
-    ref_num_to_source = {}
-    for idx, source in enumerate(state.get("approved_sources", []), 1):
+    for idx, source in enumerate(approved_sources, 1):
         source_to_ref_num[source.id] = idx
-        ref_num_to_source[idx] = source
 
     written_chapters = {chunk.chapter_id for chunk in existing_chunks}
     briefs_to_write = [
@@ -254,17 +243,14 @@ async def write_node(state: ContentGenerationState) -> dict:
             "messages": [AIMessage(content="All chapters already written.")],
         }
 
-    logger.info(f"=== WRITING PHASE ===")
+    logger.info("=== WRITING PHASE ===")
     logger.info(f"Chapters to write: {len(briefs_to_write)}")
 
-    estimated_calls = 0
-    for b in briefs_to_write:
-        if b.word_count_target > SECTION_WORD_THRESHOLD and len(b.key_points) >= 2:
-            num_sections = math.ceil(b.word_count_target / MAX_WORDS_PER_SECTION)
-            estimated_calls += max(2, min(num_sections, len(b.key_points)))
-        else:
-            estimated_calls += 1
-    logger.info(f"Estimated LLM calls: {estimated_calls} (long chapters split into sections)")
+    total_sections = sum(
+        len(b.section_briefs) if b.section_briefs else 1
+        for b in briefs_to_write
+    )
+    logger.info(f"Total sections to write: {total_sections}")
 
     llm_service = get_llm_service()
     embedding_service = get_embedding_service()
@@ -281,184 +267,153 @@ async def write_node(state: ContentGenerationState) -> dict:
     thread_id = state.get("thread_id")
 
     draft_chunks = []
+    section_count = 0
 
-    for brief_idx, brief in enumerate(briefs_to_write, 1):
-        try:
-            logger.info(f"[{brief_idx}/{len(briefs_to_write)}] Writing chapter {brief.chapter_number}: {brief.title}")
-            logger.info(f"  - Target: {brief.word_count_target} words, {len(brief.required_claims)} required claims")
+    for brief_idx, chapter_brief in enumerate(briefs_to_write, 1):
+        logger.info(
+            f"[{brief_idx}/{len(briefs_to_write)}] Writing chapter {chapter_brief.chapter_number}: "
+            f"{chapter_brief.title}"
+        )
 
-            context_parts = []
-
-            if retrieval_service:
-                try:
-                    brief_text = f"{brief.title} {brief.thesis_statement} {' '.join(brief.key_points)}"
-                    query_embedding = await embedding_service.embed_text(brief_text)
-
-                    retrieval_results = await retrieval_service.retrieve_for_writer(
-                        query_embedding=query_embedding,
-                        chapter_id=str(brief.chapter_id),
-                        required_claim_ids=[str(cid) for cid in brief.required_claims],
-                        thread_id=thread_id,
-                    )
-
-                    context_str = retrieval_service.build_writer_context(retrieval_results)
-                    if context_str:
-                        context_parts.append(context_str)
-
-                except Exception as e:
-                    logger.warning(f"RAG retrieval failed: {e}")
-
-            required_claims_text = []
-            chapter_ref_nums = set()  # Track which references are used in this chapter
-            for claim_id in brief.required_claims:
-                claim = claims.get(claim_id)
-                if claim and claim.status == ClaimStatus.VERIFIED:
-                    # Get reference numbers for this claim's sources
-                    ref_nums = []
-                    for source_id in claim.source_ids:
-                        if source_id in source_to_ref_num:
-                            ref_num = source_to_ref_num[source_id]
-                            ref_nums.append(ref_num)
-                            chapter_ref_nums.add(ref_num)
-
-                    if ref_nums:
-                        citation = "[" + ", ".join(str(n) for n in sorted(ref_nums)) + "]"
-                        required_claims_text.append(f"- {claim.statement} {citation}")
-                    else:
-                        required_claims_text.append(f"- {claim.statement}")
-
-            if required_claims_text:
-                context_parts.append(
-                    "## Required Claims (include the [N] citation when using each fact):\n"
-                    + "\n".join(required_claims_text)
+        chapter_context = ""
+        if retrieval_service:
+            try:
+                brief_text = (
+                    f"{chapter_brief.title} {chapter_brief.thesis_statement} "
+                    f"{' '.join(chapter_brief.key_points)}"
                 )
+                query_embedding = await embedding_service.embed_text(brief_text)
 
-            if global_memory and global_memory.rolling_summary:
-                context_parts.append(
-                    f"## Previous Content Summary:\n{global_memory.rolling_summary}"
+                retrieval_results = await retrieval_service.retrieve_for_writer(
+                    query_embedding=query_embedding,
+                    chapter_id=str(chapter_brief.chapter_id),
+                    required_claim_ids=[str(cid) for cid in chapter_brief.required_claims],
+                    thread_id=thread_id,
+                    section_word_target=chapter_brief.word_count_target,
                 )
+                chapter_context = retrieval_service.build_writer_context(retrieval_results)
+            except Exception as e:
+                logger.warning(f"RAG retrieval failed: {e}")
 
-            context = "\n\n".join(context_parts) if context_parts else "No additional context."
+        if chapter_brief.section_briefs:
+            section_contents = []
+            previous_ending = None
+            chapter_hyperlinks = []
 
-            claims_context = ""
-            if required_claims_text:
-                claims_context = (
-                    "## Required Claims (include the [N] citation when using each fact):\n"
-                    + "\n".join(required_claims_text)
-                )
+            for section_idx, section_brief in enumerate(chapter_brief.section_briefs):
+                section_count += 1
+                is_first = section_idx == 0
+                is_last = section_idx == len(chapter_brief.section_briefs) - 1
 
-            if brief.word_count_target > SECTION_WORD_THRESHOLD and len(brief.key_points) >= 2:
-                sections = split_points_into_sections(
-                    brief.key_points, brief.word_count_target
-                )
                 logger.info(
-                    f"  - Splitting into {len(sections)} sections for long chapter"
+                    f"  Section {section_brief.section_number}: {section_brief.title} "
+                    f"(~{section_brief.word_count_target} words)"
                 )
 
-                section_contents = []
-                previous_ending = None
-                total_section_words = 0
-
-                for section_idx, (section_points, section_word_target) in enumerate(sections, 1):
-                    logger.info(
-                        f"  - Writing section {section_idx}/{len(sections)}: "
-                        f"{len(section_points)} points, ~{section_word_target} words"
-                    )
-
-                    section_content, section_words = await write_section(
-                        llm_service=llm_service,
-                        chapter_num=brief.chapter_number,
-                        title=brief.title,
-                        thesis=brief.thesis_statement,
-                        section_num=section_idx,
-                        total_sections=len(sections),
-                        section_points=section_points,
-                        section_word_target=section_word_target,
-                        style_guide=style_guide,
-                        context=context,
-                        claims_text=claims_context,
-                        previous_section_ending=previous_ending,
-                    )
-
-                    section_contents.append(section_content)
-                    total_section_words += section_words
-
-                    paragraphs = section_content.strip().split("\n\n")
-                    if paragraphs:
-                        previous_ending = paragraphs[-1][-500:]
-
-                content = "\n\n".join(section_contents)
-                word_count = total_section_words
-                logger.info(
-                    f"  - Combined {len(sections)} sections: {word_count} words"
+                claims_text = build_claims_with_urls(
+                    claims=claims,
+                    claim_ids=section_brief.required_claims,
+                    claim_urls=section_brief.claim_urls,
+                    source_to_ref_num=source_to_ref_num,
                 )
 
-            else:
-                key_points_str = "\n".join(f"- {point}" for point in brief.key_points)
-
-                system_message = SystemMessage(
-                    content=WRITER_SYSTEM_PROMPT.format(
-                        chapter_num=brief.chapter_number,
-                        title=brief.title,
-                        thesis=brief.thesis_statement,
-                        key_points=key_points_str,
-                        tone=style_guide.tone if style_guide else "academic",
-                        formality=style_guide.formality_level if style_guide else 0.7,
-                        contractions="yes" if style_guide and style_guide.use_contractions else "no",
-                        word_target=brief.word_count_target,
-                        word_min=brief.word_count_min,
-                        word_max=brief.word_count_max,
-                        context=context,
-                    )
+                content, word_count, hyperlinks = await write_section(
+                    llm_service=llm_service,
+                    chapter_num=chapter_brief.chapter_number,
+                    chapter_title=chapter_brief.title,
+                    thesis=chapter_brief.thesis_statement,
+                    section_num=section_brief.section_number,
+                    section_title=section_brief.title,
+                    key_points=section_brief.key_points,
+                    word_target=section_brief.word_count_target,
+                    style_guide=style_guide,
+                    claims_text=claims_text,
+                    context=chapter_context,
+                    is_first_section=is_first,
+                    is_last_section=is_last,
+                    previous_ending=previous_ending,
                 )
 
-                user_message = HumanMessage(
-                    content=f"""Write chapter {brief.chapter_number}: "{brief.title}"
+                section_contents.append(f"## {section_brief.title}\n\n{content}")
+                chapter_hyperlinks.extend(hyperlinks)
 
-Remember to:
-1. Start with an engaging opening
-2. Cover all key points in logical order
-3. Incorporate required claims with citations
-4. End with a transition to the next topic
-5. Stay within {brief.word_count_min}-{brief.word_count_max} words
+                paragraphs = content.strip().split("\n\n")
+                if paragraphs:
+                    previous_ending = paragraphs[-1][-500:]
 
-Write the complete chapter now."""
-                )
+                logger.info(f"    Written: {word_count} words, {len(hyperlinks)} hyperlinks")
 
-                response = await llm_service.invoke(
-                    messages=[system_message, user_message],
-                    tier="writing",
-                    temperature=0.7,
-                    max_tokens=4000,
-                )
-
-                content = response.content
-                word_count = len(content.split())
+            full_content = "\n\n".join(section_contents)
+            total_words = len(full_content.split())
 
             chunk = DraftChunk(
                 id=uuid4(),
-                chapter_id=brief.chapter_id,
-                brief_id=brief.id,
+                part_id=chapter_brief.part_id,
+                chapter_id=chapter_brief.chapter_id,
+                brief_id=chapter_brief.id,
                 section_index=0,
-                content=content,
-                word_count=word_count,
-                claims_referenced=brief.required_claims,
+                content=full_content,
+                word_count=total_words,
+                claims_referenced=chapter_brief.required_claims,
+                hyperlinks_used=chapter_hyperlinks,
                 style_compliance_score=0.8,
             )
             draft_chunks.append(chunk)
 
             logger.info(
-                f"Completed chapter {brief.chapter_number}: {word_count} words"
+                f"Completed chapter {chapter_brief.chapter_number}: "
+                f"{total_words} words, {len(chapter_hyperlinks)} hyperlinks"
             )
 
-        except Exception as e:
-            logger.error(f"Failed to write chapter {brief.chapter_number}: {e}")
-            state.get("errors", []).append(
-                f"Failed to write chapter {brief.chapter_number}: {e}"
+        else:
+            logger.info(f"  No section briefs - writing chapter as single unit")
+
+            claims_text = build_claims_with_urls(
+                claims=claims,
+                claim_ids=chapter_brief.required_claims,
+                claim_urls={},
+                source_to_ref_num=source_to_ref_num,
             )
+
+            content, word_count, hyperlinks = await write_section(
+                llm_service=llm_service,
+                chapter_num=chapter_brief.chapter_number,
+                chapter_title=chapter_brief.title,
+                thesis=chapter_brief.thesis_statement,
+                section_num=1,
+                section_title=chapter_brief.title,
+                key_points=chapter_brief.key_points,
+                word_target=chapter_brief.word_count_target,
+                style_guide=style_guide,
+                claims_text=claims_text,
+                context=chapter_context,
+                is_first_section=True,
+                is_last_section=True,
+            )
+
+            chunk = DraftChunk(
+                id=uuid4(),
+                part_id=chapter_brief.part_id,
+                chapter_id=chapter_brief.chapter_id,
+                brief_id=chapter_brief.id,
+                section_index=0,
+                content=content,
+                word_count=word_count,
+                claims_referenced=chapter_brief.required_claims,
+                hyperlinks_used=hyperlinks,
+                style_compliance_score=0.8,
+            )
+            draft_chunks.append(chunk)
+
+            logger.info(f"Completed chapter {chapter_brief.chapter_number}: {word_count} words")
 
     total_words = sum(chunk.word_count for chunk in draft_chunks)
-    logger.info(f"Writing complete: {len(draft_chunks)} chapters, {total_words} total words")
+    total_hyperlinks = sum(len(chunk.hyperlinks_used) for chunk in draft_chunks)
+
+    logger.info(
+        f"Writing complete: {len(draft_chunks)} chapters, "
+        f"{total_words} words, {total_hyperlinks} hyperlinks"
+    )
 
     return {
         "draft_chunks": draft_chunks,
@@ -466,7 +421,8 @@ Write the complete chapter now."""
         "writing_complete": True,
         "messages": [
             AIMessage(
-                content=f"Wrote {len(draft_chunks)} chapters ({total_words} words)."
+                content=f"Wrote {len(draft_chunks)} chapters ({total_words} words, "
+                f"{total_hyperlinks} inline hyperlinks)."
             )
         ],
     }

@@ -12,11 +12,15 @@ from langchain_core.messages import BaseMessage
 from prolific.schemas.artifacts import (
     ApprovedSource,
     ChapterBrief,
+    ChapterOutline,
     Claim,
     ContentGap,
     DraftChunk,
     EvidenceSnippet,
+    PartOutline,
     QualityIssue,
+    SectionBrief,
+    SectionOutline,
     SourceCandidate,
     VisualAsset,
     VisualIntent,
@@ -88,7 +92,14 @@ class ContentGenerationState(TypedDict):
     approved_sources: Annotated[list[ApprovedSource], merge_artifacts_by_id]
     evidence_snippets: Annotated[list[EvidenceSnippet], merge_artifacts_by_id]
     claims: Annotated[list[Claim], merge_artifacts_by_id]
+
+    # === HIERARCHICAL STRUCTURE ===
+    part_outlines: Annotated[list[PartOutline], merge_artifacts_by_id]
+    chapter_outlines: Annotated[list[ChapterOutline], merge_artifacts_by_id]
+    section_outlines: Annotated[list[SectionOutline], merge_artifacts_by_id]
     chapter_briefs: Annotated[list[ChapterBrief], merge_artifacts_by_id]
+    section_briefs: Annotated[list[SectionBrief], merge_artifacts_by_id]
+
     draft_chunks: Annotated[list[DraftChunk], merge_artifacts_by_id]
     content_gaps: Annotated[list[ContentGap], merge_artifacts_by_id]
 
@@ -186,7 +197,11 @@ def create_initial_state(
         approved_sources=[],
         evidence_snippets=[],
         claims=[],
+        part_outlines=[],
+        chapter_outlines=[],
+        section_outlines=[],
         chapter_briefs=[],
+        section_briefs=[],
         draft_chunks=[],
         content_gaps=[],
         visual_intents=[],

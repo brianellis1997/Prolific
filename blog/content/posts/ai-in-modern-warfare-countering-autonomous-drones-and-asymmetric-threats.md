@@ -82,7 +82,7 @@ The economic asymmetry proves devastating for defenders. Conventional firepower 
 
 These case studies reveal a consistent pattern: technological accessibility, economic asymmetry, and operational flexibility combine to grant disproportionate advantages to actors willing to embrace autonomous systems. The implications extend beyond individual conflicts to reshape the fundamental architecture of military power projection and defense.
 
-![A bar chart comparing the cost of a modified commercial drone (approximately $2,500) against a traditional surface-to-air missile (approximately $2,000,000). The y-axis uses a log scale to accommodate the extreme difference in values.](http://localhost:8000/images/5ca86973-e272-43e3-8e34-c2917ea1bcff.png)
+![A bar chart comparing the cost of a modified commercial drone (approximately $2,500) against a traditional surface-to-air missile (approximately $2,000,000). The y-axis uses a log scale to accommodate the extreme difference in values.](/images/ai-in-modern-warfare-countering-autonomous-drones-and-asymmetric-threats/5ca86973-e272-43e3-8e34-c2917ea1bcff.png)
 
 *This chart illustrates the massive cost disparity between low-cost commercial drones and the high-cost surface-to-air missiles used to intercept them, using a logarithmic scale to visualize the orders of magnitude difference.*
 
@@ -147,7 +147,7 @@ Advanced defensive frameworks increasingly emphasize human-machine collaboration
 
 These frameworks represent not merely technological solutions but comprehensive strategic adaptations. As autonomous drone capabilities proliferate, defensive doctrines must balance technological sophistication with operational practicality, ensuring that counter-measures remain effective across diverse operational environments while maintaining the human judgment essential for appropriate force application.
 
-![A table comparing C-IED and C-UAS across six pillars: Detection, Neutralization, Intelligence, Network Attack, Protection, and Environment. It shows how C-IED focuses on ground sensors and EOD, while C-UAS focuses on radar and aerial defense.](http://localhost:8000/images/7e2c1e47-c8ad-4341-be42-200c824a8008.png)
+![A table comparing C-IED and C-UAS across six pillars: Detection, Neutralization, Intelligence, Network Attack, Protection, and Environment. It shows how C-IED focuses on ground sensors and EOD, while C-UAS focuses on radar and aerial defense.](/images/ai-in-modern-warfare-countering-autonomous-drones-and-asymmetric-threats/7e2c1e47-c8ad-4341-be42-200c824a8008.png)
 
 *This matrix compares the operational pillars of Counter-IED and Counter-UAS strategies, highlighting similarities in electronic warfare and network defeat while contrasting the physical environments (ground vs. 3D airspace).*
 
@@ -182,7 +182,7 @@ The transformation extends beyond military applications to broader economic impa
 
 These developments establish the foundation for examining the ethical and legal frameworks necessary to govern autonomous weapons deployment in contemporary conflicts.
 
-![A heatmap showing growth rates for counter-drone technology. The Y-axis lists North America, Europe, Middle East, and Asia-Pacific. The X-axis shows years from 2021 to 2025. Cells are color-coded from yellow to dark blue, with the Middle East showing the highest growth values reaching 28.9 percent by 2025.](http://localhost:8000/images/0e937e30-7258-45ca-ba6f-313c79feb74d.png)
+![A heatmap showing growth rates for counter-drone technology. The Y-axis lists North America, Europe, Middle East, and Asia-Pacific. The X-axis shows years from 2021 to 2025. Cells are color-coded from yellow to dark blue, with the Middle East showing the highest growth values reaching 28.9 percent by 2025.](/images/ai-in-modern-warfare-countering-autonomous-drones-and-asymmetric-threats/0e937e30-7258-45ca-ba6f-313c79feb74d.png)
 
 *This heatmap illustrates the projected annual growth rates for the counter-drone technology market across four key regions from 2021 to 2025, highlighting the Middle East as the fastest-growing sector.*
 

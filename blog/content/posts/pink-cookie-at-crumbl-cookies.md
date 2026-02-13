@@ -91,13 +91,13 @@ The brand navigates the tension between celebration marketing and health conscio
 
 Consumer demand for allergen information and dietary specifications has driven enhanced disclosure practices, with detailed ingredient breakdowns addressing concerns about [common allergens](https://www.crumblcookies.com/allergen-info) and artificial additives. This transparency extends to the [weekly rotating menu](https://www.tastingtable.com/1906754/crumbl-rotating-menu-strategy/), where advance nutritional information allows health-conscious consumers to plan purchases around personal dietary goals while maintaining engagement with the brand's innovative flavor development [82]. The approach successfully positions Crumbl as a responsible indulgence provider rather than a health food alternative.
 
-![A grouped bar chart comparing Crumbl Pink Sugar cookies to standard retail cookies. Crumbl shows significantly higher values with 760 calories, 76g of sugar, and 36g of fat, while the standard cookie shows 180 calories, 12g of sugar, and 8g of fat.](http://localhost:8000/images/5d5ab197-c956-4123-aa0c-713cb1af106b.png)
+![A grouped bar chart comparing Crumbl Pink Sugar cookies to standard retail cookies. Crumbl shows significantly higher values with 760 calories, 76g of sugar, and 36g of fat, while the standard cookie shows 180 calories, 12g of sugar, and 8g of fat.](/images/pink-cookie-at-crumbl-cookies/5d5ab197-c956-4123-aa0c-713cb1af106b.png)
 
 *This chart compares the caloric, sugar, and fat content of a single Crumbl Pink Sugar cookie against a standard retail cookie, highlighting the significant difference in nutritional density.*
 
 
 
-![A vertical stacked bar chart showing the cost components of a $5.00 premium cookie. The segments from bottom to top are Ingredients ($1.20), Labor ($0.85), Packaging ($0.45), Overhead ($0.50), and Profit Margin ($2.00).](http://localhost:8000/images/45f03749-bcec-4b84-95bb-5d8c5b788d1e.png)
+![A vertical stacked bar chart showing the cost components of a $5.00 premium cookie. The segments from bottom to top are Ingredients ($1.20), Labor ($0.85), Packaging ($0.45), Overhead ($0.50), and Profit Margin ($2.00).](/images/pink-cookie-at-crumbl-cookies/45f03749-bcec-4b84-95bb-5d8c5b788d1e.png)
 
 *This chart illustrates the unit economics of a premium cookie, showing that ingredients and labor constitute the primary COGS, while maintaining a healthy $2.00 profit margin per unit.*
 
@@ -146,12 +146,12 @@ Long-term brand evolution extends beyond current product lines into adjacent cat
 
 This multifaceted strategic approach—combining physical expansion, competitive differentiation, sustainability leadership, and category innovation—establishes Crumbl as more than a dessert retailer, positioning it as a lifestyle brand capable of sustained relevance across demographic segments and consumption occasions in an increasingly fragmented food retail landscape.
 
-![A line graph showing search interest over a full year. The line remains relatively flat with minor fluctuations until sharp spikes occur in mid-February and a significant, sustained climb starting in late November, peaking at the end of December.](http://localhost:8000/images/c2e629d2-a6ea-4f8a-a004-33b91de10ded.png)
+![A line graph showing search interest over a full year. The line remains relatively flat with minor fluctuations until sharp spikes occur in mid-February and a significant, sustained climb starting in late November, peaking at the end of December.](/images/pink-cookie-at-crumbl-cookies/c2e629d2-a6ea-4f8a-a004-33b91de10ded.png)
 
 *This line graph illustrates the correlation between specific calendar events and surges in social media engagement, with prominent peaks during Valentine's Day and the December holiday season.*
 
 
 
-![A bar chart showing Crumbl's market share across four generations. Gen Z leads at 42%, followed by Millennials at 35%, while Gen X and Baby Boomers show significantly lower shares at 15% and 8% respectively.](http://localhost:8000/images/f9a8f029-7da0-48e5-a216-35274c889066.png)
+![A bar chart showing Crumbl's market share across four generations. Gen Z leads at 42%, followed by Millennials at 35%, while Gen X and Baby Boomers show significantly lower shares at 15% and 8% respectively.](/images/pink-cookie-at-crumbl-cookies/f9a8f029-7da0-48e5-a216-35274c889066.png)
 
 *This chart illustrates Crumbl's dominant market share among Gen Z and Millennial consumers, significantly outpacing adoption rates in older demographic segments.*

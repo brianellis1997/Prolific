@@ -434,6 +434,29 @@ async def publish_to_blog(thread_id: str, request: BlogPublishRequest | None = N
                     image_path_map[asset.file_path] = f"/images/{slug}/{src_path.name}"
                     logger.info(f"Copied image: {src_path.name}")
 
+        generated_images_dir = project_root / "generated_images"
+        localhost_re = re.compile(r'http://localhost:\d+/images/([^\s\)\"]+)')
+        for chunk in draft_chunks:
+            for match in localhost_re.finditer(chunk.content):
+                img_filename = match.group(1)
+                localhost_url = match.group(0)
+                if localhost_url not in image_path_map:
+                    src_path = generated_images_dir / img_filename
+                    if src_path.exists():
+                        shutil.copy2(src_path, blog_images_dir / img_filename)
+                        image_path_map[localhost_url] = f"/images/{slug}/{img_filename}"
+            gen_dir_str = str(generated_images_dir)
+            if gen_dir_str in chunk.content:
+                gen_re = re.compile(re.escape(gen_dir_str) + r'/([^\s\)\"]+)')
+                for match in gen_re.finditer(chunk.content):
+                    img_filename = match.group(1)
+                    full_path = match.group(0)
+                    if full_path not in image_path_map:
+                        src_path = generated_images_dir / img_filename
+                        if src_path.exists():
+                            shutil.copy2(src_path, blog_images_dir / img_filename)
+                            image_path_map[full_path] = f"/images/{slug}/{img_filename}"
+
         sorted_chunks = sorted(
             draft_chunks,
             key=lambda c: chapter_briefs.get(c.chapter_id, type("", (), {"chapter_number": 0})).chapter_number

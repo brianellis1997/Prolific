@@ -105,7 +105,7 @@ Beyond immediate performance concerns, production monitoring must address a more
 
 Implementing comprehensive monitoring requires upfront investment, but this effort pays dividends throughout your model's lifecycle. Start with basic infrastructure metrics, gradually layer in custom business metrics, and establish clear alerting thresholds based on your service level objectives. Review your dashboards regularly to identify patterns and refine your monitoring strategy. This proactive approach transforms monitoring from a reactive firefighting tool into a strategic asset that guides optimization efforts and ensures your deployed models continue delivering reliable, high-quality predictions as conditions evolve.
 
-![A grouped bar chart comparing g4dn, p3, inf1, and inf2 AWS instances. The left y-axis shows latency in milliseconds (decreasing from g4dn to inf2) and the right y-axis shows throughput in requests per second (increasing significantly from g4dn to inf2).](http://localhost:8000/images/351ad2f5-8508-4f8d-82f5-25826c39514b.png)
+![A grouped bar chart comparing g4dn, p3, inf1, and inf2 AWS instances. The left y-axis shows latency in milliseconds (decreasing from g4dn to inf2) and the right y-axis shows throughput in requests per second (increasing significantly from g4dn to inf2).](/images/how-to-deploy-and-fine-tune-models-on-aws/351ad2f5-8508-4f8d-82f5-25826c39514b.png)
 
 *This chart compares the inference performance of various AWS instances, highlighting the trade-off where specialized hardware like Inferentia (inf2) achieves significantly higher throughput and lower latency compared to general-purpose GPU instances.*
 
@@ -152,6 +152,6 @@ For those working with [Amazon Bedrock](https://dev.to/aws-builders/fine-tuning-
 
 The journey from fine-tuned model to production deployment requires rigorous evaluation, careful rollout strategies, and ongoing vigilance. With the right tools and processes in place, you transform experimental improvements into reliable production systems that deliver measurable business value.
 
-![A dual-axis line graph showing Training Loss and Validation Loss on the left y-axis (decreasing over time) and Accuracy on the right y-axis (increasing over time) across 20 training epochs.](http://localhost:8000/images/f081bf36-da02-4cea-abd2-f77a82645d16.png)
+![A dual-axis line graph showing Training Loss and Validation Loss on the left y-axis (decreasing over time) and Accuracy on the right y-axis (increasing over time) across 20 training epochs.](/images/how-to-deploy-and-fine-tune-models-on-aws/f081bf36-da02-4cea-abd2-f77a82645d16.png)
 
 *This chart illustrates the typical convergence behavior during a fine-tuning job, showing a steady decrease in training and validation loss alongside a corresponding increase in model accuracy over 20 epochs.*

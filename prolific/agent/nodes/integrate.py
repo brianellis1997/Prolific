@@ -80,7 +80,7 @@ def embed_visuals_in_chapter(
             try:
                 img_data = base64.b64decode(asset.base64_data)
                 img_path.write_bytes(img_data)
-                image_url = f"http://localhost:8000/images/{img_filename}"
+                image_url = str(img_path)
             except Exception as e:
                 logger.warning(f"Failed to save image: {e}")
                 continue

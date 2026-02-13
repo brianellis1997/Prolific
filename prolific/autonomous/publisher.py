@@ -76,6 +76,31 @@ async def publish_blog_post(
                 image_path_map[asset.file_path] = f"/images/{slug}/{src_path.name}"
                 images_copied += 1
 
+    generated_images_dir = project_root / "generated_images"
+    localhost_re = re.compile(r'http://localhost:\d+/images/([^\s\)\"]+)')
+    for chunk in draft_chunks:
+        for match in localhost_re.finditer(chunk.content):
+            img_filename = match.group(1)
+            localhost_url = match.group(0)
+            if localhost_url not in image_path_map:
+                src_path = generated_images_dir / img_filename
+                if src_path.exists():
+                    shutil.copy2(src_path, blog_images_dir / img_filename)
+                    image_path_map[localhost_url] = f"/images/{slug}/{img_filename}"
+                    images_copied += 1
+        gen_dir_str = str(generated_images_dir)
+        if gen_dir_str in chunk.content:
+            gen_re = re.compile(re.escape(gen_dir_str) + r'/([^\s\)\"]+)')
+            for match in gen_re.finditer(chunk.content):
+                img_filename = match.group(1)
+                full_path = match.group(0)
+                if full_path not in image_path_map:
+                    src_path = generated_images_dir / img_filename
+                    if src_path.exists():
+                        shutil.copy2(src_path, blog_images_dir / img_filename)
+                        image_path_map[full_path] = f"/images/{slug}/{img_filename}"
+                        images_copied += 1
+
     sorted_chunks = sorted(
         draft_chunks,
         key=lambda c: getattr(
@@ -136,6 +161,10 @@ def git_commit_and_push(
         add_paths = [str(file_path)]
         if images_dir.exists() and any(images_dir.iterdir()):
             add_paths.append(str(images_dir))
+
+        metrics_file = project_root / "blog" / "data" / "metrics.json"
+        if metrics_file.exists():
+            add_paths.append(str(metrics_file))
 
         subprocess.run(
             ["git", "add"] + add_paths,

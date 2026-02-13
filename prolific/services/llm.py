@@ -107,7 +107,24 @@ class LLMService:
             AI response message
         """
         llm = self.get_llm(tier, temperature, max_tokens)
-        return await llm.ainvoke(messages)
+        response = await llm.ainvoke(messages)
+        self._record_usage(response, tier)
+        return response
+
+    def _record_usage(self, response: BaseMessage, tier: ModelTier):
+        try:
+            from prolific.services.usage_tracker import get_usage_tracker
+            usage = getattr(response, "response_metadata", {}).get("usage", {})
+            if not usage:
+                usage = getattr(response, "response_metadata", {}).get("token_usage", {})
+            input_tokens = usage.get("prompt_tokens", 0) or usage.get("input_tokens", 0)
+            output_tokens = usage.get("completion_tokens", 0) or usage.get("output_tokens", 0)
+            if input_tokens or output_tokens:
+                get_usage_tracker().record_llm_call(
+                    self.get_model_name(tier), input_tokens, output_tokens
+                )
+        except Exception:
+            pass
 
     async def invoke_with_structured_output(
         self,
@@ -128,8 +145,10 @@ class LLMService:
             Parsed output matching the schema
         """
         llm = self.get_llm(tier, temperature)
+        from prolific.services.usage_tracker import LLMUsageCallbackHandler
+        handler = LLMUsageCallbackHandler(model_name=self.get_model_name(tier))
         structured_llm = llm.with_structured_output(output_schema)
-        return await structured_llm.ainvoke(messages)
+        return await structured_llm.ainvoke(messages, config={"callbacks": [handler]})
 
     async def invoke_with_image(
         self,
@@ -171,6 +190,7 @@ class LLMService:
 
         llm = self.get_llm(tier, temperature)
         response = await llm.ainvoke([message])
+        self._record_usage(response, tier)
         return response.content
 
     async def invoke_with_image_structured(
@@ -214,8 +234,10 @@ class LLMService:
         )
 
         llm = self.get_llm(tier, temperature)
+        from prolific.services.usage_tracker import LLMUsageCallbackHandler
+        handler = LLMUsageCallbackHandler(model_name=self.get_model_name(tier))
         structured_llm = llm.with_structured_output(output_schema)
-        return await structured_llm.ainvoke([message])
+        return await structured_llm.ainvoke([message], config={"callbacks": [handler]})
 
 
 _llm_service: LLMService | None = None

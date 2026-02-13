@@ -87,6 +87,11 @@ class WebSearchService:
                 )
 
             logger.info(f"Search for '{query}' returned {len(results)} results")
+            try:
+                from prolific.services.usage_tracker import get_usage_tracker
+                get_usage_tracker().record_search_call()
+            except Exception:
+                pass
             return results
 
         except Exception as e:

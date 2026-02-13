@@ -40,6 +40,21 @@ class EmbeddingService:
         )
         logger.info(f"EmbeddingService initialized with model: {self.model}")
 
+    def _estimate_tokens(self, texts: list[str]) -> int:
+        try:
+            import tiktoken
+            enc = tiktoken.encoding_for_model(self.model)
+            return sum(len(enc.encode(t)) for t in texts)
+        except Exception:
+            return sum(len(t) // 4 for t in texts)
+
+    def _track(self, texts: list[str]):
+        try:
+            from prolific.services.usage_tracker import get_usage_tracker
+            get_usage_tracker().record_embedding_call(self._estimate_tokens(texts))
+        except Exception:
+            pass
+
     async def embed_text(self, text: str) -> list[float]:
         """Generate embedding for a single text.
 
@@ -49,7 +64,9 @@ class EmbeddingService:
         Returns:
             Embedding vector as list of floats
         """
-        return await self._embeddings.aembed_query(text)
+        result = await self._embeddings.aembed_query(text)
+        self._track([text])
+        return result
 
     async def embed_texts(self, texts: Sequence[str]) -> list[list[float]]:
         """Generate embeddings for multiple texts.
@@ -60,7 +77,10 @@ class EmbeddingService:
         Returns:
             List of embedding vectors
         """
-        return await self._embeddings.aembed_documents(list(texts))
+        text_list = list(texts)
+        result = await self._embeddings.aembed_documents(text_list)
+        self._track(text_list)
+        return result
 
     def embed_text_sync(self, text: str) -> list[float]:
         """Generate embedding synchronously (for non-async contexts).
@@ -71,7 +91,9 @@ class EmbeddingService:
         Returns:
             Embedding vector
         """
-        return self._embeddings.embed_query(text)
+        result = self._embeddings.embed_query(text)
+        self._track([text])
+        return result
 
     def embed_texts_sync(self, texts: Sequence[str]) -> list[list[float]]:
         """Generate embeddings synchronously for multiple texts.
@@ -82,7 +104,10 @@ class EmbeddingService:
         Returns:
             List of embedding vectors
         """
-        return self._embeddings.embed_documents(list(texts))
+        text_list = list(texts)
+        result = self._embeddings.embed_documents(text_list)
+        self._track(text_list)
+        return result
 
 
 _embedding_service: EmbeddingService | None = None

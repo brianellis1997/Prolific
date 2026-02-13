@@ -52,7 +52,7 @@
         "search_cost_usd": 0.17,
         "total_cost_usd": 0.4896
       },
-      "langsmith_url": "https://smith.langchain.com/o/default/projects/p/prolific-autonomous",
+      "langsmith_url": "https://smith.langchain.com/o/ce43c608-acf7-4745-87ca-8e429a0949f7/projects/p/fc987b89-33c2-403d-b5e3-074c9e3e295b",
       "error": null,
       "traceback": null
     }

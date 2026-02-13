@@ -27,10 +27,16 @@ def save_metrics(project_root: Path, metrics: dict):
 
 
 def get_langsmith_url(thread_id: str) -> str | None:
-    project = os.environ.get("LANGCHAIN_PROJECT", "prolific-autonomous")
-    if os.environ.get("LANGCHAIN_TRACING_V2") == "true":
-        return f"https://smith.langchain.com/o/default/projects/p/{project}"
-    return None
+    if os.environ.get("LANGCHAIN_TRACING_V2") != "true":
+        return None
+    project_name = os.environ.get("LANGCHAIN_PROJECT", "prolific-autonomous")
+    try:
+        from langsmith import Client
+        client = Client()
+        project = client.read_project(project_name=project_name)
+        return project.url
+    except Exception:
+        return None
 
 
 def build_run_record(

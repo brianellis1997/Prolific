@@ -6,10 +6,11 @@ Supports OpenRouter for access to multiple models with cost optimization:
 """
 
 import logging
+from datetime import datetime
 from typing import Any, Literal
 
 from langchain_core.language_models import BaseChatModel
-from langchain_core.messages import BaseMessage
+from langchain_core.messages import BaseMessage, SystemMessage
 from langchain_openai import ChatOpenAI
 
 from prolific.core.config import settings
@@ -88,6 +89,21 @@ class LLMService:
 
         return self._llm_cache[cache_key]
 
+    @staticmethod
+    def _inject_date_context(messages: list[BaseMessage]) -> list[BaseMessage]:
+        today = datetime.now().strftime("%B %d, %Y")
+        prefix = (
+            f"[Current date: {today}. Your training data may not cover recent events. "
+            f"Do not reject or question information solely because it postdates your training cutoff.]\n\n"
+        )
+        msgs = list(messages)
+        for i, msg in enumerate(msgs):
+            if isinstance(msg, SystemMessage):
+                msgs[i] = SystemMessage(content=prefix + msg.content)
+                return msgs
+        msgs.insert(0, SystemMessage(content=prefix.strip()))
+        return msgs
+
     async def invoke(
         self,
         messages: list[BaseMessage],
@@ -107,7 +123,7 @@ class LLMService:
             AI response message
         """
         llm = self.get_llm(tier, temperature, max_tokens)
-        response = await llm.ainvoke(messages)
+        response = await llm.ainvoke(self._inject_date_context(messages))
         self._record_usage(response, tier)
         return response
 
@@ -148,7 +164,7 @@ class LLMService:
         from prolific.services.usage_tracker import LLMUsageCallbackHandler
         handler = LLMUsageCallbackHandler(model_name=self.get_model_name(tier))
         structured_llm = llm.with_structured_output(output_schema)
-        return await structured_llm.ainvoke(messages, config={"callbacks": [handler]})
+        return await structured_llm.ainvoke(self._inject_date_context(messages), config={"callbacks": [handler]})
 
     async def invoke_with_image(
         self,
@@ -189,7 +205,7 @@ class LLMService:
         )
 
         llm = self.get_llm(tier, temperature)
-        response = await llm.ainvoke([message])
+        response = await llm.ainvoke(self._inject_date_context([message]))
         self._record_usage(response, tier)
         return response.content
 
@@ -237,7 +253,7 @@ class LLMService:
         from prolific.services.usage_tracker import LLMUsageCallbackHandler
         handler = LLMUsageCallbackHandler(model_name=self.get_model_name(tier))
         structured_llm = llm.with_structured_output(output_schema)
-        return await structured_llm.ainvoke([message], config={"callbacks": [handler]})
+        return await structured_llm.ainvoke(self._inject_date_context([message]), config={"callbacks": [handler]})
 
 
 _llm_service: LLMService | None = None

@@ -1,1 +1,32 @@
-{"runs": []}
+{
+  "runs": [
+    {
+      "date": "2026-02-13",
+      "timestamp": "2026-02-13T03:16:41.372003Z",
+      "status": "success",
+      "topic": "Managing the 'Stochastic Chaos': Engineering Workflows for AI-Generated Code",
+      "slug": "managing-the-stochastic-chaos-engineering-workflows-for-ai-generated-code",
+      "rationale": "This topic addresses a critical, timely shift in software engineering practice where AI is now the primary producer of code. It offers significant technical depth regarding the 'management crisis' of AI-generated code and builds upon our previous coverage of agentic systems by focusing on the practical developer experience and workflow implications.",
+      "builds_on": "the-rise-of-agentic-ai-from-content-generation-to-task-accomplishing-systems",
+      "duration_seconds": 899,
+      "word_count": 6616,
+      "chapter_count": 3,
+      "source_count": 24,
+      "claim_count": 438,
+      "image_count": 3,
+      "costs": {
+        "llm_input_tokens": 256536,
+        "llm_output_tokens": 79702,
+        "llm_cost_usd": 0.3372,
+        "embedding_tokens": 9951,
+        "embedding_cost_usd": 0.0002,
+        "search_calls": 17,
+        "search_cost_usd": 0.17,
+        "total_cost_usd": 0.5074
+      },
+      "langsmith_url": null,
+      "error": null,
+      "traceback": null
+    }
+  ]
+}

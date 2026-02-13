@@ -49,7 +49,14 @@ async def assess_source_credibility(
     """
     llm_service = get_llm_service()
 
-    system_prompt = """You are an expert fact-checker assessing source credibility.
+    today = datetime.now().strftime("%B %d, %Y")
+    system_prompt = f"""You are an expert fact-checker assessing source credibility.
+
+IMPORTANT: Today's date is {today}. Your training data may be outdated. When evaluating sources:
+- Do NOT reject sources because they mention products, events, or research you are unfamiliar with.
+- Do NOT flag publication dates as "in the future" if they fall before today's date.
+- These sources were found via live web search and reflect real, current information.
+- Judge credibility based on the SOURCE SIGNALS (domain reputation, author credentials, citation quality, internal consistency), NOT on whether the content matches your training data.
 
 Evaluate this source and provide:
 1. A credibility score (0-1):
@@ -63,7 +70,7 @@ Evaluate this source and provide:
 
 3. Specific strengths (what makes it credible)
 
-4. Concerns (potential issues)
+4. Concerns (potential issues - focus on source quality, NOT on whether you recognize the subject matter)
 
 5. Recommendation: approve (use freely), partially_approve (use with caution), reject (don't use)"""
 
@@ -144,8 +151,10 @@ async def check_source_recency(
         staleness_risk: str = Field(description="none, low, medium, high")
         recommendation: str
 
+    today_str = datetime.now().strftime("%B %d, %Y")
     system_prompt = """Assess if a source's age is appropriate for the topic.
 
+Today's date: """ + today_str + """
 Source age: {age_days} days (published {pub_date})
 Topic: {topic}
 
@@ -154,7 +163,9 @@ Consider:
 - Current events: sources should be very recent
 - Science: check if the field moves quickly
 - History/Philosophy: older sources may be fine
-- Statistics/Data: check if more recent data might exist"""
+- Statistics/Data: check if more recent data might exist
+
+IMPORTANT: Do NOT flag sources as "future-dated" if their publication date is before today."""
 
     messages = [
         SystemMessage(content=system_prompt.format(
@@ -290,16 +301,19 @@ async def verify_claim_against_source(
         issues: list[str] = Field(default_factory=list)
         suggested_correction: str = ""
 
-    system_prompt = """Verify if this claim accurately represents the source.
+    today_str = datetime.now().strftime("%B %d, %Y")
+    system_prompt = f"""Verify if this claim accurately represents the source.
 
-Claim: {claim}
+Today's date: {today_str}. Your training data may not cover recent events. Judge accuracy based on whether the claim faithfully represents the SOURCE TEXT provided, not on your prior knowledge.
+
+Claim: {{claim}}
 
 Check for:
 - Misquotation or paraphrasing errors
 - Taking statements out of context
 - Overgeneralization
 - Missing important qualifiers
-- Factual accuracy
+- Whether the claim matches what the source text actually says
 
 Provide an accuracy score (0-1) and any issues found."""
 

@@ -111,6 +111,34 @@
       "langsmith_url": "https://smith.langchain.com/o/ce43c608-acf7-4745-87ca-8e429a0949f7/projects/p/fc987b89-33c2-403d-b5e3-074c9e3e295b",
       "error": null,
       "traceback": null
+    },
+    {
+      "date": "2026-02-15",
+      "timestamp": "2026-02-15T11:25:57.755941Z",
+      "status": "success",
+      "topic": "The Voight-Kampff Era: Detecting Generative AI in 2026",
+      "slug": "the-voight-kampff-era-detecting-generative-ai-in-2026",
+      "rationale": "This topic addresses a critical, timely challenge in 2026: the verification of authenticity in a world saturated with synthetic content. It offers high technical depth regarding style-analysis and watermarking, which is distinct from our existing posts on AI generation and infrastructure. It provides a necessary 'defensive' perspective for software engineers and architects managing AI-generated codebases.",
+      "builds_on": "managing-the-stochastic-chaos-engineering-workflows-for-ai-generated-code",
+      "duration_seconds": 819,
+      "word_count": 4550,
+      "chapter_count": 3,
+      "source_count": 22,
+      "claim_count": 306,
+      "image_count": 0,
+      "costs": {
+        "llm_input_tokens": 219877,
+        "llm_output_tokens": 68001,
+        "llm_cost_usd": 0.2988,
+        "embedding_tokens": 8689,
+        "embedding_cost_usd": 0.0002,
+        "search_calls": 17,
+        "search_cost_usd": 0.17,
+        "total_cost_usd": 0.4689
+      },
+      "langsmith_url": "https://smith.langchain.com/o/ce43c608-acf7-4745-87ca-8e429a0949f7/projects/p/fc987b89-33c2-403d-b5e3-074c9e3e295b",
+      "error": null,
+      "traceback": null
     }
   ]
 }

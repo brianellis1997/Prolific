@@ -139,6 +139,54 @@
       "langsmith_url": "https://smith.langchain.com/o/ce43c608-acf7-4745-87ca-8e429a0949f7/projects/p/fc987b89-33c2-403d-b5e3-074c9e3e295b",
       "error": null,
       "traceback": null
+    },
+    {
+      "date": "2026-02-16",
+      "timestamp": "2026-02-16T11:43:38.966947Z",
+      "status": "success",
+      "topic": "Architecting for the Model Context Protocol (MCP): The New Abstraction Layer",
+      "slug": "architecting-for-the-model-context-protocol-mcp-the-new-abstraction-layer",
+      "rationale": "As the industry moves from standalone LLMs to agentic systems, the Model Context Protocol (MCP) has emerged as a critical standard for data interoperability. While previous posts covered the 'Agentic Era' and 'Infrastructure', they lacked a deep technical dive into the specific protocols enabling these agents to interact with external data. This topic provides the necessary architectural depth for a 5000-word technical analysis and is highly relevant to current software engineering trends in 2026.",
+      "builds_on": "the-rise-of-agentic-ai-from-content-generation-to-task-accomplishing-systems",
+      "duration_seconds": 871,
+      "word_count": 4585,
+      "chapter_count": 3,
+      "source_count": 26,
+      "claim_count": 340,
+      "image_count": 0,
+      "costs": {
+        "llm_input_tokens": 258213,
+        "llm_output_tokens": 72156,
+        "llm_cost_usd": 0.3041,
+        "embedding_tokens": 8964,
+        "embedding_cost_usd": 0.0002,
+        "search_calls": 17,
+        "search_cost_usd": 0.17,
+        "total_cost_usd": 0.4743
+      },
+      "langsmith_url": "https://smith.langchain.com/o/ce43c608-acf7-4745-87ca-8e429a0949f7/projects/p/fc987b89-33c2-403d-b5e3-074c9e3e295b",
+      "error": null,
+      "traceback": null,
+      "presentation": {
+        "status": "failed",
+        "file_path": null,
+        "slide_count": 14,
+        "images_available": 0,
+        "images_embedded": 0,
+        "images_failed": 0,
+        "slide_types": {
+          "title": 1,
+          "section_divider": 3,
+          "key_points": 6,
+          "quote_highlight": 2,
+          "sources": 1,
+          "closing": 1
+        },
+        "has_speaker_notes": true,
+        "duration_seconds": 17.1,
+        "error": "PPTX rendering failed: 'SlideContent' object has no attribute 'section_number'",
+        "error_stage": "rendering"
+      }
     }
   ]
 }

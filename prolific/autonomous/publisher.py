@@ -162,6 +162,10 @@ def git_commit_and_push(
         if images_dir.exists() and any(images_dir.iterdir()):
             add_paths.append(str(images_dir))
 
+        presentations_dir = project_root / "blog" / "public" / "presentations"
+        if presentations_dir.exists() and any(presentations_dir.glob("*.pptx")):
+            add_paths.append(str(presentations_dir))
+
         metrics_file = project_root / "blog" / "data" / "metrics.json"
         if metrics_file.exists():
             add_paths.append(str(metrics_file))

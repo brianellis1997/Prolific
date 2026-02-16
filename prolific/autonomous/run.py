@@ -110,6 +110,24 @@ async def main() -> int:
         logger.info(f"Published: {result.file_path}")
         logger.info(f"Images copied: {result.images_copied}")
 
+        logger.info("=== STEP 5b: PRESENTATION GENERATION ===")
+        from prolific.services.pptx_export import generate_presentation
+        blog_images_dir = project_root / "blog" / "public" / "images" / result.slug
+        try:
+            pptx_path = await generate_presentation(
+                final_state=final_state,
+                slug=result.slug,
+                topic=selected.topic,
+                project_root=project_root,
+                blog_images_dir=blog_images_dir,
+            )
+            if pptx_path:
+                logger.info(f"Presentation saved: {pptx_path}")
+            else:
+                logger.warning("Presentation generation returned None")
+        except Exception as pptx_err:
+            logger.warning(f"Presentation generation failed (non-fatal): {pptx_err}")
+
     except Exception as e:
         error_msg = str(e)
         traceback_str = tb.format_exc()

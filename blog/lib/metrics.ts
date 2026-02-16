@@ -12,6 +12,20 @@ export interface RunCosts {
   total_cost_usd: number;
 }
 
+export interface PresentationMetrics {
+  status: 'success' | 'failed' | 'skipped' | 'pending';
+  file_path: string | null;
+  slide_count: number;
+  images_available: number;
+  images_embedded: number;
+  images_failed: number;
+  slide_types: Record<string, number>;
+  has_speaker_notes: boolean;
+  duration_seconds: number;
+  error: string | null;
+  error_stage: string | null;
+}
+
 export interface RunRecord {
   date: string;
   timestamp: string;
@@ -30,6 +44,7 @@ export interface RunRecord {
   langsmith_url: string | null;
   error: string | null;
   traceback: string | null;
+  presentation: PresentationMetrics | null;
 }
 
 export interface MetricsData {

@@ -539,6 +539,40 @@ def _render_closing(slide_layout, prs, slide_content, key_takeaway):
     _add_speaker_notes(slide, slide_content.speaker_notes)
 
 
+# -- Result type --
+
+class PresentationResult:
+    """Result of presentation generation with metrics for monitoring."""
+
+    def __init__(self):
+        self.status: str = "pending"
+        self.file_path: str | None = None
+        self.slide_count: int = 0
+        self.images_available: int = 0
+        self.images_embedded: int = 0
+        self.images_failed: int = 0
+        self.slide_types: dict[str, int] = {}
+        self.has_speaker_notes: bool = False
+        self.duration_seconds: float = 0.0
+        self.error: str | None = None
+        self.error_stage: str | None = None
+
+    def to_dict(self) -> dict:
+        return {
+            "status": self.status,
+            "file_path": self.file_path,
+            "slide_count": self.slide_count,
+            "images_available": self.images_available,
+            "images_embedded": self.images_embedded,
+            "images_failed": self.images_failed,
+            "slide_types": self.slide_types,
+            "has_speaker_notes": self.has_speaker_notes,
+            "duration_seconds": round(self.duration_seconds, 1),
+            "error": self.error,
+            "error_stage": self.error_stage,
+        }
+
+
 # -- Main generation function --
 
 async def generate_presentation(
@@ -547,63 +581,87 @@ async def generate_presentation(
     topic: str,
     project_root: Path,
     blog_images_dir: Path,
-) -> Path | None:
+) -> PresentationResult:
     """Generate a PowerPoint presentation from article generation state.
 
-    Returns the path to the saved .pptx file, or None if generation failed.
+    Returns a PresentationResult with metrics, status, and error details.
     """
+    import time
+    start = time.monotonic()
+    result = PresentationResult()
+
+    # -- Stage 1: Validate inputs --
     draft_chunks = final_state.get("draft_chunks", [])
     if not draft_chunks:
-        logger.warning("No draft chunks — skipping presentation generation")
-        return None
+        result.status = "skipped"
+        result.error = "No draft chunks available"
+        result.error_stage = "validation"
+        result.duration_seconds = time.monotonic() - start
+        logger.warning("PPTX skipped: no draft chunks")
+        return result
 
-    article_text, title = _assemble_article_text(final_state)
-    if not title:
-        title = topic
+    logger.info("=== PRESENTATION GENERATION ===")
 
-    chapter_summary = _build_chapter_summary(final_state)
-    image_list = _build_image_list(final_state)
-    claims_text = _build_claims_text(final_state)
-    sources_text = _build_sources_text(final_state)
-
-    image_list_str = ""
-    if image_list:
-        lines = []
-        for i, img in enumerate(image_list):
-            lines.append(f"[{i}] Type: {img['visual_type']}, Caption: {img['caption']}, Alt: {img['alt_text']}")
-        image_list_str = "\n".join(lines)
-    else:
-        image_list_str = "No images available. Do not create image_feature slides."
-
-    word_count = sum(getattr(c, "word_count", 0) for c in draft_chunks)
-
-    # Truncate article text if very long to stay within LLM context
-    max_article_chars = 30000
-    if len(article_text) > max_article_chars:
-        article_text = article_text[:max_article_chars] + "\n\n[Article truncated for length...]"
-
-    from datetime import datetime
-    date_str = datetime.now().strftime("%B %d, %Y")
-
-    human_msg = (
-        f"ARTICLE TITLE: {title}\n"
-        f"DATE: {date_str}\n"
-        f"WORD COUNT: {word_count}\n\n"
-        f"CHAPTER STRUCTURE:\n{chapter_summary}\n\n"
-        f"AVAILABLE IMAGES (reference by index number):\n{image_list_str}\n\n"
-        f"HIGH-CONFIDENCE CLAIMS (use for quote slides):\n{claims_text}\n\n"
-        f"SOURCES:\n{sources_text}\n\n"
-        f"FULL ARTICLE TEXT:\n{article_text}\n\n"
-        f"Create a presentation plan for this article."
-    )
-
-    logger.info("=== PRESENTATION: LLM content extraction ===")
-    logger.info(f"Article: {word_count} words, {len(image_list)} images available")
-
-    from prolific.services.llm import get_llm_service
-    llm_service = get_llm_service()
-
+    # -- Stage 2: Assemble article data --
     try:
+        article_text, title = _assemble_article_text(final_state)
+        if not title:
+            title = topic
+
+        chapter_summary = _build_chapter_summary(final_state)
+        image_list = _build_image_list(final_state)
+        claims_text = _build_claims_text(final_state)
+        sources_text = _build_sources_text(final_state)
+
+        result.images_available = len(image_list)
+        word_count = sum(getattr(c, "word_count", 0) for c in draft_chunks)
+
+        logger.info(f"[1/4] Data assembled: {word_count} words, "
+                     f"{len(image_list)} images, "
+                     f"{len(final_state.get('chapter_briefs', []))} chapters")
+    except Exception as e:
+        result.status = "failed"
+        result.error = f"Data assembly failed: {e}"
+        result.error_stage = "data_assembly"
+        result.duration_seconds = time.monotonic() - start
+        logger.error(f"PPTX failed at data assembly: {e}", exc_info=True)
+        return result
+
+    # -- Stage 3: LLM content extraction --
+    try:
+        image_list_str = ""
+        if image_list:
+            lines = []
+            for i, img in enumerate(image_list):
+                lines.append(f"[{i}] Type: {img['visual_type']}, Caption: {img['caption']}, Alt: {img['alt_text']}")
+            image_list_str = "\n".join(lines)
+        else:
+            image_list_str = "No images available. Do not create image_feature slides."
+
+        max_article_chars = 30000
+        if len(article_text) > max_article_chars:
+            logger.info(f"Article text truncated: {len(article_text)} -> {max_article_chars} chars")
+            article_text = article_text[:max_article_chars] + "\n\n[Article truncated for length...]"
+
+        from datetime import datetime
+        date_str = datetime.now().strftime("%B %d, %Y")
+
+        human_msg = (
+            f"ARTICLE TITLE: {title}\n"
+            f"DATE: {date_str}\n"
+            f"WORD COUNT: {word_count}\n\n"
+            f"CHAPTER STRUCTURE:\n{chapter_summary}\n\n"
+            f"AVAILABLE IMAGES (reference by index number):\n{image_list_str}\n\n"
+            f"HIGH-CONFIDENCE CLAIMS (use for quote slides):\n{claims_text}\n\n"
+            f"SOURCES:\n{sources_text}\n\n"
+            f"FULL ARTICLE TEXT:\n{article_text}\n\n"
+            f"Create a presentation plan for this article."
+        )
+
+        logger.info("[2/4] Calling LLM for presentation plan...")
+        from prolific.services.llm import get_llm_service
+        llm_service = get_llm_service()
+
         plan: PresentationPlan = await llm_service.invoke_with_structured_output(
             messages=[
                 SystemMessage(content=SYSTEM_PROMPT),
@@ -613,22 +671,46 @@ async def generate_presentation(
             tier="extraction",
             temperature=0.4,
         )
+
+        result.slide_count = len(plan.slides)
+        type_counts: dict[str, int] = {}
+        for s in plan.slides:
+            t = s.slide_type.value
+            type_counts[t] = type_counts.get(t, 0) + 1
+        result.slide_types = type_counts
+        result.has_speaker_notes = all(s.speaker_notes.strip() for s in plan.slides)
+
+        logger.info(f"[2/4] LLM plan received: {result.slide_count} slides, "
+                     f"types={type_counts}")
+
     except Exception as e:
-        logger.error(f"LLM presentation planning failed: {e}")
-        return None
+        result.status = "failed"
+        result.error = f"LLM planning failed: {e}"
+        result.error_stage = "llm_planning"
+        result.duration_seconds = time.monotonic() - start
+        logger.error(f"PPTX failed at LLM planning: {e}", exc_info=True)
+        return result
 
-    logger.info(f"Presentation plan: {plan.total_slides} slides")
-
-    # Resolve image paths for embedding
+    # -- Stage 4: Resolve images --
     resolved_images: dict[int, Path | None] = {}
     temp_files: list[Path] = []
-    for i, img in enumerate(image_list):
-        path = _resolve_image_path(img["asset"], blog_images_dir)
-        resolved_images[i] = path
-        if path and str(path).startswith(tempfile.gettempdir()):
-            temp_files.append(path)
+    try:
+        for i, img in enumerate(image_list):
+            path = _resolve_image_path(img["asset"], blog_images_dir)
+            resolved_images[i] = path
+            if path and str(path).startswith(tempfile.gettempdir()):
+                temp_files.append(path)
+            if path:
+                logger.info(f"[3/4] Image [{i}] resolved: {path.name}")
+            else:
+                logger.warning(f"[3/4] Image [{i}] could not be resolved")
 
-    # Build the PPTX
+        resolved_count = sum(1 for p in resolved_images.values() if p is not None)
+        logger.info(f"[3/4] Images resolved: {resolved_count}/{len(image_list)}")
+    except Exception as e:
+        logger.warning(f"[3/4] Image resolution error (non-fatal): {e}")
+
+    # -- Stage 5: Render PPTX --
     try:
         prs = Presentation()
         prs.slide_width = theme.SLIDE_WIDTH
@@ -636,9 +718,11 @@ async def generate_presentation(
 
         blank_layout = prs.slide_layouts[6]
         section_counter = 0
+        images_embedded = 0
+        images_failed = 0
         approved_sources = final_state.get("approved_sources", [])
 
-        for slide_content in plan.slides:
+        for idx, slide_content in enumerate(plan.slides):
             st = slide_content.slide_type
 
             if st == SlideType.TITLE:
@@ -657,9 +741,14 @@ async def generate_presentation(
                 img_path = None
                 if slide_content.image_index is not None:
                     img_path = resolved_images.get(slide_content.image_index)
-                if img_path:
+                if img_path and img_path.exists():
                     _render_image_feature(blank_layout, prs, slide_content, img_path)
+                    images_embedded += 1
                 else:
+                    if slide_content.image_index is not None:
+                        images_failed += 1
+                        logger.warning(f"[4/4] Slide {idx}: image [{slide_content.image_index}] "
+                                       f"unavailable, falling back to key_points")
                     _render_key_points(blank_layout, prs, slide_content)
 
             elif st == SlideType.QUOTE_HIGHLIGHT:
@@ -674,17 +763,32 @@ async def generate_presentation(
             elif st == SlideType.CLOSING:
                 _render_closing(blank_layout, prs, slide_content, plan.key_takeaway)
 
+        result.images_embedded = images_embedded
+        result.images_failed = images_failed
+
         # Save
         output_dir = project_root / "blog" / "public" / "presentations"
         output_dir.mkdir(parents=True, exist_ok=True)
         output_path = output_dir / f"{slug}.pptx"
         prs.save(str(output_path))
-        logger.info(f"Presentation saved: {output_path}")
-        return output_path
+
+        result.status = "success"
+        result.file_path = str(output_path)
+        result.duration_seconds = time.monotonic() - start
+
+        logger.info(f"[4/4] Presentation saved: {output_path}")
+        logger.info(f"=== PRESENTATION COMPLETE: {result.slide_count} slides, "
+                     f"{images_embedded} images embedded, "
+                     f"{result.duration_seconds:.1f}s ===")
+        return result
 
     except Exception as e:
-        logger.error(f"PPTX rendering failed: {e}", exc_info=True)
-        return None
+        result.status = "failed"
+        result.error = f"PPTX rendering failed: {e}"
+        result.error_stage = "rendering"
+        result.duration_seconds = time.monotonic() - start
+        logger.error(f"PPTX failed at rendering: {e}", exc_info=True)
+        return result
 
     finally:
         for tmp in temp_files:

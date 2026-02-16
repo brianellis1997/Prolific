@@ -38,6 +38,55 @@ function RunDetail({ run }: { run: RunRecord }) {
           <span>Search: ${run.costs.search_cost_usd?.toFixed(3)} ({run.costs.search_calls} calls)</span>
         </div>
       )}
+      {run.presentation && (
+        <div className="border border-gray-200 rounded-lg p-3 bg-white">
+          <div className="flex items-center gap-2 mb-2">
+            <span className="font-medium text-gray-700">Presentation</span>
+            <span
+              className={`px-2 py-0.5 rounded-full text-xs font-medium ${
+                run.presentation.status === 'success'
+                  ? 'bg-green-100 text-green-700'
+                  : run.presentation.status === 'failed'
+                  ? 'bg-red-100 text-red-700'
+                  : 'bg-yellow-100 text-yellow-700'
+              }`}
+            >
+              {run.presentation.status}
+            </span>
+          </div>
+          {run.presentation.status === 'success' && (
+            <>
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-gray-600 mb-2">
+                <span>Slides: {run.presentation.slide_count}</span>
+                <span>Images: {run.presentation.images_embedded}/{run.presentation.images_available}</span>
+                <span>Notes: {run.presentation.has_speaker_notes ? 'Yes' : 'Missing'}</span>
+                <span>Time: {run.presentation.duration_seconds}s</span>
+              </div>
+              {run.presentation.slide_types && Object.keys(run.presentation.slide_types).length > 0 && (
+                <div className="flex flex-wrap gap-1">
+                  {Object.entries(run.presentation.slide_types).map(([type, count]) => (
+                    <span key={type} className="px-2 py-0.5 bg-gray-100 rounded text-xs text-gray-600">
+                      {type}: {count}
+                    </span>
+                  ))}
+                </div>
+              )}
+              {run.presentation.images_failed > 0 && (
+                <p className="text-amber-600 text-xs mt-1">
+                  {run.presentation.images_failed} image(s) failed to embed
+                </p>
+              )}
+            </>
+          )}
+          {run.presentation.status === 'failed' && run.presentation.error && (
+            <div className="text-red-600 text-xs mt-1">
+              <span className="font-medium">Stage: </span>{run.presentation.error_stage || 'unknown'}
+              <br />
+              {run.presentation.error}
+            </div>
+          )}
+        </div>
+      )}
       {run.langsmith_url && (
         <div>
           <a
@@ -87,6 +136,7 @@ export function RunHistoryTable({ runs }: RunHistoryTableProps) {
               <th className="py-2 pr-4">Date</th>
               <th className="py-2 pr-4">Topic</th>
               <th className="py-2 pr-4">Status</th>
+              <th className="py-2 pr-4">PPTX</th>
               <th className="py-2 pr-4">Words</th>
               <th className="py-2 pr-4">Cost</th>
               <th className="py-2 pr-4">Duration</th>
@@ -124,6 +174,25 @@ export function RunHistoryTable({ runs }: RunHistoryTableProps) {
                       {run.status}
                     </span>
                   </td>
+                  <td className="py-3 pr-4">
+                    {run.presentation ? (
+                      <span
+                        className={`px-2 py-0.5 rounded-full text-xs font-medium ${
+                          run.presentation.status === 'success'
+                            ? 'bg-green-100 text-green-700'
+                            : run.presentation.status === 'failed'
+                            ? 'bg-red-100 text-red-700'
+                            : 'bg-yellow-100 text-yellow-700'
+                        }`}
+                      >
+                        {run.presentation.status === 'success'
+                          ? `${run.presentation.slide_count} slides`
+                          : run.presentation.status}
+                      </span>
+                    ) : (
+                      <span className="text-gray-400 text-xs">--</span>
+                    )}
+                  </td>
                   <td className="py-3 pr-4 text-gray-600">{run.word_count.toLocaleString()}</td>
                   <td className="py-3 pr-4 text-gray-600">
                     ${(run.costs?.total_cost_usd || 0).toFixed(2)}
@@ -134,7 +203,7 @@ export function RunHistoryTable({ runs }: RunHistoryTableProps) {
                 </tr>
                 {expandedIdx === idx && (
                   <tr>
-                    <td colSpan={6} className="py-4 px-4 bg-gray-50">
+                    <td colSpan={7} className="py-4 px-4 bg-gray-50">
                       <RunDetail run={run} />
                     </td>
                   </tr>

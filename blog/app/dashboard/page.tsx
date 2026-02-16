@@ -14,6 +14,8 @@ export default function DashboardPage() {
   const totalCost = runs.reduce((sum, r) => sum + (r.costs?.total_cost_usd || 0), 0);
   const successCount = runs.filter(r => r.status === 'success').length;
   const failCount = runs.filter(r => r.status === 'failed').length;
+  const pptxSuccess = runs.filter(r => r.presentation?.status === 'success').length;
+  const pptxFailed = runs.filter(r => r.presentation?.status === 'failed').length;
 
   return (
     <div className="max-w-5xl mx-auto px-6 py-12">
@@ -24,6 +26,8 @@ export default function DashboardPage() {
         successCount={successCount}
         failCount={failCount}
         totalCost={totalCost}
+        pptxSuccess={pptxSuccess}
+        pptxFailed={pptxFailed}
       />
 
       <CostSummary runs={runs} />

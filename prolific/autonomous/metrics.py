@@ -52,6 +52,7 @@ def build_run_record(
     thread_id: str | None = None,
     error: str | None = None,
     traceback: str | None = None,
+    presentation_result=None,
 ) -> dict:
     duration = (end_time - start_time).total_seconds()
 
@@ -67,6 +68,10 @@ def build_run_record(
         source_count = len(final_state.get("approved_sources", []))
         claim_count = len(final_state.get("claims", []))
         image_count = len(final_state.get("visual_assets", []))
+
+    pptx_metrics = None
+    if presentation_result is not None:
+        pptx_metrics = presentation_result.to_dict()
 
     return {
         "date": start_time.strftime("%Y-%m-%d"),
@@ -86,4 +91,5 @@ def build_run_record(
         "langsmith_url": get_langsmith_url(thread_id) if thread_id else None,
         "error": error,
         "traceback": traceback,
+        "presentation": pptx_metrics,
     }

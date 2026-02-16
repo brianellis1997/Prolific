@@ -37,6 +37,7 @@ async def main() -> int:
     final_state = None
     thread_id = None
     result = None
+    pptx_result = None
     error_msg = None
     traceback_str = None
     exit_code = 0
@@ -114,17 +115,17 @@ async def main() -> int:
         from prolific.services.pptx_export import generate_presentation
         blog_images_dir = project_root / "blog" / "public" / "images" / result.slug
         try:
-            pptx_path = await generate_presentation(
+            pptx_result = await generate_presentation(
                 final_state=final_state,
                 slug=result.slug,
                 topic=selected.topic,
                 project_root=project_root,
                 blog_images_dir=blog_images_dir,
             )
-            if pptx_path:
-                logger.info(f"Presentation saved: {pptx_path}")
+            if pptx_result.status == "success":
+                logger.info(f"Presentation saved: {pptx_result.file_path}")
             else:
-                logger.warning("Presentation generation returned None")
+                logger.warning(f"Presentation {pptx_result.status}: {pptx_result.error}")
         except Exception as pptx_err:
             logger.warning(f"Presentation generation failed (non-fatal): {pptx_err}")
 
@@ -152,6 +153,7 @@ async def main() -> int:
             thread_id=thread_id,
             error=error_msg,
             traceback=traceback_str,
+            presentation_result=pptx_result,
         )
 
         metrics = load_metrics(project_root)

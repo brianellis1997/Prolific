@@ -29,6 +29,7 @@ class SlideContent(BaseModel):
     quote_attribution: str | None = None
     image_index: int | None = None
     image_caption: str | None = None
+    section_number: int | None = None
     speaker_notes: str
 
 

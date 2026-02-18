@@ -236,6 +236,55 @@
         "error": null,
         "error_stage": null
       }
+    },
+    {
+      "date": "2026-02-18",
+      "timestamp": "2026-02-18T11:42:49.092804Z",
+      "status": "success",
+      "topic": "The Open Source LLM Giants: Analyzing Ant Group's Ling-2.5-1T",
+      "slug": "the-open-source-llm-giants-analyzing-ant-group-s-ling-2-5-1t",
+      "rationale": "This topic represents a significant technical milestone in the open-source community\u2014the breach of the 1-trillion parameter threshold. It offers high technical depth for our architecture-focused audience and avoids the redundancy of the 'Agentic' topics which have been heavily covered in our recent posts. It provides a necessary deep dive into the 'Intelligence' layer of the stack.",
+      "builds_on": null,
+      "duration_seconds": 1181,
+      "word_count": 4400,
+      "chapter_count": 3,
+      "source_count": 21,
+      "claim_count": 341,
+      "image_count": 0,
+      "costs": {
+        "llm_input_tokens": 243761,
+        "llm_output_tokens": 74404,
+        "llm_cost_usd": 0.3328,
+        "embedding_tokens": 10018,
+        "embedding_cost_usd": 0.0002,
+        "search_calls": 17,
+        "search_cost_usd": 0.17,
+        "total_cost_usd": 0.503
+      },
+      "langsmith_url": "https://smith.langchain.com/o/ce43c608-acf7-4745-87ca-8e429a0949f7/projects/p/fc987b89-33c2-403d-b5e3-074c9e3e295b",
+      "error": null,
+      "traceback": null,
+      "presentation": {
+        "status": "success",
+        "file_path": "/home/runner/work/Prolific/Prolific/blog/public/presentations/the-open-source-llm-giants-analyzing-ant-group-s-ling-2-5-1t.pptx",
+        "slide_count": 12,
+        "images_available": 0,
+        "images_embedded": 0,
+        "images_failed": 0,
+        "slide_types": {
+          "title": 1,
+          "section_divider": 3,
+          "key_points": 3,
+          "quote_highlight": 2,
+          "comparison": 1,
+          "sources": 1,
+          "closing": 1
+        },
+        "has_speaker_notes": true,
+        "duration_seconds": 24.5,
+        "error": null,
+        "error_stage": null
+      }
     }
   ]
 }

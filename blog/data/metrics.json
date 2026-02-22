@@ -432,6 +432,54 @@
         "error": null,
         "error_stage": null
       }
+    },
+    {
+      "date": "2026-02-22",
+      "timestamp": "2026-02-22T11:25:00.428231Z",
+      "status": "success",
+      "topic": "Coordinating Trees of Agents: The Technical Implementation of Multi-Agent Workflows",
+      "slug": "coordinating-trees-of-agents-the-technical-implementation-of-multi-agent-workflows",
+      "rationale": "This topic represents the next logical step in the blog's progression from basic agentic AI to complex, production-grade system architecture. While previous posts covered the rise of agents and MCP, this provides a necessary deep dive into the actual coordination logic (KGoT and Cord) required to manage multiple agents at scale, which is a high-growth area for 2026 software engineering.",
+      "builds_on": "the-rise-of-agentic-ai-from-content-generation-to-task-accomplishing-systems",
+      "duration_seconds": 912,
+      "word_count": 4650,
+      "chapter_count": 3,
+      "source_count": 25,
+      "claim_count": 346,
+      "image_count": 0,
+      "costs": {
+        "llm_input_tokens": 250356,
+        "llm_output_tokens": 70947,
+        "llm_cost_usd": 0.3047,
+        "embedding_tokens": 9296,
+        "embedding_cost_usd": 0.0002,
+        "search_calls": 17,
+        "search_cost_usd": 0.17,
+        "total_cost_usd": 0.4748
+      },
+      "langsmith_url": "https://smith.langchain.com/o/ce43c608-acf7-4745-87ca-8e429a0949f7/projects/p/fc987b89-33c2-403d-b5e3-074c9e3e295b",
+      "error": null,
+      "traceback": null,
+      "presentation": {
+        "status": "success",
+        "file_path": "/home/runner/work/Prolific/Prolific/blog/public/presentations/coordinating-trees-of-agents-the-technical-implementation-of-multi-agent-workflows.pptx",
+        "slide_count": 12,
+        "images_available": 0,
+        "images_embedded": 0,
+        "images_failed": 0,
+        "slide_types": {
+          "title": 1,
+          "section_divider": 3,
+          "key_points": 3,
+          "quote_highlight": 3,
+          "sources": 1,
+          "closing": 1
+        },
+        "has_speaker_notes": true,
+        "duration_seconds": 17.0,
+        "error": null,
+        "error_stage": null
+      }
     }
   ]
 }

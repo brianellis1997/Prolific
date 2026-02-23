@@ -480,6 +480,55 @@
         "error": null,
         "error_stage": null
       }
+    },
+    {
+      "date": "2026-02-23",
+      "timestamp": "2026-02-23T11:43:11.402815Z",
+      "status": "success",
+      "topic": "World Models in 3D Workflows: The Next Frontier for Generative AI",
+      "slug": "world-models-in-3d-workflows-the-next-frontier-for-generative-ai",
+      "rationale": "This topic represents a significant leap from current vision models to spatial intelligence. While we have covered 4D vision (D4RT), this candidate focuses on the generative and persistent 'World Model' aspect and its specific application in high-stakes engineering and manufacturing via the World Labs/Autodesk partnership, providing a fresh architectural perspective on 3D workflows.",
+      "builds_on": "d4rt-and-the-4d-vision-frontier-teaching-ai-temporal-spatial-awareness",
+      "duration_seconds": 1067,
+      "word_count": 4712,
+      "chapter_count": 3,
+      "source_count": 28,
+      "claim_count": 384,
+      "image_count": 1,
+      "costs": {
+        "llm_input_tokens": 278738,
+        "llm_output_tokens": 84212,
+        "llm_cost_usd": 0.3344,
+        "embedding_tokens": 10121,
+        "embedding_cost_usd": 0.0002,
+        "search_calls": 17,
+        "search_cost_usd": 0.17,
+        "total_cost_usd": 0.5046
+      },
+      "langsmith_url": "https://smith.langchain.com/o/ce43c608-acf7-4745-87ca-8e429a0949f7/projects/p/fc987b89-33c2-403d-b5e3-074c9e3e295b",
+      "error": null,
+      "traceback": null,
+      "presentation": {
+        "status": "success",
+        "file_path": "/home/runner/work/Prolific/Prolific/blog/public/presentations/world-models-in-3d-workflows-the-next-frontier-for-generative-ai.pptx",
+        "slide_count": 12,
+        "images_available": 1,
+        "images_embedded": 1,
+        "images_failed": 0,
+        "slide_types": {
+          "title": 1,
+          "section_divider": 3,
+          "key_points": 4,
+          "image_feature": 1,
+          "quote_highlight": 1,
+          "sources": 1,
+          "closing": 1
+        },
+        "has_speaker_notes": true,
+        "duration_seconds": 16.2,
+        "error": null,
+        "error_stage": null
+      }
     }
   ]
 }

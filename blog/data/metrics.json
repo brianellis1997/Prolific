@@ -529,6 +529,54 @@
         "error": null,
         "error_stage": null
       }
+    },
+    {
+      "date": "2026-02-24",
+      "timestamp": "2026-02-24T11:43:31.676736Z",
+      "status": "success",
+      "topic": "Disconnected Intelligence: Architecting Sovereign Clouds for Offline AI",
+      "slug": "disconnected-intelligence-architecting-sovereign-clouds-for-offline-ai",
+      "rationale": "This topic addresses a critical and emerging architectural shift in 2026: the move toward 'Sovereign Clouds' and offline-first AI. While previous posts covered infrastructure and agentic workflows, none have yet addressed the specific engineering challenges of maintaining high-reasoning AI capabilities in completely disconnected or air-gapped environments, which is a high-priority concern for enterprise and government sectors.",
+      "builds_on": "ai-infrastructure-at-scale-the-shift-to-agentic-era-data-centers",
+      "duration_seconds": 840,
+      "word_count": 4516,
+      "chapter_count": 3,
+      "source_count": 23,
+      "claim_count": 253,
+      "image_count": 0,
+      "costs": {
+        "llm_input_tokens": 207062,
+        "llm_output_tokens": 63079,
+        "llm_cost_usd": 0.2767,
+        "embedding_tokens": 7574,
+        "embedding_cost_usd": 0.0002,
+        "search_calls": 17,
+        "search_cost_usd": 0.17,
+        "total_cost_usd": 0.4469
+      },
+      "langsmith_url": "https://smith.langchain.com/o/ce43c608-acf7-4745-87ca-8e429a0949f7/projects/p/fc987b89-33c2-403d-b5e3-074c9e3e295b",
+      "error": null,
+      "traceback": null,
+      "presentation": {
+        "status": "success",
+        "file_path": "/home/runner/work/Prolific/Prolific/blog/public/presentations/disconnected-intelligence-architecting-sovereign-clouds-for-offline-ai.pptx",
+        "slide_count": 11,
+        "images_available": 0,
+        "images_embedded": 0,
+        "images_failed": 0,
+        "slide_types": {
+          "title": 1,
+          "section_divider": 3,
+          "key_points": 4,
+          "quote_highlight": 1,
+          "sources": 1,
+          "closing": 1
+        },
+        "has_speaker_notes": true,
+        "duration_seconds": 16.4,
+        "error": null,
+        "error_stage": null
+      }
     }
   ]
 }

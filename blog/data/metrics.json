@@ -577,6 +577,56 @@
         "error": null,
         "error_stage": null
       }
+    },
+    {
+      "date": "2026-02-25",
+      "timestamp": "2026-02-25T11:43:31.675403Z",
+      "status": "success",
+      "topic": "The 'Software 3.1' Paradigm: Caching and Optimizing AI Functions",
+      "slug": "the-software-3-1-paradigm-caching-and-optimizing-ai-functions",
+      "rationale": "This topic introduces a novel architectural pattern (Software 3.1) that addresses the current industry pain point of high inference costs and stochastic instability. It moves beyond the 'how to build an agent' phase into the 'how to optimize and industrialize' phase, which is highly relevant to senior architects. It avoids the redundancy of recent posts on general agentic workflows or specific model releases.",
+      "builds_on": "managing-the-stochastic-chaos-engineering-workflows-for-ai-generated-code",
+      "duration_seconds": 835,
+      "word_count": 4556,
+      "chapter_count": 3,
+      "source_count": 21,
+      "claim_count": 288,
+      "image_count": 1,
+      "costs": {
+        "llm_input_tokens": 216554,
+        "llm_output_tokens": 64192,
+        "llm_cost_usd": 0.2843,
+        "embedding_tokens": 8016,
+        "embedding_cost_usd": 0.0002,
+        "search_calls": 17,
+        "search_cost_usd": 0.17,
+        "total_cost_usd": 0.4545
+      },
+      "langsmith_url": "https://smith.langchain.com/o/ce43c608-acf7-4745-87ca-8e429a0949f7/projects/p/fc987b89-33c2-403d-b5e3-074c9e3e295b",
+      "error": null,
+      "traceback": null,
+      "presentation": {
+        "status": "success",
+        "file_path": "/home/runner/work/Prolific/Prolific/blog/public/presentations/the-software-3-1-paradigm-caching-and-optimizing-ai-functions.pptx",
+        "slide_count": 12,
+        "images_available": 1,
+        "images_embedded": 1,
+        "images_failed": 0,
+        "slide_types": {
+          "title": 1,
+          "section_divider": 3,
+          "key_points": 3,
+          "quote_highlight": 1,
+          "image_feature": 1,
+          "comparison": 1,
+          "sources": 1,
+          "closing": 1
+        },
+        "has_speaker_notes": true,
+        "duration_seconds": 16.6,
+        "error": null,
+        "error_stage": null
+      }
     }
   ]
 }

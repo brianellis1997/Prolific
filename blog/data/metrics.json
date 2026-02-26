@@ -627,6 +627,55 @@
         "error": null,
         "error_stage": null
       }
+    },
+    {
+      "date": "2026-02-26",
+      "timestamp": "2026-02-26T11:43:12.852107Z",
+      "status": "success",
+      "topic": "Cryptographic Authorization for AI Agents: RSA-Signed Prompt Envelopes",
+      "slug": "cryptographic-authorization-for-ai-agents-rsa-signed-prompt-envelopes",
+      "rationale": "As agentic workflows become the standard (as seen in our previous posts on MCP and Agent Trees), the critical missing link is security and authorization. This topic provides a deep technical dive into how to prevent 'rogue' agent actions using established cryptographic principles like RSA and the emerging OpenClaw protocol, filling a high-substance gap in our current coverage.",
+      "builds_on": "coordinating-trees-of-agents-the-technical-implementation-of-multi-agent-workflows",
+      "duration_seconds": 827,
+      "word_count": 4745,
+      "chapter_count": 3,
+      "source_count": 24,
+      "claim_count": 296,
+      "image_count": 1,
+      "costs": {
+        "llm_input_tokens": 249934,
+        "llm_output_tokens": 67818,
+        "llm_cost_usd": 0.2975,
+        "embedding_tokens": 8181,
+        "embedding_cost_usd": 0.0002,
+        "search_calls": 17,
+        "search_cost_usd": 0.17,
+        "total_cost_usd": 0.4677
+      },
+      "langsmith_url": "https://smith.langchain.com/o/ce43c608-acf7-4745-87ca-8e429a0949f7/projects/p/fc987b89-33c2-403d-b5e3-074c9e3e295b",
+      "error": null,
+      "traceback": null,
+      "presentation": {
+        "status": "success",
+        "file_path": "/home/runner/work/Prolific/Prolific/blog/public/presentations/cryptographic-authorization-for-ai-agents-rsa-signed-prompt-envelopes.pptx",
+        "slide_count": 12,
+        "images_available": 1,
+        "images_embedded": 1,
+        "images_failed": 0,
+        "slide_types": {
+          "title": 1,
+          "section_divider": 3,
+          "key_points": 4,
+          "quote_highlight": 1,
+          "image_feature": 1,
+          "sources": 1,
+          "closing": 1
+        },
+        "has_speaker_notes": true,
+        "duration_seconds": 14.9,
+        "error": null,
+        "error_stage": null
+      }
     }
   ]
 }

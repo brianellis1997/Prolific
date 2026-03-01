@@ -773,6 +773,55 @@
         "error": null,
         "error_stage": null
       }
+    },
+    {
+      "date": "2026-03-01",
+      "timestamp": "2026-03-01T11:23:37.062013Z",
+      "status": "success",
+      "topic": "Observability in the Age of Agents: New Relic and OpenTelemetry Tools",
+      "slug": "observability-in-the-age-of-agents-new-relic-and-opentelemetry-tools",
+      "rationale": "As the blog has recently covered agentic orchestration (Ebbforge, Cord, and MCP), the logical next step for a technical audience is the 'Day 2' operations: observability. This topic addresses the critical infrastructure need for monitoring autonomous systems, which is a trending challenge in early 2026. It provides significant technical depth regarding telemetry standards and system architecture.",
+      "builds_on": "coordinating-trees-of-agents-the-technical-implementation-of-multi-agent-workflows",
+      "duration_seconds": 910,
+      "word_count": 4837,
+      "chapter_count": 3,
+      "source_count": 28,
+      "claim_count": 462,
+      "image_count": 1,
+      "costs": {
+        "llm_input_tokens": 321128,
+        "llm_output_tokens": 91678,
+        "llm_cost_usd": 0.3722,
+        "embedding_tokens": 11546,
+        "embedding_cost_usd": 0.0002,
+        "search_calls": 17,
+        "search_cost_usd": 0.17,
+        "total_cost_usd": 0.5424
+      },
+      "langsmith_url": "https://smith.langchain.com/o/ce43c608-acf7-4745-87ca-8e429a0949f7/projects/p/fc987b89-33c2-403d-b5e3-074c9e3e295b",
+      "error": null,
+      "traceback": null,
+      "presentation": {
+        "status": "success",
+        "file_path": "/home/runner/work/Prolific/Prolific/blog/public/presentations/observability-in-the-age-of-agents-new-relic-and-opentelemetry-tools.pptx",
+        "slide_count": 12,
+        "images_available": 1,
+        "images_embedded": 1,
+        "images_failed": 0,
+        "slide_types": {
+          "title": 1,
+          "section_divider": 3,
+          "key_points": 4,
+          "quote_highlight": 1,
+          "image_feature": 1,
+          "sources": 1,
+          "closing": 1
+        },
+        "has_speaker_notes": true,
+        "duration_seconds": 14.9,
+        "error": null,
+        "error_stage": null
+      }
     }
   ]
 }

@@ -870,6 +870,56 @@
         "error": null,
         "error_stage": null
       }
+    },
+    {
+      "date": "2026-03-03",
+      "timestamp": "2026-03-03T11:36:07.263368Z",
+      "status": "success",
+      "topic": "Diffusion LLMs and the Quest for Sub-500ms Latency",
+      "slug": "diffusion-llms-and-the-quest-for-sub-500ms-latency",
+      "rationale": "This topic addresses a critical technical frontier in 2026: the transition from high-latency 'Deep Think' models to real-time, fluid interaction. While previous posts covered reasoning and scale, this provides a necessary deep dive into the performance engineering required for the next generation of voice and search agents, offering high technical substance for architects and researchers.",
+      "builds_on": "gemini-3-and-the-architecture-of-deep-think-scaling-reasoning-beyond-pattern-matching",
+      "duration_seconds": 937,
+      "word_count": 4738,
+      "chapter_count": 3,
+      "source_count": 20,
+      "claim_count": 355,
+      "image_count": 1,
+      "costs": {
+        "llm_input_tokens": 241302,
+        "llm_output_tokens": 77589,
+        "llm_cost_usd": 0.3086,
+        "embedding_tokens": 9530,
+        "embedding_cost_usd": 0.0002,
+        "search_calls": 17,
+        "search_cost_usd": 0.17,
+        "total_cost_usd": 0.4788
+      },
+      "langsmith_url": "https://smith.langchain.com/o/ce43c608-acf7-4745-87ca-8e429a0949f7/projects/p/fc987b89-33c2-403d-b5e3-074c9e3e295b",
+      "error": null,
+      "traceback": null,
+      "presentation": {
+        "status": "success",
+        "file_path": "/home/runner/work/Prolific/Prolific/blog/public/presentations/diffusion-llms-and-the-quest-for-sub-500ms-latency.pptx",
+        "slide_count": 12,
+        "images_available": 1,
+        "images_embedded": 1,
+        "images_failed": 0,
+        "slide_types": {
+          "title": 1,
+          "section_divider": 3,
+          "key_points": 3,
+          "image_feature": 1,
+          "quote_highlight": 1,
+          "comparison": 1,
+          "sources": 1,
+          "closing": 1
+        },
+        "has_speaker_notes": true,
+        "duration_seconds": 19.2,
+        "error": null,
+        "error_stage": null
+      }
     }
   ]
 }

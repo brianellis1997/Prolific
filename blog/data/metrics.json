@@ -920,6 +920,55 @@
         "error": null,
         "error_stage": null
       }
+    },
+    {
+      "date": "2026-03-04",
+      "timestamp": "2026-03-04T11:34:01.136170Z",
+      "status": "success",
+      "topic": "Vibe Coding vs. Software Engineering: Maintaining Rigor in the AI Era",
+      "slug": "vibe-coding-vs-software-engineering-maintaining-rigor-in-the-ai-era",
+      "rationale": "This topic addresses a major cultural and technical shift currently trending in the software engineering community. While previous posts covered 'Agentic Software Engineering' and 'Stochastic Chaos', this specifically targets the 'Vibe Coding' phenomenon\u2014the transition from traditional syntax-heavy development to high-level intent-based shipping\u2014and the architectural risks associated with it. It provides a timely follow-up to the stochastic chaos discussion by offering a more practitioner-focused look at modern IDE tools.",
+      "builds_on": "managing-the-stochastic-chaos-engineering-workflows-for-ai-generated-code",
+      "duration_seconds": 703,
+      "word_count": 4715,
+      "chapter_count": 3,
+      "source_count": 14,
+      "claim_count": 253,
+      "image_count": 1,
+      "costs": {
+        "llm_input_tokens": 191798,
+        "llm_output_tokens": 61501,
+        "llm_cost_usd": 0.2624,
+        "embedding_tokens": 7248,
+        "embedding_cost_usd": 0.0001,
+        "search_calls": 17,
+        "search_cost_usd": 0.17,
+        "total_cost_usd": 0.4325
+      },
+      "langsmith_url": "https://smith.langchain.com/o/ce43c608-acf7-4745-87ca-8e429a0949f7/projects/p/fc987b89-33c2-403d-b5e3-074c9e3e295b",
+      "error": null,
+      "traceback": null,
+      "presentation": {
+        "status": "success",
+        "file_path": "/home/runner/work/Prolific/Prolific/blog/public/presentations/vibe-coding-vs-software-engineering-maintaining-rigor-in-the-ai-era.pptx",
+        "slide_count": 12,
+        "images_available": 1,
+        "images_embedded": 1,
+        "images_failed": 0,
+        "slide_types": {
+          "title": 1,
+          "section_divider": 3,
+          "image_feature": 1,
+          "key_points": 3,
+          "quote_highlight": 2,
+          "sources": 1,
+          "closing": 1
+        },
+        "has_speaker_notes": true,
+        "duration_seconds": 17.4,
+        "error": null,
+        "error_stage": null
+      }
     }
   ]
 }

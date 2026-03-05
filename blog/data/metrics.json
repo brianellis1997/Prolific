@@ -969,6 +969,54 @@
         "error": null,
         "error_stage": null
       }
+    },
+    {
+      "date": "2026-03-05",
+      "timestamp": "2026-03-05T11:36:51.220514Z",
+      "status": "success",
+      "topic": "Dynamic Consistency Boundaries: The Next Evolution of Distributed Systems",
+      "slug": "dynamic-consistency-boundaries-the-next-evolution-of-distributed-systems",
+      "rationale": "While the blog has covered AI infrastructure and agentic workflows extensively, it lacks a deep dive into the underlying distributed systems architecture required to support these 2026-era workloads. Topic 3 offers a high-substance, non-duplicate technical exploration of how distributed systems are evolving to handle the fluidity of modern AI-integrated enterprises.",
+      "builds_on": "ai-infrastructure-at-scale-the-shift-to-agentic-era-data-centers",
+      "duration_seconds": 701,
+      "word_count": 4616,
+      "chapter_count": 3,
+      "source_count": 22,
+      "claim_count": 270,
+      "image_count": 0,
+      "costs": {
+        "llm_input_tokens": 199542,
+        "llm_output_tokens": 62347,
+        "llm_cost_usd": 0.2697,
+        "embedding_tokens": 7418,
+        "embedding_cost_usd": 0.0001,
+        "search_calls": 17,
+        "search_cost_usd": 0.17,
+        "total_cost_usd": 0.4399
+      },
+      "langsmith_url": "https://smith.langchain.com/o/ce43c608-acf7-4745-87ca-8e429a0949f7/projects/p/fc987b89-33c2-403d-b5e3-074c9e3e295b",
+      "error": null,
+      "traceback": null,
+      "presentation": {
+        "status": "success",
+        "file_path": "/home/runner/work/Prolific/Prolific/blog/public/presentations/dynamic-consistency-boundaries-the-next-evolution-of-distributed-systems.pptx",
+        "slide_count": 12,
+        "images_available": 0,
+        "images_embedded": 0,
+        "images_failed": 0,
+        "slide_types": {
+          "title": 1,
+          "section_divider": 3,
+          "key_points": 4,
+          "quote_highlight": 2,
+          "sources": 1,
+          "closing": 1
+        },
+        "has_speaker_notes": true,
+        "duration_seconds": 14.9,
+        "error": null,
+        "error_stage": null
+      }
     }
   ]
 }

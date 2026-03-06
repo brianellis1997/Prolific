@@ -1017,6 +1017,55 @@
         "error": null,
         "error_stage": null
       }
+    },
+    {
+      "date": "2026-03-06",
+      "timestamp": "2026-03-06T11:32:28.545056Z",
+      "status": "success",
+      "topic": "Beyond the Wrapper: Why 2026 is the Year of Vertical AI Integration",
+      "slug": "beyond-the-wrapper-why-2026-is-the-year-of-vertical-ai-integration",
+      "rationale": "This topic addresses a critical industry shift occurring in 2026 where simple API wrappers are no longer viable. It provides a high-level strategic and technical analysis of how the AI startup ecosystem is evolving toward deep enterprise integration, which is highly relevant to our audience of architects and engineers. It avoids the direct duplication of our recent posts on specific protocols (MCP) or coding styles (Vibe Coding) by focusing on the broader business and architectural survival of AI companies.",
+      "builds_on": "the-2026-enterprise-agent-stack-orchestrating-openai-frontier-and-anthropic-plug-ins",
+      "duration_seconds": 753,
+      "word_count": 4530,
+      "chapter_count": 3,
+      "source_count": 19,
+      "claim_count": 265,
+      "image_count": 1,
+      "costs": {
+        "llm_input_tokens": 221246,
+        "llm_output_tokens": 64024,
+        "llm_cost_usd": 0.2923,
+        "embedding_tokens": 7961,
+        "embedding_cost_usd": 0.0002,
+        "search_calls": 17,
+        "search_cost_usd": 0.17,
+        "total_cost_usd": 0.4624
+      },
+      "langsmith_url": "https://smith.langchain.com/o/ce43c608-acf7-4745-87ca-8e429a0949f7/projects/p/fc987b89-33c2-403d-b5e3-074c9e3e295b",
+      "error": null,
+      "traceback": null,
+      "presentation": {
+        "status": "success",
+        "file_path": "/home/runner/work/Prolific/Prolific/blog/public/presentations/beyond-the-wrapper-why-2026-is-the-year-of-vertical-ai-integration.pptx",
+        "slide_count": 12,
+        "images_available": 1,
+        "images_embedded": 1,
+        "images_failed": 0,
+        "slide_types": {
+          "title": 1,
+          "section_divider": 3,
+          "quote_highlight": 2,
+          "image_feature": 1,
+          "key_points": 3,
+          "sources": 1,
+          "closing": 1
+        },
+        "has_speaker_notes": true,
+        "duration_seconds": 24.2,
+        "error": null,
+        "error_stage": null
+      }
     }
   ]
 }

@@ -1066,6 +1066,54 @@
         "error": null,
         "error_stage": null
       }
+    },
+    {
+      "date": "2026-03-07",
+      "timestamp": "2026-03-07T11:23:28.362482Z",
+      "status": "success",
+      "topic": "Next-Gen Machine Learning: Aggregate Models and Adaptive Gradients",
+      "slug": "next-gen-machine-learning-aggregate-models-and-adaptive-gradients",
+      "rationale": "This topic offers the most technical depth and freshness, focusing on specific February 2026 research (AdaGrad-Diff) that hasn't been covered yet. While other candidates like 'Agentic Coding' or 'Open Source Reasoning' are high-quality, they are largely duplicates of existing posts in the archive. This selection provides a rigorous academic and engineering perspective on the next wave of ML optimization.",
+      "builds_on": null,
+      "duration_seconds": 737,
+      "word_count": 4614,
+      "chapter_count": 3,
+      "source_count": 19,
+      "claim_count": 187,
+      "image_count": 0,
+      "costs": {
+        "llm_input_tokens": 191876,
+        "llm_output_tokens": 57725,
+        "llm_cost_usd": 0.2433,
+        "embedding_tokens": 6388,
+        "embedding_cost_usd": 0.0001,
+        "search_calls": 17,
+        "search_cost_usd": 0.17,
+        "total_cost_usd": 0.4134
+      },
+      "langsmith_url": "https://smith.langchain.com/o/ce43c608-acf7-4745-87ca-8e429a0949f7/projects/p/fc987b89-33c2-403d-b5e3-074c9e3e295b",
+      "error": null,
+      "traceback": null,
+      "presentation": {
+        "status": "success",
+        "file_path": "/home/runner/work/Prolific/Prolific/blog/public/presentations/next-gen-machine-learning-aggregate-models-and-adaptive-gradients.pptx",
+        "slide_count": 12,
+        "images_available": 0,
+        "images_embedded": 0,
+        "images_failed": 0,
+        "slide_types": {
+          "title": 1,
+          "section_divider": 3,
+          "key_points": 5,
+          "quote_highlight": 1,
+          "sources": 1,
+          "closing": 1
+        },
+        "has_speaker_notes": true,
+        "duration_seconds": 14.4,
+        "error": null,
+        "error_stage": null
+      }
     }
   ]
 }

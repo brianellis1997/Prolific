@@ -1212,6 +1212,55 @@
         "error": null,
         "error_stage": null
       }
+    },
+    {
+      "date": "2026-03-10",
+      "timestamp": "2026-03-10T11:36:17.722997Z",
+      "status": "success",
+      "topic": "Machine Learning in the Linux Kernel: A New Frontier for Systems Programming",
+      "slug": "machine-learning-in-the-linux-kernel-a-new-frontier-for-systems-programming",
+      "rationale": "This topic represents a significant shift in systems programming and architecture. While previous posts covered high-level AI infrastructure and agentic workflows, this addresses the 'bare metal' integration of ML into the OS itself. It is highly technical, timely for 2026, and avoids the redundancy of the numerous 'agent' and 'LLM' posts already in the catalog.",
+      "builds_on": null,
+      "duration_seconds": 836,
+      "word_count": 4558,
+      "chapter_count": 3,
+      "source_count": 24,
+      "claim_count": 298,
+      "image_count": 1,
+      "costs": {
+        "llm_input_tokens": 219585,
+        "llm_output_tokens": 71063,
+        "llm_cost_usd": 0.2801,
+        "embedding_tokens": 8461,
+        "embedding_cost_usd": 0.0002,
+        "search_calls": 17,
+        "search_cost_usd": 0.17,
+        "total_cost_usd": 0.4503
+      },
+      "langsmith_url": "https://smith.langchain.com/o/ce43c608-acf7-4745-87ca-8e429a0949f7/projects/p/fc987b89-33c2-403d-b5e3-074c9e3e295b",
+      "error": null,
+      "traceback": null,
+      "presentation": {
+        "status": "success",
+        "file_path": "/home/runner/work/Prolific/Prolific/blog/public/presentations/machine-learning-in-the-linux-kernel-a-new-frontier-for-systems-programming.pptx",
+        "slide_count": 12,
+        "images_available": 1,
+        "images_embedded": 1,
+        "images_failed": 0,
+        "slide_types": {
+          "title": 1,
+          "section_divider": 3,
+          "key_points": 3,
+          "quote_highlight": 2,
+          "image_feature": 1,
+          "sources": 1,
+          "closing": 1
+        },
+        "has_speaker_notes": true,
+        "duration_seconds": 18.5,
+        "error": null,
+        "error_stage": null
+      }
     }
   ]
 }

@@ -61,6 +61,13 @@ chroma_data/
 *.log
 logs/
 
+# YouTube credentials
+client_secrets.json
+youtube_credentials.json
+
+# YouTube output
+youtube_output/
+
 # OS
 .DS_Store
 Thumbs.db

@@ -8,6 +8,16 @@ You must brainstorm {num_candidates} unique, interesting history topic ideas.
 
 CONTENT MIX RULE: {content_type_instruction}
 
+TRENDING NEWS CONTEXT (use this to inspire ~30% of your suggestions):
+{trending_context}
+
+For trending-inspired topics: DO NOT cover the news itself. Instead, create a historical
+deep dive that relates to what's in the news. For example, if there's news about Iran,
+suggest "The Complete History of the Persian Empire" or "The Life of Cyrus the Great."
+The video must still be a calm, timeless history narration - NOT a news reaction.
+If a topic is inspired by trending news, fill in the trending_tie_in field explaining
+the connection. Leave trending_tie_in empty for purely evergreen topics.
+
 AVOID these topics that have already been covered:
 {past_topics}
 
@@ -17,19 +27,23 @@ For each topic, provide:
 - era_tags: Historical eras covered (e.g., "ancient", "medieval", "renaissance", "modern")
 - region_tags: Regions/civilizations (e.g., "rome", "china", "egypt", "americas")
 - appeal_reason: Why this would be interesting and sleep-friendly
+- trending_tie_in: If inspired by current news, briefly explain the connection (otherwise leave empty)
 
 Prioritize topics that are:
 1. Rich enough for 2+ hours of narration
 2. Have a natural narrative arc (especially for biographies)
 3. Not oversaturated on YouTube
-4. Calming and interesting rather than disturbing or graphic"""
+4. Calming and interesting rather than disturbing or graphic
+5. Likely to catch search traffic (trending-adjacent topics get a bonus here)"""
 
 TOPIC_SELECT_SYSTEM = """You are selecting the single best topic from a list of candidates
 for a sleep history YouTube video. Choose the topic that:
 1. Has the strongest narrative potential for long-form narration
 2. Would appeal to the widest audience
 3. Is distinct from past videos on the channel
-4. Has enough depth for 2-3 hours of calm narration
+4. Has enough depth for 1-2 hours of calm narration
+5. If a topic has a TRENDING tie-in, give it a significant bonus - trending topics
+   capture search traffic from people looking up the topic due to current events
 
 Return the index (0-based) of your chosen topic and a brief rationale."""
 

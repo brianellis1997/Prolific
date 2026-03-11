@@ -72,6 +72,33 @@ class Settings(BaseSettings):
         "academic", "conversational", "technical", "journalistic"
     ] = "academic"
 
+    # YouTube Pipeline
+    youtube_script_model: str = "google/gemini-3-flash-preview"
+    youtube_image_model: str = "google/gemini-3.1-flash-image-preview"
+    youtube_target_word_count: int = 30000
+    youtube_max_images: int = 18
+    youtube_image_style: str = "oil painting, historical illustration, warm muted tones, cinematic lighting"
+    youtube_output_dir: str = "./youtube_output"
+    youtube_history_db_path: str = "./youtube_history.sqlite"
+    youtube_biography_ratio: float = 0.7
+
+    # 11Labs TTS
+    elevenlabs_api_key: str = ""
+    elevenlabs_voice_id: str = ""
+    elevenlabs_model_id: str = "eleven_turbo_v2_5"
+
+    # YouTube Data API
+    youtube_credentials_path: str = "./youtube_credentials.json"
+    youtube_client_secrets_path: str = "./client_secrets.json"
+    youtube_default_privacy: str = "unlisted"
+    youtube_category_id: str = "27"
+
+    # Scheduler
+    youtube_cron_hour: int = 20
+    youtube_cron_minute: int = 0
+    youtube_cron_timezone: str = "US/Eastern"
+    youtube_cron_enabled: bool = False
+
 
 @lru_cache
 def get_settings() -> Settings:

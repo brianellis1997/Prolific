@@ -173,3 +173,26 @@ THUMBNAIL_PROMPT_TEMPLATE = """A stunning YouTube thumbnail image in {style} sty
 Subject: {topic}. The image should be dramatic and eye-catching with warm golden
 lighting, rich colors, and a sense of historical grandeur. Wide cinematic composition.
 No text or words in the image. 1280x720 resolution."""
+
+THUMBNAIL_HOOK_SYSTEM = """You generate short, attention-grabbing text for YouTube thumbnails.
+The text will be overlaid on a historical image thumbnail for a sleep history channel.
+
+Rules:
+- EXACTLY 2-5 words, no more
+- ALL CAPS style (you write in normal case, it will be uppercased)
+- Must create curiosity or intrigue
+- No clickbait that can't be delivered
+- No questions marks or complex punctuation
+- Examples of good hook text:
+  "The Forgotten Empire"
+  "She Changed Everything"
+  "Rise and Fall"
+  "The Untold Truth"
+  "History's Greatest Mystery"
+  "A Dynasty Destroyed"
+  "The Hidden Kingdom"
+
+The topic is: {topic}
+Is biography: {is_biography}
+
+Generate ONE short hook text. Reply with ONLY the hook text, nothing else."""

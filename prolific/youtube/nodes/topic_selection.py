@@ -20,6 +20,7 @@ class TopicCandidate(BaseModel):
     era_tags: list[str] = Field(default_factory=list)
     region_tags: list[str] = Field(default_factory=list)
     appeal_reason: str = ""
+    trending_tie_in: str = ""
 
 
 class TopicBrainstormResult(BaseModel):
@@ -29,6 +30,32 @@ class TopicBrainstormResult(BaseModel):
 class TopicSelectionResult(BaseModel):
     chosen_index: int
     rationale: str
+
+
+async def _get_trending_context() -> str:
+    """Search for trending news and extract historically relevant themes."""
+    try:
+        from prolific.services.web_search import get_web_search_service
+        search_service = get_web_search_service()
+
+        results = await search_service.search(
+            query="major world news today trending stories",
+            max_results=8,
+            search_depth="basic",
+        )
+
+        if not results:
+            return ""
+
+        headlines = [f"- {r.title}: {r.snippet[:150]}" for r in results[:8]]
+        trending_summary = "\n".join(headlines)
+
+        logger.info(f"Fetched {len(headlines)} trending headlines for topic inspiration")
+        return trending_summary
+
+    except Exception as e:
+        logger.warning(f"Trending news fetch failed (non-fatal): {e}")
+        return ""
 
 
 async def topic_selection_node(state: YouTubePipelineState) -> dict:
@@ -64,12 +91,15 @@ async def topic_selection_node(state: YouTubePipelineState) -> dict:
                 "rather than a single person's biography."
             )
 
+    trending_context = await _get_trending_context()
+
     from prolific.youtube.prompts import TOPIC_BRAINSTORM_SYSTEM
 
     brainstorm_prompt = TOPIC_BRAINSTORM_SYSTEM.format(
         num_candidates=10,
         content_type_instruction=content_type_instruction,
         past_topics=past_topics_str,
+        trending_context=trending_context if trending_context else "(no trending data available)",
     )
 
     brainstorm_result = await llm_service.invoke_with_structured_output(
@@ -95,6 +125,7 @@ async def topic_selection_node(state: YouTubePipelineState) -> dict:
 
     candidates_str = "\n".join(
         f"[{i}] {c.topic} (biography={c.is_biography}) - {c.appeal_reason}"
+        + (f" [TRENDING: {c.trending_tie_in}]" if c.trending_tie_in else "")
         for i, c in enumerate(candidates)
     )
 
@@ -114,6 +145,8 @@ async def topic_selection_node(state: YouTubePipelineState) -> dict:
     logger.info(f"Selected topic: {chosen.topic}")
     logger.info(f"Is biography: {chosen.is_biography}")
     logger.info(f"Rationale: {selection_result.rationale}")
+    if chosen.trending_tie_in:
+        logger.info(f"Trending tie-in: {chosen.trending_tie_in}")
 
     return {
         "topic": chosen.topic,

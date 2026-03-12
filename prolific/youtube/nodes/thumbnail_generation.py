@@ -17,7 +17,7 @@ logger = logging.getLogger(__name__)
 
 
 async def thumbnail_generation_node(state: YouTubePipelineState) -> dict:
-    """Generate a YouTube thumbnail image with text overlay."""
+    """Generate a YouTube thumbnail image with AI-rendered text."""
     logger.info("=== THUMBNAIL GENERATION ===")
 
     topic = state["topic"]
@@ -28,8 +28,6 @@ async def thumbnail_generation_node(state: YouTubePipelineState) -> dict:
     output_dir = Path(settings.youtube_output_dir) / thread_id
     output_dir.mkdir(parents=True, exist_ok=True)
     output_path = str(output_dir / "thumbnail.png")
-
-    prompt = THUMBNAIL_PROMPT_TEMPLATE.format(style=style, topic=topic)
 
     service = get_image_gen_service()
     llm_service = get_llm_service()
@@ -50,34 +48,30 @@ async def thumbnail_generation_node(state: YouTubePipelineState) -> dict:
         hook_text = hook_response.content.strip().strip('"').strip("'")
         if len(hook_text.split()) > 6:
             hook_text = " ".join(hook_text.split()[:5])
+        hook_text = hook_text.upper()
         logger.info(f"Thumbnail hook text: '{hook_text}'")
     except Exception as e:
         logger.warning(f"Hook text generation failed, using fallback: {e}")
-        hook_text = topic.split(":")[0][:30] if ":" in topic else topic[:30]
+        hook_text = topic.split(":")[0][:30].upper() if ":" in topic else topic[:30].upper()
 
     try:
+        prompt = THUMBNAIL_PROMPT_TEMPLATE.format(
+            style=style, topic=topic, hook_text=hook_text
+        )
         await service.generate_image(
             prompt=prompt,
             output_path=output_path,
         )
-
-        if hook_text:
-            add_text_overlay(
-                image_path=output_path,
-                hook_text=hook_text,
-                output_path=output_path,
-                position="bottom",
-            )
+        logger.info(f"AI thumbnail with text generated: {output_path}")
 
         thumbnail = ThumbnailAsset(
             prompt=prompt,
             file_path=output_path,
             title_overlay_text=hook_text,
         )
-        logger.info(f"Thumbnail generated: {output_path}")
     except Exception as e:
         logger.error(f"Thumbnail generation failed: {e}")
-        thumbnail = ThumbnailAsset(prompt=prompt)
+        thumbnail = ThumbnailAsset(prompt="", title_overlay_text=hook_text)
 
     return {
         "thumbnail": thumbnail,

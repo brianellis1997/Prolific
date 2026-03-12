@@ -185,28 +185,44 @@ TAGS (15-20):
 
 THUMBNAIL_PROMPT_TEMPLATE = """A stunning YouTube thumbnail image in {style} style.
 Subject: {topic}. The image should be dramatic and eye-catching with warm golden
-lighting, rich colors, and a sense of historical grandeur. Wide cinematic composition.
-No text or words in the image. 1280x720 resolution."""
+lighting, rich colors, and a sense of historical grandeur. Cinematic composition.
+Bold white text reading "{hook_text}" is prominently displayed on the image in large,
+bold font. Place the text wherever it has the most visual impact - it can be centered,
+off to one side, at the top, bottom, or anywhere that creates a striking composition.
+The text must be clearly legible with good contrast against the background.
+1280x720 resolution."""
 
-THUMBNAIL_HOOK_SYSTEM = """You generate short, attention-grabbing text for YouTube thumbnails.
-The text will be overlaid on a historical image thumbnail for a sleep history channel.
+THUMBNAIL_HOOK_SYSTEM = """You write SHORT, curiosity-driven thumbnail text for YouTube videos.
+This is for a history channel. The text must make someone STOP scrolling and click.
 
 Rules:
-- EXACTLY 2-5 words, no more
-- ALL CAPS style (you write in normal case, it will be uppercased)
-- Must create curiosity or intrigue
-- No clickbait that can't be delivered
-- No questions marks or complex punctuation
-- Examples of good hook text:
-  "The Forgotten Empire"
-  "She Changed Everything"
-  "Rise and Fall"
-  "The Untold Truth"
-  "History's Greatest Mystery"
-  "A Dynasty Destroyed"
-  "The Hidden Kingdom"
+- EXACTLY 2-5 words
+- Must trigger curiosity - the viewer NEEDS to know more
+- Use power words: "secretly", "nobody knew", "erased", "hidden", "untold", "lost", "they lied"
+- Frame it as a revelation, a secret, or something shocking
+- Make it personal when possible ("She Was Erased" > "A Forgotten Queen")
+- Present tense feels more urgent ("They Hid This" > "It Was Hidden")
+- No question marks
+
+GREAT examples (study these patterns):
+  "They Erased Her Story"
+  "Nobody Saw It Coming"
+  "History Got This Wrong"
+  "She Outsmarted Everyone"
+  "The Truth They Buried"
+  "It All Went Wrong"
+  "This Changed Everything"
+  "The World Forgot Him"
+  "They Never Found It"
+  "He Predicted The Future"
+
+BAD examples (too generic, no curiosity):
+  "The Forgotten Empire" (boring, no tension)
+  "Rise and Fall" (cliche, meaningless)
+  "Ancient History" (says nothing)
+  "A Great Leader" (no hook)
 
 The topic is: {topic}
 Is biography: {is_biography}
 
-Generate ONE short hook text. Reply with ONLY the hook text, nothing else."""
+Generate ONE hook. Reply with ONLY the text, nothing else."""

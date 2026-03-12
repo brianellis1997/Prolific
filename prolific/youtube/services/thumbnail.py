@@ -3,7 +3,7 @@
 import logging
 from pathlib import Path
 
-from PIL import Image, ImageDraw, ImageFont
+from PIL import Image, ImageDraw, ImageFont, ImageFilter
 
 logger = logging.getLogger(__name__)
 
@@ -94,17 +94,7 @@ def add_text_overlay(
     else:
         text_y = (THUMBNAIL_H - text_h) // 2
 
-    padding_x = 30
-    padding_y = 15
-    draw.rectangle(
-        [
-            text_x - padding_x,
-            text_y - padding_y,
-            text_x + text_w + padding_x,
-            text_y + text_h + padding_y,
-        ],
-        fill=(0, 0, 0, 120),
-    )
+    _draw_gradient_vignette(overlay, position)
 
     draw.multiline_text(
         (text_x, text_y),
@@ -122,3 +112,38 @@ def add_text_overlay(
 
     logger.info(f"Thumbnail overlay: '{hook_text}' -> {output_path}")
     return output_path
+
+
+def _draw_gradient_vignette(
+    overlay: Image.Image,
+    position: str = "bottom",
+    max_alpha: int = 200,
+) -> None:
+    """Draw a smooth gradient fade for text readability (no hard box)."""
+    w, h = overlay.size
+    gradient_height = int(h * 0.55)
+
+    gradient = Image.new("L", (1, gradient_height), 0)
+
+    for y in range(gradient_height):
+        if position == "bottom":
+            alpha = int(max_alpha * (y / gradient_height) ** 1.5)
+        elif position == "top":
+            alpha = int(max_alpha * (1 - y / gradient_height) ** 1.5)
+        else:
+            center = gradient_height // 2
+            dist = abs(y - center) / center
+            alpha = int(max_alpha * (1 - dist) ** 1.5)
+        gradient.putpixel((0, y), alpha)
+
+    gradient = gradient.resize((w, gradient_height), Image.BILINEAR)
+
+    black_bar = Image.new("RGBA", (w, gradient_height), (0, 0, 0, 255))
+    black_bar.putalpha(gradient)
+
+    if position == "bottom":
+        overlay.paste(black_bar, (0, h - gradient_height), black_bar)
+    elif position == "top":
+        overlay.paste(black_bar, (0, 0), black_bar)
+    else:
+        overlay.paste(black_bar, (0, (h - gradient_height) // 2), black_bar)

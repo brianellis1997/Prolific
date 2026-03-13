@@ -1,9 +1,10 @@
-"""Image generation node - generates AI images for segments that need them."""
+"""Image generation node - generates AI images and fetches web images."""
 
 import asyncio
 import logging
 from pathlib import Path
 
+import httpx
 from langchain_core.messages import AIMessage
 
 from prolific.core.config import settings
@@ -14,6 +15,78 @@ from prolific.shorts.state import ShortsPipelineState
 logger = logging.getLogger(__name__)
 
 MAX_CONCURRENT = 3
+
+
+async def _search_web_images(query: str, max_results: int = 5) -> list[str]:
+    """Search for real photos using Tavily image search."""
+    try:
+        from tavily import TavilyClient
+        client = TavilyClient(api_key=settings.tavily_api_key)
+        results = client.search(
+            query=query,
+            search_depth="basic",
+            include_images=True,
+            max_results=max_results,
+        )
+        image_urls = results.get("images", [])[:max_results]
+        logger.info(f"Web image search '{query}': found {len(image_urls)} images")
+        return image_urls
+    except Exception as e:
+        logger.warning(f"Web image search failed for '{query}': {e}")
+        return []
+
+
+async def _download_web_image(url: str, output_path: str) -> bool:
+    """Download an image from URL. Returns True on success."""
+    try:
+        async with httpx.AsyncClient(
+            timeout=30,
+            follow_redirects=True,
+            headers={"User-Agent": "Mozilla/5.0 (compatible; ProlificBot/1.0)"},
+        ) as client:
+            resp = await client.get(url)
+            resp.raise_for_status()
+            content_type = resp.headers.get("content-type", "")
+            if not any(t in content_type for t in ["image/", "octet-stream"]):
+                logger.info(f"Not an image content-type: {content_type}")
+                return False
+            Path(output_path).write_bytes(resp.content)
+            logger.info(f"Downloaded web image: {output_path} ({len(resp.content) // 1024}KB)")
+            return True
+    except Exception as e:
+        logger.warning(f"Failed to download {url}: {e}")
+        return False
+
+
+async def _fetch_web_image(
+    asset: VisualAsset,
+    output_dir: Path,
+    semaphore: asyncio.Semaphore,
+) -> VisualAsset:
+    """Fetch a real photo from the web for a web_image asset."""
+    async with semaphore:
+        output_path = str(output_dir / f"web_{asset.sequence_number:02d}.png")
+        try:
+            image_urls = await _search_web_images(asset.search_query)
+            for url in image_urls:
+                if await _download_web_image(url, output_path):
+                    logger.info(f"[{asset.sequence_number}] Fetched web image for: {asset.search_query}")
+                    return VisualAsset(
+                        id=asset.id,
+                        sequence_number=asset.sequence_number,
+                        asset_type="web_image",
+                        search_query=asset.search_query,
+                        file_path=output_path,
+                        width=asset.width,
+                        height=asset.height,
+                        duration_seconds=asset.duration_seconds,
+                        ken_burns_direction=asset.ken_burns_direction,
+                    )
+            logger.warning(f"[{asset.sequence_number}] No web images found, will fall back to AI")
+            return asset
+        except Exception as e:
+            logger.error(f"[{asset.sequence_number}] Web image fetch failed: {e}")
+            return asset
 
 
 async def _generate_one(
@@ -27,8 +100,11 @@ async def _generate_one(
         output_path = str(output_dir / f"image_{asset.sequence_number:02d}.png")
         try:
             style_prefix = settings.shorts_image_style + ". "
+            prompt = asset.image_prompt
+            if not prompt and asset.search_query:
+                prompt = f"Photo-realistic image of: {asset.search_query}"
             await service.generate_image(
-                prompt=asset.image_prompt,
+                prompt=prompt,
                 output_path=output_path,
                 style_prefix=style_prefix,
             )
@@ -50,29 +126,56 @@ async def _generate_one(
 
 
 async def image_generation_node(state: ShortsPipelineState) -> dict:
-    """Generate AI images for segments marked as ai_image."""
+    """Generate AI images and fetch web images for segments that need them."""
     logger.info("=== SHORTS: IMAGE GENERATION ===")
 
     visual_assets = state.get("visual_assets", [])
-    image_segments = [a for a in visual_assets if a.asset_type == "ai_image" and not a.file_path]
+    web_segments = [a for a in visual_assets if a.asset_type == "web_image" and not a.file_path]
+    ai_segments = [a for a in visual_assets if a.asset_type == "ai_image" and not a.file_path]
 
-    if not image_segments:
-        logger.info("No AI images to generate")
-        return {"current_phase": "tts_generation", "messages": [AIMessage(content="No AI images needed")]}
+    if not web_segments and not ai_segments:
+        logger.info("No images to generate or fetch")
+        return {"current_phase": "tts_generation", "messages": [AIMessage(content="No images needed")]}
 
-    service = ImageGenService(model=settings.shorts_image_model)
     output_dir = Path(settings.shorts_output_dir) / state["thread_id"] / "images"
     output_dir.mkdir(parents=True, exist_ok=True)
-
     semaphore = asyncio.Semaphore(MAX_CONCURRENT)
-    tasks = [_generate_one(service, asset, output_dir, semaphore) for asset in image_segments]
-    results = await asyncio.gather(*tasks)
 
-    generated_count = sum(1 for r in results if r.file_path)
-    logger.info(f"Generated {generated_count}/{len(image_segments)} AI images")
+    all_results = []
+
+    if web_segments:
+        logger.info(f"Fetching {len(web_segments)} web images")
+        web_tasks = [_fetch_web_image(asset, output_dir, semaphore) for asset in web_segments]
+        web_results = await asyncio.gather(*web_tasks)
+
+        fallback_to_ai = []
+        for r in web_results:
+            if r.file_path:
+                all_results.append(r)
+            else:
+                r.asset_type = "ai_image"
+                if not r.image_prompt:
+                    r.image_prompt = f"Photo-realistic image of: {r.search_query}"
+                fallback_to_ai.append(r)
+
+        if fallback_to_ai:
+            logger.info(f"{len(fallback_to_ai)} web images failed, falling back to AI generation")
+            ai_segments.extend(fallback_to_ai)
+
+    if ai_segments:
+        logger.info(f"Generating {len(ai_segments)} AI images")
+        service = ImageGenService(model=settings.shorts_image_model)
+        ai_tasks = [_generate_one(service, asset, output_dir, semaphore) for asset in ai_segments]
+        ai_results = await asyncio.gather(*ai_tasks)
+        all_results.extend(ai_results)
+
+    generated_count = sum(1 for r in all_results if r.file_path)
+    web_ok = sum(1 for r in all_results if r.asset_type == "web_image" and r.file_path)
+    ai_ok = sum(1 for r in all_results if r.asset_type == "ai_image" and r.file_path)
+    logger.info(f"Image phase complete: {web_ok} web + {ai_ok} AI = {generated_count} total")
 
     return {
-        "visual_assets": list(results),
+        "visual_assets": all_results,
         "current_phase": "tts_generation",
-        "messages": [AIMessage(content=f"Generated {generated_count} AI images")],
+        "messages": [AIMessage(content=f"Images: {web_ok} web + {ai_ok} AI = {generated_count} total")],
     }

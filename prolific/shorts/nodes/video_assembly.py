@@ -82,7 +82,7 @@ async def video_assembly_node(state: ShortsPipelineState) -> dict:
     video_service = VideoAssemblyService(output_dir=str(output_dir))
 
     stock_assets = [a for a in visual_assets if a.asset_type == "stock_clip" and a.file_path]
-    image_assets = [a for a in visual_assets if a.asset_type != "stock_clip"]
+    image_assets = [a for a in visual_assets if a.asset_type in ("ai_image", "web_image")]
     stock_total = sum(a.duration_seconds for a in stock_assets)
 
     if audio_duration > 0 and image_assets:

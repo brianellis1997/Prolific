@@ -9,6 +9,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
 from prolific.api.v1.generation import router as generation_router
+from prolific.api.v1.shorts import router as shorts_router
 from prolific.api.v1.youtube import router as youtube_router
 from prolific.core.config import settings
 
@@ -26,11 +27,15 @@ logger = logging.getLogger(__name__)
 async def lifespan(app: FastAPI):
     """Application lifespan handler."""
     logger.info("Starting Prolific Content Generation API")
-    from prolific.youtube.scheduler import start_scheduler
-    start_scheduler()
+    from prolific.youtube.scheduler import start_scheduler as start_youtube_scheduler
+    from prolific.shorts.scheduler import start_scheduler as start_shorts_scheduler
+    start_youtube_scheduler()
+    start_shorts_scheduler()
     yield
-    from prolific.youtube.scheduler import stop_scheduler
-    stop_scheduler()
+    from prolific.youtube.scheduler import stop_scheduler as stop_youtube_scheduler
+    from prolific.shorts.scheduler import stop_scheduler as stop_shorts_scheduler
+    stop_youtube_scheduler()
+    stop_shorts_scheduler()
     logger.info("Shutting down Prolific Content Generation API")
 
 
@@ -51,6 +56,7 @@ app.add_middleware(
 
 app.include_router(generation_router, prefix=settings.api_prefix)
 app.include_router(youtube_router, prefix=settings.api_prefix)
+app.include_router(shorts_router, prefix=settings.api_prefix)
 
 # Serve generated images
 app.mount("/images", StaticFiles(directory=str(IMAGES_DIR)), name="images")

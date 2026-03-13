@@ -1,6 +1,7 @@
 """Script writing node - writes narration prose section by section."""
 
 import logging
+from pathlib import Path
 
 from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
 
@@ -94,6 +95,15 @@ async def script_writing_node(state: YouTubePipelineState) -> dict:
 
     logger.info(f"Script complete: {total_word_count} words, "
                 f"~{total_word_count / WORDS_PER_MINUTE_NARRATION / 60:.1f} hours")
+
+    thread_id = state["thread_id"]
+    script_path = Path(settings.youtube_output_dir) / thread_id / "script.txt"
+    script_path.parent.mkdir(parents=True, exist_ok=True)
+    with open(script_path, "w") as f:
+        for section in updated_sections:
+            f.write(section.content)
+            f.write("\n\n")
+    logger.info(f"Script saved to {script_path}")
 
     return {
         "script_sections": updated_sections,

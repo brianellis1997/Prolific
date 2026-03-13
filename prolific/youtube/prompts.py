@@ -96,6 +96,10 @@ CRITICAL STYLE RULES:
 - Include vivid but calming sensory details
 - It's okay to be slightly meandering - this helps people fall asleep
 - Aim for approximately {target_words} words
+- VARIETY IN OPENINGS: Do NOT start with "The sun begins its slow descent" or any
+  sun/sunset imagery for the opening. Every video needs a unique, surprising opening.
+  Try: a sound, a smell, a specific moment in time, a philosophical reflection, a
+  close-up detail, a question the subject once asked, a quote from history. Be creative.
 
 TTS FORMATTING (this text will be read by a text-to-speech engine):
 - Use <break time="1.0s" /> tags to insert natural pauses. Place them:

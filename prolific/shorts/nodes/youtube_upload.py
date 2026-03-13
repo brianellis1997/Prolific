@@ -1,0 +1,71 @@
+"""YouTube upload node - uploads the short to YouTube."""
+
+import logging
+
+from langchain_core.messages import AIMessage
+
+from prolific.shorts.services.shorts_history import get_shorts_history_service
+from prolific.shorts.state import ShortsPipelineState
+from prolific.youtube.services.youtube_api import get_youtube_upload_service
+
+logger = logging.getLogger(__name__)
+
+
+async def youtube_upload_node(state: ShortsPipelineState) -> dict:
+    """Upload the short to YouTube."""
+    logger.info("=== SHORTS: YOUTUBE UPLOAD ===")
+
+    video_path = state.get("final_video_path", "")
+    metadata = state.get("video_metadata")
+
+    if not video_path:
+        return {"errors": ["No video to upload"], "current_phase": "failed"}
+    if not metadata:
+        return {"errors": ["No metadata for upload"], "current_phase": "failed"}
+
+    upload_service = get_youtube_upload_service()
+
+    try:
+        result = await upload_service.upload_video(
+            video_path=video_path,
+            title=metadata.title,
+            description=metadata.description,
+            tags=metadata.tags,
+            category_id=metadata.category_id,
+            privacy_status=metadata.privacy_status,
+        )
+
+        video_id = result["video_id"]
+        video_url = result["url"]
+        logger.info(f"Uploaded to YouTube: {video_url}")
+
+        history_service = get_shorts_history_service()
+        script = state.get("script")
+
+        await history_service.record_short(
+            short_id=state["thread_id"],
+            topic=state.get("topic", ""),
+            hook=script.hook if script else "",
+            script_text=script.full_text if script else "",
+            word_count=script.word_count if script else 0,
+            duration_seconds=state.get("audio_duration_seconds", 0),
+            youtube_video_id=video_id,
+            youtube_url=video_url,
+            video_path=video_path,
+            status="published",
+        )
+
+        return {
+            "youtube_video_id": video_id,
+            "youtube_url": video_url,
+            "current_phase": "complete",
+            "messages": [AIMessage(content=f"Uploaded: {video_url}")],
+        }
+
+    except Exception as e:
+        logger.error(f"YouTube upload failed: {e}")
+        return {
+            "errors": [f"Upload failed: {e}"],
+            "current_phase": "failed",
+            "messages": [AIMessage(content=f"Upload failed: {e}")],
+        }

@@ -99,6 +99,31 @@ class Settings(BaseSettings):
     youtube_cron_timezone: str = "US/Eastern"
     youtube_cron_enabled: bool = False
 
+    # Shorts Pipeline
+    shorts_script_model: str = "google/gemini-3-flash-preview"
+    shorts_image_model: str = "google/gemini-3.1-flash-image-preview"
+    shorts_target_duration_seconds: int = 28
+    shorts_num_visuals: int = 10
+    shorts_image_style: str = "bold digital art, dramatic lighting, vibrant colors, 9:16 portrait composition"
+    shorts_output_dir: str = "./shorts_output"
+    shorts_history_db_path: str = "./shorts_history.sqlite"
+    shorts_crossfade_duration: float = 0.3
+    shorts_caption_font_size: int = 48
+    shorts_caption_words_per_group: int = 4
+
+    # Shorts TTS (separate energetic voice)
+    elevenlabs_shorts_voice_id: str = ""
+    elevenlabs_shorts_stability: float = 0.5
+    elevenlabs_shorts_similarity_boost: float = 0.75
+    elevenlabs_shorts_style: float = 0.4
+
+    # Shorts Scheduler
+    shorts_cron_interval_hours: int = 4
+    shorts_cron_enabled: bool = False
+
+    # Pexels Video API
+    pexels_api_key: str = ""
+
 
 @lru_cache
 def get_settings() -> Settings:

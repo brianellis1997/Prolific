@@ -32,6 +32,21 @@ class TopicSelectionResult(BaseModel):
     rationale: str
 
 
+async def _get_performance_context() -> str:
+    """Pull channel analytics to identify what topics/eras/regions perform best."""
+    try:
+        from prolific.youtube.services.youtube_analytics import get_youtube_analytics_service
+        analytics = get_youtube_analytics_service()
+        insights = await analytics.get_channel_insights()
+        if insights.summary and insights.total_videos_analyzed > 0:
+            logger.info(f"Analytics: {insights.total_videos_analyzed} videos analyzed for performance context")
+            return insights.summary
+        return ""
+    except Exception as e:
+        logger.warning(f"Analytics fetch failed (non-fatal): {e}")
+        return ""
+
+
 async def _get_trending_context() -> str:
     """Search for trending news and extract historically relevant themes."""
     try:
@@ -92,6 +107,7 @@ async def topic_selection_node(state: YouTubePipelineState) -> dict:
             )
 
     trending_context = await _get_trending_context()
+    performance_context = await _get_performance_context()
 
     from prolific.youtube.prompts import TOPIC_BRAINSTORM_SYSTEM
 
@@ -100,6 +116,7 @@ async def topic_selection_node(state: YouTubePipelineState) -> dict:
         content_type_instruction=content_type_instruction,
         past_topics=past_topics_str,
         trending_context=trending_context if trending_context else "(no trending data available)",
+        performance_context=performance_context if performance_context else "(no performance data yet - channel is new)",
     )
 
     brainstorm_result = await llm_service.invoke_with_structured_output(

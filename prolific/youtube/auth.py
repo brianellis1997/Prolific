@@ -23,6 +23,7 @@ def main():
     SCOPES = [
         "https://www.googleapis.com/auth/youtube.upload",
         "https://www.googleapis.com/auth/youtube",
+        "https://www.googleapis.com/auth/yt-analytics.readonly",
     ]
 
     client_secrets = settings.youtube_client_secrets_path

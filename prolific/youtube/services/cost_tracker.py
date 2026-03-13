@@ -51,7 +51,7 @@ class PipelineRunCost:
 async def get_elevenlabs_usage() -> tuple[int, int, str]:
     """Get current 11Labs credit usage. Returns (credits_used, credits_limit, tier)."""
     try:
-        async with httpx.AsyncClient(timeout=15.0) as client:
+        async with httpx.AsyncClient(timeout=30.0) as client:
             resp = await client.get(
                 f"{ELEVENLABS_BASE_URL}/user/subscription",
                 headers={"xi-api-key": settings.elevenlabs_api_key},
@@ -71,7 +71,7 @@ async def get_elevenlabs_usage() -> tuple[int, int, str]:
 async def get_openrouter_usage() -> tuple[float, float, float]:
     """Get OpenRouter usage. Returns (total_usd, daily_usd, monthly_usd)."""
     try:
-        async with httpx.AsyncClient(timeout=15.0) as client:
+        async with httpx.AsyncClient(timeout=30.0) as client:
             resp = await client.get(
                 f"{OPENROUTER_BASE_URL}/key",
                 headers={"Authorization": f"Bearer {settings.openrouter_api_key}"},

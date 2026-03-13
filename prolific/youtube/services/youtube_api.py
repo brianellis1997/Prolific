@@ -99,13 +99,25 @@ class YouTubeUploadService:
 
     @staticmethod
     def _execute_upload(request):
-        """Execute resumable upload with progress logging."""
+        """Execute resumable upload with progress logging and retry."""
+        import time
         response = None
+        retries = 0
+        max_retries = 5
         while response is None:
-            status, response = request.next_chunk()
-            if status:
-                progress = int(status.progress() * 100)
-                logger.info(f"  Upload progress: {progress}%")
+            try:
+                status, response = request.next_chunk(num_retries=3)
+                if status:
+                    progress = int(status.progress() * 100)
+                    logger.info(f"  Upload progress: {progress}%")
+                retries = 0
+            except Exception as e:
+                retries += 1
+                if retries > max_retries:
+                    raise
+                wait = min(2 ** retries, 60)
+                logger.warning(f"  Upload chunk failed ({retries}/{max_retries}), retrying in {wait}s: {e}")
+                time.sleep(wait)
         return response
 
 

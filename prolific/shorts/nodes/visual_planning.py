@@ -38,11 +38,22 @@ async def visual_planning_node(state: ShortsPipelineState) -> dict:
 
     from prolific.shorts.prompts import VISUAL_PLANNING_SYSTEM
 
+    topic_type = state.get("topic_type", "")
+    topic = state.get("topic", "")
+    extra_guidance = ""
+    if topic_type == "breaking_news":
+        extra_guidance = (
+            f"\n\nIMPORTANT: This is a BREAKING NEWS topic about '{topic}'. "
+            "Use web_image for at LEAST 5-6 segments to show real photos of the people and events involved. "
+            "AI-generated images look fake and cartoonish for real news -- avoid them unless absolutely necessary. "
+            "Prefer web_image > stock_clip > ai_image for news topics."
+        )
+
     prompt = VISUAL_PLANNING_SYSTEM.format(
         num_visuals=num_visuals,
         script_text=script.full_text,
         visual_suggestions="\n".join(f"- {s}" for s in script.visual_suggestions),
-    )
+    ) + extra_guidance
 
     result = await llm_service.invoke_with_structured_output(
         messages=[

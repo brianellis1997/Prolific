@@ -29,12 +29,21 @@ For each topic, provide:
 - appeal_reason: Why this would be interesting and sleep-friendly
 - trending_tie_in: If inspired by current news, briefly explain the connection (otherwise leave empty)
 
+CHANNEL PERFORMANCE DATA (use this to guide what topics to lean into or avoid):
+{performance_context}
+
+Use this data strategically: lean into eras, regions, and topic types that perform well.
+If biographies outperform broad topics (or vice versa), weight your suggestions accordingly.
+If certain eras or regions consistently get more views, prioritize similar topics.
+Don't slavishly copy past successes - but use the data to inform your creative instincts.
+
 Prioritize topics that are:
 1. Rich enough for 2+ hours of narration
 2. Have a natural narrative arc (especially for biographies)
 3. Not oversaturated on YouTube
 4. Calming and interesting rather than disturbing or graphic
-5. Likely to catch search traffic (trending-adjacent topics get a bonus here)"""
+5. Likely to catch search traffic (trending-adjacent topics get a bonus here)
+6. Aligned with what the channel's analytics show performs well"""
 
 TOPIC_SELECT_SYSTEM = """You are selecting the single best topic from a list of candidates
 for a sleep history YouTube video. Choose the topic that:
@@ -44,6 +53,8 @@ for a sleep history YouTube video. Choose the topic that:
 4. Has enough depth for 1-2 hours of calm narration
 5. If a topic has a TRENDING tie-in, give it a significant bonus - trending topics
    capture search traffic from people looking up the topic due to current events
+6. Aligns with topics/eras/regions that have historically performed well on the channel
+   (if performance data is available in the candidates list)
 
 Return the index (0-based) of your chosen topic and a brief rationale."""
 

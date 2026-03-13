@@ -37,7 +37,7 @@ async def _search_web_images(query: str, max_results: int = 5) -> list[str]:
 
 
 async def _download_web_image(url: str, output_path: str) -> bool:
-    """Download an image from URL. Returns True on success."""
+    """Download an image from URL and resize to 1080x1920 portrait. Returns True on success."""
     try:
         async with httpx.AsyncClient(
             timeout=30,
@@ -50,7 +50,41 @@ async def _download_web_image(url: str, output_path: str) -> bool:
             if not any(t in content_type for t in ["image/", "octet-stream"]):
                 logger.info(f"Not an image content-type: {content_type}")
                 return False
-            Path(output_path).write_bytes(resp.content)
+
+            raw_path = output_path + ".raw"
+            Path(raw_path).write_bytes(resp.content)
+
+            try:
+                from PIL import Image, ImageFilter
+                img = Image.open(raw_path).convert("RGB")
+                w, h = img.size
+                target_w, target_h = 1080, 1920
+
+                bg = img.resize((target_w, target_h), Image.LANCZOS)
+                bg = bg.filter(ImageFilter.GaussianBlur(radius=30))
+
+                img_ratio = w / h
+                target_ratio = target_w / target_h
+                if img_ratio > target_ratio:
+                    scaled_w = target_w
+                    scaled_h = int(target_w / img_ratio)
+                else:
+                    scaled_h = target_h
+                    scaled_w = int(target_h * img_ratio)
+
+                scaled_w = min(scaled_w, target_w)
+                scaled_h = min(scaled_h, target_h)
+                foreground = img.resize((scaled_w, scaled_h), Image.LANCZOS)
+
+                x = (target_w - scaled_w) // 2
+                y = (target_h - scaled_h) // 2
+                bg.paste(foreground, (x, y))
+
+                bg.save(output_path, "PNG")
+                Path(raw_path).unlink(missing_ok=True)
+            except ImportError:
+                Path(raw_path).rename(output_path)
+
             logger.info(f"Downloaded web image: {output_path} ({len(resp.content) // 1024}KB)")
             return True
     except Exception as e:
@@ -94,12 +128,13 @@ async def _generate_one(
     asset: VisualAsset,
     output_dir: Path,
     semaphore: asyncio.Semaphore,
+    style: str = "",
 ) -> VisualAsset:
     """Generate a single AI image for a visual asset."""
     async with semaphore:
         output_path = str(output_dir / f"image_{asset.sequence_number:02d}.png")
         try:
-            style_prefix = settings.shorts_image_style + ". "
+            style_prefix = (style or settings.shorts_image_style) + ". "
             prompt = asset.image_prompt
             if not prompt and asset.search_query:
                 prompt = f"Photo-realistic image of: {asset.search_query}"
@@ -125,6 +160,10 @@ async def _generate_one(
             return asset
 
 
+NEWS_IMAGE_STYLE = "photojournalistic, realistic photo, news photography style, high detail, 9:16 portrait composition"
+FACT_IMAGE_STYLE = "bold digital art, dramatic lighting, vibrant colors, 9:16 portrait composition"
+
+
 async def image_generation_node(state: ShortsPipelineState) -> dict:
     """Generate AI images and fetch web images for segments that need them."""
     logger.info("=== SHORTS: IMAGE GENERATION ===")
@@ -136,6 +175,13 @@ async def image_generation_node(state: ShortsPipelineState) -> dict:
     if not web_segments and not ai_segments:
         logger.info("No images to generate or fetch")
         return {"current_phase": "tts_generation", "messages": [AIMessage(content="No images needed")]}
+
+    topic_type = state.get("topic_type", "")
+    if topic_type == "breaking_news":
+        image_style = NEWS_IMAGE_STYLE
+        logger.info("Using photorealistic style for breaking news topic")
+    else:
+        image_style = settings.shorts_image_style or FACT_IMAGE_STYLE
 
     output_dir = Path(settings.shorts_output_dir) / state["thread_id"] / "images"
     output_dir.mkdir(parents=True, exist_ok=True)
@@ -165,7 +211,7 @@ async def image_generation_node(state: ShortsPipelineState) -> dict:
     if ai_segments:
         logger.info(f"Generating {len(ai_segments)} AI images")
         service = ImageGenService(model=settings.shorts_image_model)
-        ai_tasks = [_generate_one(service, asset, output_dir, semaphore) for asset in ai_segments]
+        ai_tasks = [_generate_one(service, asset, output_dir, semaphore, style=image_style) for asset in ai_segments]
         ai_results = await asyncio.gather(*ai_tasks)
         all_results.extend(ai_results)
 

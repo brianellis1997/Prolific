@@ -31,7 +31,7 @@ class ShortTopicSelection(BaseModel):
     rationale: str
 
 
-async def _get_trending_context() -> str:
+async def _get_trending_context() -> tuple[str, list[str]]:
     try:
         from prolific.services.web_search import get_web_search_service
         search_service = get_web_search_service()
@@ -42,6 +42,7 @@ async def _get_trending_context() -> str:
             "viral social media moment today controversy",
         ]
         all_headlines = []
+        all_urls = []
         for query in queries:
             results = await search_service.search(
                 query=query,
@@ -50,6 +51,8 @@ async def _get_trending_context() -> str:
             )
             for r in results or []:
                 all_headlines.append(f"- {r.title}: {r.snippet[:150]}")
+                if hasattr(r, "url") and r.url:
+                    all_urls.append(r.url)
 
         seen = set()
         unique = []
@@ -60,11 +63,11 @@ async def _get_trending_context() -> str:
                 unique.append(h)
 
         logger.info(f"Fetched {len(unique)} trending headlines")
-        return "\n".join(unique[:15])
+        return "\n".join(unique[:15]), list(dict.fromkeys(all_urls))[:10]
 
     except Exception as e:
         logger.warning(f"Trending news fetch failed (non-fatal): {e}")
-        return ""
+        return "", []
 
 
 async def topic_selection_node(state: ShortsPipelineState) -> dict:
@@ -77,7 +80,7 @@ async def topic_selection_node(state: ShortsPipelineState) -> dict:
     past_topics = await history_service.get_past_topics(hours=48)
     past_topics_str = "\n".join(f"- {t}" for t in past_topics) if past_topics else "(none yet)"
 
-    trending_context = await _get_trending_context()
+    trending_context, source_urls = await _get_trending_context()
 
     from prolific.shorts.prompts import TOPIC_BRAINSTORM_SYSTEM
 
@@ -134,6 +137,7 @@ async def topic_selection_node(state: ShortsPipelineState) -> dict:
     return {
         "topic": chosen.topic,
         "topic_type": chosen.topic_type,
+        "source_urls": source_urls,
         "past_short_topics": past_topics,
         "current_phase": "script_writing",
         "messages": [AIMessage(content=f"Selected short topic: {chosen.topic} | Hook: {chosen.hook_angle}")],

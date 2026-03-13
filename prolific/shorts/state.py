@@ -21,6 +21,7 @@ class ShortsPipelineState(TypedDict):
 
     topic: str
     topic_type: str
+    source_urls: list[str]
     past_short_topics: list[str]
 
     script: Annotated[ShortScript | None, replace_value]
@@ -56,6 +57,7 @@ def create_initial_shorts_state(thread_id: str | None = None) -> ShortsPipelineS
         thread_id=thread_id,
         topic="",
         topic_type="",
+        source_urls=[],
         past_short_topics=[],
         script=None,
         visual_assets=[],

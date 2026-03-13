@@ -94,18 +94,26 @@ For each of the {num_visuals} segments (2.5 seconds each), decide:
   Good for: landscapes, cityscapes, nature, technology, sports, crowds, animals, space,
   historical buildings, food, science experiments.
   Provide a specific search_query (2-4 words) that would find relevant footage on Pexels.
-- **ai_image**: Use this when the scene is too specific, abstract, historical, or fictional
-  for stock footage. Good for: specific historical figures, imaginary scenes, data
-  visualizations, dramatic artistic interpretations, anything where stock footage won't match.
+- **web_image**: Use this when the topic involves SPECIFIC REAL PEOPLE, celebrities, public
+  figures, real events, or recognizable places. A real photo is far more engaging than an AI
+  rendering of a celebrity. Good for: celebrity photos, politician photos, event photos,
+  real product images, real building/landmark photos, news event images.
+  Provide a search_query like "Zendaya red carpet" or "SpaceX launch 2026" to find real photos.
+  STRONGLY PREFER web_image over ai_image when the subject is a real, recognizable person or event.
+- **ai_image**: Use this when the scene is too abstract, fictional, or conceptual for either
+  stock footage or real photos. Good for: imaginary scenes, data visualizations, dramatic
+  artistic interpretations, metaphorical visuals, anything where neither stock nor real photos fit.
   Provide an image_prompt describing the scene.
 
-Target mix: roughly half stock clips, half AI images. Alternate between them for visual variety.
-Assign ken_burns_direction for AI images: alternate between zoom_in, zoom_out, pan_left, pan_right.
+PRIORITY: If the topic involves a specific person (celebrity, politician, athlete, etc.),
+at least 3-4 segments should be web_image with search queries for real photos of that person.
+Alternate between web_image, stock_clip, and ai_image for visual variety.
+Assign ken_burns_direction for ai_image and web_image: alternate between zoom_in, zoom_out, pan_left, pan_right.
 
 For each segment:
 - sequence_number: 1 through {num_visuals}
-- asset_type: "stock_clip" or "ai_image"
-- search_query: (for stock_clip type) 2-4 word Pexels search query
+- asset_type: "stock_clip", "web_image", or "ai_image"
+- search_query: (for stock_clip and web_image) descriptive search query
 - image_prompt: (for ai_image type) Detailed image description, portrait 9:16 composition
 - ken_burns_direction: zoom_in, zoom_out, pan_left, or pan_right"""
 

@@ -28,7 +28,7 @@ class VisualAsset(BaseModel):
 
     id: UUID = Field(default_factory=uuid4)
     sequence_number: int
-    asset_type: Literal["stock_clip", "ai_image"] = "ai_image"
+    asset_type: Literal["stock_clip", "ai_image", "web_image"] = "ai_image"
     search_query: str = ""
     image_prompt: str = ""
     file_path: str | None = None

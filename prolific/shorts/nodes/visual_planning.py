@@ -58,11 +58,13 @@ async def visual_planning_node(state: ShortsPipelineState) -> dict:
     num_segments = len(result.segments) or num_visuals
     duration_per = target_duration / num_segments
 
+    valid_types = {"stock_clip", "ai_image", "web_image"}
     visual_assets = []
     for seg in result.segments[:num_visuals]:
+        asset_type = seg.asset_type if seg.asset_type in valid_types else "ai_image"
         asset = VisualAsset(
             sequence_number=seg.sequence_number,
-            asset_type="stock_clip" if seg.asset_type == "stock_clip" else "ai_image",
+            asset_type=asset_type,
             search_query=seg.search_query,
             image_prompt=seg.image_prompt,
             duration_seconds=duration_per,
@@ -71,11 +73,12 @@ async def visual_planning_node(state: ShortsPipelineState) -> dict:
         visual_assets.append(asset)
 
     stock_count = sum(1 for a in visual_assets if a.asset_type == "stock_clip")
-    image_count = len(visual_assets) - stock_count
-    logger.info(f"Planned {len(visual_assets)} visuals: {stock_count} stock clips, {image_count} AI images")
+    web_count = sum(1 for a in visual_assets if a.asset_type == "web_image")
+    ai_count = len(visual_assets) - stock_count - web_count
+    logger.info(f"Planned {len(visual_assets)} visuals: {stock_count} stock, {web_count} web, {ai_count} AI")
 
     return {
         "visual_assets": visual_assets,
         "current_phase": "asset_generation",
-        "messages": [AIMessage(content=f"Planned {len(visual_assets)} visuals ({stock_count} stock + {image_count} AI)")],
+        "messages": [AIMessage(content=f"Planned {len(visual_assets)} visuals ({stock_count} stock + {web_count} web + {ai_count} AI)")],
     }

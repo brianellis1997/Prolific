@@ -99,6 +99,7 @@ class PexelsService:
             "-ss", "0",
             "-t", str(duration),
             "-vf", vf,
+            "-r", "30",
             "-c:v", "libx264",
             "-preset", "medium",
             "-crf", "23",

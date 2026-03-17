@@ -91,37 +91,43 @@ RULES:
 - The TONE should feel like you're telling your friend something insane at 2am, not reading
   a Wikipedia article. Attitude, energy, disbelief.
 
-Also output a list of 10 visual_suggestions -- brief descriptions of what visuals would
-match each ~3 second segment of the script. These will be used to find stock footage
-or generate AI images."""
+Also output a list of visual_suggestions -- brief descriptions of what visuals would match
+each natural beat of the script. Group related sentences into beats. A 30-second script
+typically has 6-10 beats. These will be used to find stock footage or web photos."""
 
-VISUAL_PLANNING_SYSTEM = """You are a visual director for a YouTube Short. Given a script
-and visual suggestions, plan exactly {num_visuals} visual segments that will appear in the video.
+VISUAL_PLANNING_SYSTEM = """You are a visual director for a YouTube Short. Read the script
+below and break it into natural visual beats — moments where the visual should change.
 
 SCRIPT:
 {script_text}
 
-VISUAL SUGGESTIONS FROM WRITER:
+VISUAL SUGGESTIONS:
 {visual_suggestions}
 
-For each of the {num_visuals} segments, choose between exactly two asset types:
-- **stock_clip**: Use when real-world footage likely exists. Good for: landscapes, crowds,
-  cityscapes, nature, action, police, military, buildings, sports.
-  Provide a specific search_query (2-4 words) for Pexels video search.
-- **web_image**: Use when the topic involves specific real people, celebrities, public figures,
-  real events, or places where a real photo beats generic footage. Good for: celebrity/politician
-  photos, specific events, news figures, recognizable landmarks.
-  Provide a search_query like "Zendaya red carpet 2024" or "Trump mugshot".
+RULES:
+- Decide how many segments are needed based on the script (typically 6-12 for a 30s Short).
+  NOT a fixed number — use your judgement based on pacing and content.
+- Minimum 2 seconds per segment, no maximum.
+- Quick punchy statements = short duration weight. Reveals, key moments, emotional beats = longer.
+- Consecutive similar ideas can share one visual if cutting would feel jarring.
 
-DO NOT use ai_image — it is disabled. Every segment must be stock_clip or web_image.
-If you are unsure, default to web_image with a descriptive real-world search query.
-Assign ken_burns_direction for web_image: alternate zoom_in, zoom_out, pan_left, pan_right.
+For each segment choose one of two asset types:
+- **stock_clip**: Real-world footage. Good for: locations, crowds, action, environments.
+  Provide a 2-4 word search_query for Pexels.
+- **web_image**: Real photos of specific people, celebrities, politicians, real events,
+  real places. A real face is always better than generic footage for named people.
+  Provide a specific search_query like "Zendaya Met Gala 2024" or "Trump court hearing".
 
-For each segment:
-- sequence_number: 1 through {num_visuals}
-- asset_type: "stock_clip" or "web_image" (never "ai_image")
-- search_query: descriptive search query for both types
-- ken_burns_direction: zoom_in, zoom_out, pan_left, or pan_right (web_image only)"""
+DO NOT use ai_image — disabled. Default to web_image if unsure.
+Alternate ken_burns_direction: zoom_in, zoom_out, pan_left, pan_right.
+
+For each segment output:
+- sequence_number: sequential from 1
+- asset_type: "stock_clip" or "web_image"
+- search_query: search terms
+- ken_burns_direction: zoom_in / zoom_out / pan_left / pan_right
+- duration_weight: a float from 0.5 to 3.0 reflecting how long this moment should hold
+  relative to others. 0.5 = quick flash, 1.0 = normal, 2.0 = let it breathe, 3.0 = big reveal."""
 
 METADATA_SYSTEM = """Generate YouTube Shorts metadata for this video.
 

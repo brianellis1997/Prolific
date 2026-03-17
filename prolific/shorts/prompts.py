@@ -104,33 +104,24 @@ SCRIPT:
 VISUAL SUGGESTIONS FROM WRITER:
 {visual_suggestions}
 
-For each of the {num_visuals} segments (2.5 seconds each), decide:
-- **stock_clip**: Use this when concrete real-world footage likely exists on stock sites.
-  Good for: landscapes, cityscapes, nature, technology, sports, crowds, animals, space,
-  historical buildings, food, science experiments.
-  Provide a specific search_query (2-4 words) that would find relevant footage on Pexels.
-- **web_image**: Use this when the topic involves SPECIFIC REAL PEOPLE, celebrities, public
-  figures, real events, or recognizable places. A real photo is far more engaging than an AI
-  rendering of a celebrity. Good for: celebrity photos, politician photos, event photos,
-  real product images, real building/landmark photos, news event images.
-  Provide a search_query like "Zendaya red carpet" or "SpaceX launch 2026" to find real photos.
-  STRONGLY PREFER web_image over ai_image when the subject is a real, recognizable person or event.
-- **ai_image**: Use this when the scene is too abstract, fictional, or conceptual for either
-  stock footage or real photos. Good for: imaginary scenes, data visualizations, dramatic
-  artistic interpretations, metaphorical visuals, anything where neither stock nor real photos fit.
-  Provide an image_prompt describing the scene.
+For each of the {num_visuals} segments, choose between exactly two asset types:
+- **stock_clip**: Use when real-world footage likely exists. Good for: landscapes, crowds,
+  cityscapes, nature, action, police, military, buildings, sports.
+  Provide a specific search_query (2-4 words) for Pexels video search.
+- **web_image**: Use when the topic involves specific real people, celebrities, public figures,
+  real events, or places where a real photo beats generic footage. Good for: celebrity/politician
+  photos, specific events, news figures, recognizable landmarks.
+  Provide a search_query like "Zendaya red carpet 2024" or "Trump mugshot".
 
-PRIORITY: If the topic involves a specific person (celebrity, politician, athlete, etc.),
-at least 3-4 segments should be web_image with search queries for real photos of that person.
-Alternate between web_image, stock_clip, and ai_image for visual variety.
-Assign ken_burns_direction for ai_image and web_image: alternate between zoom_in, zoom_out, pan_left, pan_right.
+DO NOT use ai_image — it is disabled. Every segment must be stock_clip or web_image.
+If you are unsure, default to web_image with a descriptive real-world search query.
+Assign ken_burns_direction for web_image: alternate zoom_in, zoom_out, pan_left, pan_right.
 
 For each segment:
 - sequence_number: 1 through {num_visuals}
-- asset_type: "stock_clip", "web_image", or "ai_image"
-- search_query: (for stock_clip and web_image) descriptive search query
-- image_prompt: (for ai_image type) Detailed image description, portrait 9:16 composition
-- ken_burns_direction: zoom_in, zoom_out, pan_left, or pan_right"""
+- asset_type: "stock_clip" or "web_image" (never "ai_image")
+- search_query: descriptive search query for both types
+- ken_burns_direction: zoom_in, zoom_out, pan_left, or pan_right (web_image only)"""
 
 METADATA_SYSTEM = """Generate YouTube Shorts metadata for this video.
 

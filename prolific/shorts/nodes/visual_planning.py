@@ -15,10 +15,11 @@ logger = logging.getLogger(__name__)
 
 class VisualSegmentPlan(BaseModel):
     sequence_number: int
-    asset_type: str = "ai_image"
+    asset_type: str = "web_image"
     search_query: str = ""
     image_prompt: str = ""
     ken_burns_direction: str = "zoom_in"
+    duration_weight: float = 1.0
 
 
 class VisualPlanResult(BaseModel):
@@ -34,7 +35,6 @@ async def visual_planning_node(state: ShortsPipelineState) -> dict:
         return {"errors": ["No script available for visual planning"], "current_phase": "failed"}
 
     llm_service = get_llm_service()
-    num_visuals = settings.shorts_num_visuals
 
     from prolific.shorts.prompts import VISUAL_PLANNING_SYSTEM
 
@@ -43,14 +43,11 @@ async def visual_planning_node(state: ShortsPipelineState) -> dict:
     extra_guidance = ""
     if topic_type == "breaking_news":
         extra_guidance = (
-            f"\n\nIMPORTANT: This is a BREAKING NEWS topic about '{topic}'. "
-            "Use web_image for at LEAST 5-6 segments to show real photos of the people and events involved. "
-            "AI-generated images look fake and cartoonish for real news -- avoid them unless absolutely necessary. "
-            "Prefer web_image > stock_clip > ai_image for news topics."
+            f"\n\nNOTE: This is a BREAKING NEWS topic about '{topic}'. "
+            "Strongly prefer web_image for segments showing real people or events involved."
         )
 
     prompt = VISUAL_PLANNING_SYSTEM.format(
-        num_visuals=num_visuals,
         script_text=script.full_text,
         visual_suggestions="\n".join(f"- {s}" for s in script.visual_suggestions),
     ) + extra_guidance
@@ -66,19 +63,22 @@ async def visual_planning_node(state: ShortsPipelineState) -> dict:
     )
 
     target_duration = settings.shorts_target_duration_seconds
-    num_segments = len(result.segments) or num_visuals
-    duration_per = target_duration / num_segments
+    segments = result.segments or []
+    total_weight = sum(max(0.5, s.duration_weight) for s in segments) or 1.0
 
-    valid_types = {"stock_clip", "ai_image", "web_image"}
+    valid_types = {"stock_clip", "web_image"}
     visual_assets = []
-    for seg in result.segments[:num_visuals]:
-        asset_type = seg.asset_type if seg.asset_type in valid_types else "ai_image"
+    for seg in segments:
+        asset_type = seg.asset_type if seg.asset_type in valid_types else "web_image"
+        weight = max(0.5, seg.duration_weight)
+        duration = round((weight / total_weight) * target_duration, 1)
+        duration = max(2.0, duration)
         asset = VisualAsset(
             sequence_number=seg.sequence_number,
             asset_type=asset_type,
             search_query=seg.search_query,
             image_prompt=seg.image_prompt,
-            duration_seconds=duration_per,
+            duration_seconds=duration,
             ken_burns_direction=seg.ken_burns_direction,
         )
         visual_assets.append(asset)

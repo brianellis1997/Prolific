@@ -86,14 +86,16 @@ async def video_assembly_node(state: ShortsPipelineState) -> dict:
     stock_total = sum(a.duration_seconds for a in stock_assets)
 
     if audio_duration > 0 and image_assets:
-        remaining_time = audio_duration - stock_total
-        per_image = max(2.0, remaining_time / len(image_assets))
+        remaining_time = max(len(image_assets) * 2.0, audio_duration - stock_total)
+        planned_total = sum(a.duration_seconds for a in image_assets) or 1.0
+        scale = remaining_time / planned_total
         for asset in image_assets:
-            asset.duration_seconds = round(per_image, 1)
+            asset.duration_seconds = max(2.0, round(asset.duration_seconds * scale, 1))
+        durations = [a.duration_seconds for a in image_assets]
         logger.info(
             f"Duration budget: {audio_duration:.1f}s audio, "
             f"{stock_total:.1f}s stock ({len(stock_assets)} clips), "
-            f"{per_image:.1f}s per Ken Burns ({len(image_assets)} images)"
+            f"image durations: {durations} ({len(image_assets)} images)"
         )
 
     clip_paths = []

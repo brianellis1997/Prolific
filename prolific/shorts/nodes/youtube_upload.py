@@ -11,6 +11,21 @@ from prolific.youtube.services.youtube_api import get_youtube_upload_service
 logger = logging.getLogger(__name__)
 
 
+ENGAGEMENT_COMMENTS = [
+    "What do you think about this? Drop your take below",
+    "Did you already know about this? Let us know in the comments",
+    "This one shocked us. What's your reaction?",
+    "We had to share this one. Thoughts?",
+    "Tell us what you think below",
+]
+
+
+def _generate_engagement_comment(topic: str) -> str:
+    import random
+    base = random.choice(ENGAGEMENT_COMMENTS)
+    return f"{base} \U0001F447"
+
+
 async def youtube_upload_node(state: ShortsPipelineState) -> dict:
     """Upload the short to YouTube."""
     logger.info("=== SHORTS: YOUTUBE UPLOAD ===")
@@ -38,6 +53,12 @@ async def youtube_upload_node(state: ShortsPipelineState) -> dict:
         video_id = result["video_id"]
         video_url = result["url"]
         logger.info(f"Uploaded to YouTube: {video_url}")
+
+        try:
+            comment = _generate_engagement_comment(state.get("topic", ""))
+            await upload_service.post_comment(video_id, comment)
+        except Exception as e:
+            logger.warning(f"Auto-comment failed (non-fatal): {e}")
 
         history_service = get_shorts_history_service()
         script = state.get("script")

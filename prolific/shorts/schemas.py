@@ -23,12 +23,30 @@ class ShortScript(BaseModel):
         frozen = False
 
 
+class SourceClip(BaseModel):
+    """A clip downloaded from YouTube/Twitch/Reddit for reuse."""
+
+    id: UUID = Field(default_factory=uuid4)
+    platform: Literal["twitch", "youtube", "reddit", "other"] = "other"
+    original_url: str = ""
+    creator_name: str = ""
+    clip_title: str = ""
+    file_path: str | None = None
+    duration_seconds: float = 0.0
+    transcript: str = ""
+    sequence_number: int = 0
+    view_count: int = 0
+
+    class Config:
+        frozen = False
+
+
 class VisualAsset(BaseModel):
-    """A visual segment (stock clip or AI image) for the short."""
+    """A visual segment (stock clip, web image, or source clip) for the short."""
 
     id: UUID = Field(default_factory=uuid4)
     sequence_number: int
-    asset_type: Literal["stock_clip", "ai_image", "web_image"] = "ai_image"
+    asset_type: Literal["stock_clip", "ai_image", "web_image", "source_clip"] = "ai_image"
     search_query: str = ""
     image_prompt: str = ""
     file_path: str | None = None
@@ -36,9 +54,31 @@ class VisualAsset(BaseModel):
     height: int = 1920
     duration_seconds: float = 2.5
     ken_burns_direction: str = "zoom_in"
+    script_text: str = ""
 
     class Config:
         frozen = False
+
+
+class ClipVisualAnalysis(BaseModel):
+    """Vision model analysis of video clip frames."""
+
+    people_visible: list[str] = Field(default_factory=list)
+    actions_described: list[str] = Field(default_factory=list)
+    setting: str = ""
+    on_screen_text: list[str] = Field(default_factory=list)
+    emotional_tone: str = ""
+    visual_summary: str = ""
+
+
+class ClipContentUnderstanding(BaseModel):
+    """Combined transcript + visual understanding of a clip."""
+
+    transcript: str = ""
+    visual_analysis: ClipVisualAnalysis | None = None
+    clip_duration_seconds: float = 0.0
+    content_summary: str = ""
+    key_moments: list[str] = Field(default_factory=list)
 
 
 class CaptionSegment(BaseModel):

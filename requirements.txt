@@ -38,6 +38,9 @@ markdown>=3.5.0
 # Presentation Generation
 python-pptx>=0.6.23
 
+# Video/Clip Sourcing
+yt-dlp>=2024.1.0
+
 # YouTube Pipeline
 pydub>=0.25.1
 google-api-python-client>=2.100.0

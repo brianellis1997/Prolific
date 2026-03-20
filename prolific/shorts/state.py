@@ -8,8 +8,10 @@ from langchain_core.messages import BaseMessage
 from prolific.agent.state import merge_artifacts_by_id, replace_value
 from prolific.shorts.schemas import (
     CaptionSegment,
+    ClipContentUnderstanding,
     ShortScript,
     ShortsVideoMetadata,
+    SourceClip,
     VisualAsset,
 )
 
@@ -21,11 +23,18 @@ class ShortsPipelineState(TypedDict):
 
     topic: str
     topic_type: str
+    content_mode: str
+    niche: str
     source_urls: list[str]
     past_short_topics: list[str]
+    compilation_items: list[str]
+    attribution_texts: Annotated[list[str], operator.add]
+
+    clip_content_understanding: Annotated[list[ClipContentUnderstanding] | None, replace_value]
 
     script: Annotated[ShortScript | None, replace_value]
 
+    source_clips: Annotated[list[SourceClip], merge_artifacts_by_id]
     visual_assets: Annotated[list[VisualAsset], merge_artifacts_by_id]
 
     audio_path: str
@@ -57,9 +66,15 @@ def create_initial_shorts_state(thread_id: str | None = None) -> ShortsPipelineS
         thread_id=thread_id,
         topic="",
         topic_type="",
+        content_mode="news_commentary",
+        niche="general",
         source_urls=[],
         past_short_topics=[],
+        compilation_items=[],
+        attribution_texts=[],
+        clip_content_understanding=None,
         script=None,
+        source_clips=[],
         visual_assets=[],
         audio_path="",
         audio_duration_seconds=0.0,

@@ -90,19 +90,64 @@ async def _download_web_image(url: str, output_path: str) -> bool:
         return False
 
 
+async def _verify_image_relevance(
+    image_path: str, search_query: str, script_text: str
+) -> tuple[bool, float]:
+    """Check if a downloaded image matches what the narration is about."""
+    try:
+        import base64
+        from pydantic import BaseModel, Field
+        from prolific.services.llm import get_llm_service
+
+        class ImageRelevanceCheck(BaseModel):
+            matches_query: bool = False
+            relevance_score: float = Field(default=0.0, ge=0.0, le=1.0)
+
+        img_data = base64.b64encode(Path(image_path).read_bytes()).decode()
+        llm_service = get_llm_service()
+
+        prompt = (
+            f"Does this image show: '{search_query}'?\n"
+            f"The narration at this point says: '{script_text[:200]}'\n"
+            f"Score how relevant this image is to what's being discussed (0.0 to 1.0)."
+        )
+
+        result = await llm_service.invoke_with_image_structured(
+            prompt=prompt,
+            image_base64=img_data,
+            output_schema=ImageRelevanceCheck,
+            image_format="png",
+        )
+        return result.matches_query, result.relevance_score
+
+    except Exception as e:
+        logger.warning(f"Image verification failed: {e}")
+        return True, 0.7
+
+
 async def _fetch_web_image(
     asset: VisualAsset,
     output_dir: Path,
     semaphore: asyncio.Semaphore,
 ) -> VisualAsset:
-    """Fetch a real photo from the web for a web_image asset."""
+    """Fetch a real photo from the web, verified for relevance."""
     async with semaphore:
         output_path = str(output_dir / f"web_{asset.sequence_number:02d}.png")
         try:
             image_urls = await _search_web_images(asset.search_query)
             for url in image_urls:
                 if await _download_web_image(url, output_path):
-                    logger.info(f"[{asset.sequence_number}] Fetched web image for: {asset.search_query}")
+                    if asset.script_text:
+                        matches, score = await _verify_image_relevance(
+                            output_path, asset.search_query, asset.script_text
+                        )
+                        if score < 0.4:
+                            logger.info(f"[{asset.sequence_number}] Image rejected (score={score:.2f}), trying next")
+                            continue
+                        logger.info(f"[{asset.sequence_number}] Image verified (score={score:.2f}): {asset.search_query}")
+                    else:
+                        logger.info(f"[{asset.sequence_number}] Fetched web image for: {asset.search_query}")
+
                     return VisualAsset(
                         id=asset.id,
                         sequence_number=asset.sequence_number,
@@ -113,12 +158,58 @@ async def _fetch_web_image(
                         height=asset.height,
                         duration_seconds=asset.duration_seconds,
                         ken_burns_direction=asset.ken_burns_direction,
+                        script_text=asset.script_text,
                     )
-            logger.warning(f"[{asset.sequence_number}] No web images downloaded for: {asset.search_query}")
+
+            if asset.script_text:
+                refined = await _get_refined_query(asset.search_query, asset.script_text)
+                if refined and refined != asset.search_query:
+                    logger.info(f"[{asset.sequence_number}] Retrying with refined query: '{refined}'")
+                    retry_urls = await _search_web_images(refined)
+                    for url in retry_urls:
+                        if await _download_web_image(url, output_path):
+                            return VisualAsset(
+                                id=asset.id,
+                                sequence_number=asset.sequence_number,
+                                asset_type="web_image",
+                                search_query=refined,
+                                file_path=output_path,
+                                width=asset.width,
+                                height=asset.height,
+                                duration_seconds=asset.duration_seconds,
+                                ken_burns_direction=asset.ken_burns_direction,
+                                script_text=asset.script_text,
+                            )
+
+            logger.warning(f"[{asset.sequence_number}] No suitable web images for: {asset.search_query}")
             return asset
         except Exception as e:
             logger.error(f"[{asset.sequence_number}] Web image fetch failed: {e}")
             return asset
+
+
+async def _get_refined_query(original_query: str, script_text: str) -> str:
+    """Use LLM to suggest a better image search query."""
+    try:
+        from prolific.services.llm import get_llm_service
+        llm_service = get_llm_service()
+        response = await llm_service.invoke(
+            messages=[
+                {"role": "system", "content": "Suggest a better 3-5 word image search query."},
+                {"role": "user", "content": (
+                    f"The search '{original_query}' returned irrelevant images. "
+                    f"The narration says: '{script_text[:200]}'. "
+                    f"Suggest a better search query to find a relevant photo. "
+                    f"Return ONLY the query, nothing else."
+                )},
+            ],
+            tier="research",
+            temperature=0.3,
+        )
+        refined = response.strip().strip('"').strip("'")
+        return refined[:60]
+    except Exception:
+        return original_query
 
 
 async def image_generation_node(state: ShortsPipelineState) -> dict:

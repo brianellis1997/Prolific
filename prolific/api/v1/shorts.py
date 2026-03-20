@@ -13,6 +13,7 @@ logger = logging.getLogger(__name__)
 
 class GenerateRequest(BaseModel):
     thread_id: str | None = None
+    niche: str | None = None
 
 
 class ScheduleRequest(BaseModel):
@@ -25,11 +26,13 @@ async def generate_short(request: GenerateRequest | None = None):
     from prolific.shorts.graph import run_shorts_pipeline
 
     thread_id = request.thread_id if request else None
-    final_state = await run_shorts_pipeline(thread_id=thread_id)
+    niche = request.niche if request else None
+    final_state = await run_shorts_pipeline(thread_id=thread_id, niche=niche)
 
     return {
         "thread_id": final_state.get("thread_id", ""),
         "topic": final_state.get("topic", ""),
+        "content_mode": final_state.get("content_mode", ""),
         "youtube_url": final_state.get("youtube_url", ""),
         "errors": final_state.get("errors", []),
     }
@@ -41,9 +44,10 @@ async def generate_short_stream(request: GenerateRequest | None = None):
     from prolific.shorts.graph import stream_shorts_pipeline
 
     thread_id = request.thread_id if request else None
+    niche = request.niche if request else None
 
     async def event_stream():
-        async for update in stream_shorts_pipeline(thread_id=thread_id):
+        async for update in stream_shorts_pipeline(thread_id=thread_id, niche=niche):
             if "_final_state" in update:
                 final = update["_final_state"]
                 yield f"data: {json.dumps({'event': 'complete', 'topic': final.get('topic', ''), 'youtube_url': final.get('youtube_url', '')})}\n\n"
@@ -98,6 +102,7 @@ async def health_check():
 
     checks = {
         "ffmpeg": shutil.which("ffmpeg") is not None,
+        "yt_dlp": shutil.which("yt-dlp") is not None,
         "elevenlabs_key": bool(settings.elevenlabs_shorts_voice_id or settings.elevenlabs_voice_id),
         "openrouter_key": bool(settings.openrouter_api_key),
         "pexels_key": bool(settings.pexels_api_key),

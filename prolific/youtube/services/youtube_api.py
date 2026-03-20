@@ -97,6 +97,34 @@ class YouTubeUploadService:
 
         return {"video_id": video_id, "url": video_url}
 
+    async def post_comment(self, video_id: str, comment_text: str) -> str | None:
+        """Post a comment on a video. Returns comment ID or None."""
+        import asyncio
+        try:
+            youtube = self._get_authenticated_service()
+            body = {
+                "snippet": {
+                    "videoId": video_id,
+                    "topLevelComment": {
+                        "snippet": {
+                            "textOriginal": comment_text,
+                        }
+                    },
+                },
+            }
+            request = youtube.commentThreads().insert(
+                part="snippet",
+                body=body,
+            )
+            loop = asyncio.get_event_loop()
+            response = await loop.run_in_executor(None, request.execute)
+            comment_id = response["id"]
+            logger.info(f"Posted comment on {video_id}: {comment_text[:50]}...")
+            return comment_id
+        except Exception as e:
+            logger.warning(f"Failed to post comment on {video_id}: {e}")
+            return None
+
     @staticmethod
     def _execute_upload(request):
         """Execute resumable upload with progress logging and retry."""

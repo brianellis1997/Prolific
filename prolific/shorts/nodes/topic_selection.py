@@ -1,4 +1,4 @@
-"""Topic selection node - finds trending news or mind-blowing facts."""
+"""Topic selection node - finds trending content with niche awareness and content mode selection."""
 
 import logging
 
@@ -16,10 +16,12 @@ logger = logging.getLogger(__name__)
 class ShortTopicCandidate(BaseModel):
     topic: str
     topic_type: str = "mind_blowing_fact"
+    content_mode: str = "news_commentary"
     hook_angle: str = ""
     virality_reason: str = ""
     visual_keywords: list[str] = Field(default_factory=list)
     trending_tie_in: str = ""
+    clip_search_queries: list[str] = Field(default_factory=list)
 
 
 class ShortTopicBrainstorm(BaseModel):
@@ -31,16 +33,14 @@ class ShortTopicSelection(BaseModel):
     rationale: str
 
 
-async def _get_trending_context() -> tuple[str, list[str]]:
+async def _get_trending_context(niche: str) -> tuple[str, list[str]]:
     try:
         from prolific.services.web_search import get_web_search_service
+        from prolific.shorts.prompts import NICHE_SEARCH_QUERIES
         search_service = get_web_search_service()
 
-        queries = [
-            "trending viral news today celebrity gossip drama",
-            "shocking news today what everyone is talking about",
-            "viral social media moment today controversy",
-        ]
+        queries = NICHE_SEARCH_QUERIES.get(niche, NICHE_SEARCH_QUERIES["general"])
+
         all_headlines = []
         all_urls = []
         for query in queries:
@@ -62,7 +62,7 @@ async def _get_trending_context() -> tuple[str, list[str]]:
                 seen.add(key)
                 unique.append(h)
 
-        logger.info(f"Fetched {len(unique)} trending headlines")
+        logger.info(f"Fetched {len(unique)} trending headlines for niche '{niche}'")
         return "\n".join(unique[:15]), list(dict.fromkeys(all_urls))[:10]
 
     except Exception as e:
@@ -70,21 +70,51 @@ async def _get_trending_context() -> tuple[str, list[str]]:
         return "", []
 
 
+async def _verify_clips_available(candidate: ShortTopicCandidate) -> list[str]:
+    """Quick check if clips are findable for a candidate. Returns verified URLs."""
+    if candidate.content_mode == "news_commentary":
+        return []
+    if not candidate.clip_search_queries:
+        return []
+
+    try:
+        from prolific.shorts.services.clip_discovery import discover_clips
+        clips = await discover_clips(
+            topic=candidate.clip_search_queries[0],
+            niche="general",
+            max_clips=3,
+        )
+        return [c["url"] for c in clips if c.get("url")]
+    except Exception as e:
+        logger.warning(f"Clip verification failed: {e}")
+        return []
+
+
 async def topic_selection_node(state: ShortsPipelineState) -> dict:
-    """Select a topic for the short-form video."""
+    """Select a topic with niche awareness and content mode determination."""
     logger.info("=== SHORTS: TOPIC SELECTION ===")
 
     llm_service = get_llm_service()
     history_service = get_shorts_history_service()
 
+    niche = state.get("niche") or settings.shorts_niche or "general"
+    logger.info(f"Niche: {niche}")
+
     past_topics = await history_service.get_past_topics(hours=48)
     past_topics_str = "\n".join(f"- {t}" for t in past_topics) if past_topics else "(none yet)"
 
-    trending_context, source_urls = await _get_trending_context()
+    trending_context, source_urls = await _get_trending_context(niche)
 
-    from prolific.shorts.prompts import TOPIC_BRAINSTORM_SYSTEM
+    from prolific.shorts.prompts import (
+        NICHE_DESCRIPTIONS,
+        NICHE_TOPIC_BRAINSTORM_SYSTEM,
+        TOPIC_SELECT_SYSTEM,
+    )
 
-    brainstorm_prompt = TOPIC_BRAINSTORM_SYSTEM.format(
+    niche_description = NICHE_DESCRIPTIONS.get(niche, NICHE_DESCRIPTIONS["general"])
+
+    brainstorm_prompt = NICHE_TOPIC_BRAINSTORM_SYSTEM.format(
+        niche_description=niche_description,
         num_candidates=8,
         trending_context=trending_context if trending_context else "(no trending data available)",
         past_topics=past_topics_str,
@@ -109,10 +139,8 @@ async def topic_selection_node(state: ShortsPipelineState) -> dict:
             "current_phase": "failed",
         }
 
-    from prolific.shorts.prompts import TOPIC_SELECT_SYSTEM
-
     candidates_str = "\n".join(
-        f"[{i}] {c.topic} ({c.topic_type}) - {c.hook_angle}"
+        f"[{i}] {c.topic} ({c.topic_type}, mode={c.content_mode}) - {c.hook_angle}"
         + (f" [TRENDING: {c.trending_tie_in}]" if c.trending_tie_in else "")
         for i, c in enumerate(candidates)
     )
@@ -130,15 +158,36 @@ async def topic_selection_node(state: ShortsPipelineState) -> dict:
     chosen_idx = max(0, min(selection_result.chosen_index, len(candidates) - 1))
     chosen = candidates[chosen_idx]
 
+    content_mode = chosen.content_mode
+    valid_modes = {"news_commentary", "clip_reaction", "clip_compilation", "niche_drama"}
+    if content_mode not in valid_modes:
+        content_mode = "news_commentary"
+
+    verified_urls = []
+    if content_mode != "news_commentary":
+        verified_urls = await _verify_clips_available(chosen)
+        if not verified_urls:
+            logger.info(f"No clips found for '{chosen.topic}', falling back to news_commentary")
+            content_mode = "news_commentary"
+        else:
+            logger.info(f"Verified {len(verified_urls)} clips available for '{chosen.topic}'")
+
+    all_urls = list(dict.fromkeys(source_urls + verified_urls))
+
     logger.info(f"Selected short topic: {chosen.topic}")
     logger.info(f"Type: {chosen.topic_type}")
+    logger.info(f"Content mode: {content_mode}")
     logger.info(f"Hook: {chosen.hook_angle}")
 
     return {
         "topic": chosen.topic,
         "topic_type": chosen.topic_type,
-        "source_urls": source_urls,
+        "content_mode": content_mode,
+        "niche": niche,
+        "source_urls": all_urls,
         "past_short_topics": past_topics,
         "current_phase": "script_writing",
-        "messages": [AIMessage(content=f"Selected short topic: {chosen.topic} | Hook: {chosen.hook_angle}")],
+        "messages": [AIMessage(
+            content=f"Selected: {chosen.topic} | Mode: {content_mode} | Hook: {chosen.hook_angle}"
+        )],
     }

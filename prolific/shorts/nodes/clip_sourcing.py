@@ -60,46 +60,91 @@ async def clip_sourcing_node(state: ShortsPipelineState) -> dict:
 
     elif content_mode == "clip_compilation":
         compilation_items = state.get("compilation_items", [])
-        target_per_clip = settings.shorts_target_duration_seconds / max(len(compilation_items), 3)
+        direct_urls = [u for u in source_urls if _is_video_url(u)]
+        use_direct_urls = len(direct_urls) >= 2
 
-        for i, item in enumerate(compilation_items):
-            filename = f"comp_{i:02d}"
-            search_q = f"{item} {topic}"
+        clip_sources = direct_urls if use_direct_urls else []
+        target_per_clip = settings.shorts_target_duration_seconds / max(
+            len(clip_sources) if use_direct_urls else len(compilation_items), 3
+        )
 
-            clip, info = await _search_and_download(
-                query=search_q,
-                downloader=downloader,
-                output_dir=str(output_dir),
-                filename=filename,
-                max_duration=int(target_per_clip + 2),
-            )
-            if clip and info:
-                sc = SourceClip(
-                    platform=info.get("platform", "youtube"),
-                    original_url=info.get("url", ""),
-                    creator_name=info.get("uploader", ""),
-                    clip_title=info.get("title", ""),
-                    file_path=clip,
-                    duration_seconds=info.get("duration", 0),
-                    sequence_number=i + 1,
-                    view_count=info.get("view_count", 0),
+        if use_direct_urls:
+            logger.info(f"Downloading {len(clip_sources)} direct clip URLs (Twitch/YouTube)")
+            for i, url in enumerate(clip_sources):
+                filename = f"comp_{i:02d}"
+                clip_path = await downloader.download_clip(
+                    url=url,
+                    output_dir=str(output_dir),
+                    filename=filename,
+                    max_duration=int(target_per_clip + 5),
                 )
-                source_clips.append(sc)
-                visual_assets.append(VisualAsset(
-                    sequence_number=i + 1,
-                    asset_type="source_clip",
-                    search_query=search_q,
-                    file_path=clip,
-                    duration_seconds=target_per_clip,
-                ))
-            else:
-                logger.warning(f"[{i+1}] No clip found for compilation item: {item}")
-                visual_assets.append(VisualAsset(
-                    sequence_number=i + 1,
-                    asset_type="web_image",
-                    search_query=item,
-                    duration_seconds=target_per_clip,
-                ))
+                if clip_path:
+                    info = await downloader.get_clip_info(url)
+                    sc = SourceClip(
+                        platform=info.get("platform", "other") if info else "other",
+                        original_url=url,
+                        creator_name=info.get("uploader", "") if info else "",
+                        clip_title=info.get("title", "") if info else "",
+                        file_path=clip_path,
+                        duration_seconds=info.get("duration", 0) if info else 0,
+                        sequence_number=i + 1,
+                        view_count=info.get("view_count", 0) if info else 0,
+                    )
+                    source_clips.append(sc)
+                    visual_assets.append(VisualAsset(
+                        sequence_number=i + 1,
+                        asset_type="source_clip",
+                        search_query=topic,
+                        file_path=clip_path,
+                        duration_seconds=target_per_clip,
+                    ))
+                else:
+                    logger.warning(f"[{i+1}] Failed to download clip: {url}")
+                    visual_assets.append(VisualAsset(
+                        sequence_number=i + 1,
+                        asset_type="web_image",
+                        search_query=topic,
+                        duration_seconds=target_per_clip,
+                    ))
+        else:
+            for i, item in enumerate(compilation_items):
+                filename = f"comp_{i:02d}"
+                search_q = f"{item} {topic}"
+
+                clip, info = await _search_and_download(
+                    query=search_q,
+                    downloader=downloader,
+                    output_dir=str(output_dir),
+                    filename=filename,
+                    max_duration=int(target_per_clip + 2),
+                )
+                if clip and info:
+                    sc = SourceClip(
+                        platform=info.get("platform", "youtube"),
+                        original_url=info.get("url", ""),
+                        creator_name=info.get("uploader", ""),
+                        clip_title=info.get("title", ""),
+                        file_path=clip,
+                        duration_seconds=info.get("duration", 0),
+                        sequence_number=i + 1,
+                        view_count=info.get("view_count", 0),
+                    )
+                    source_clips.append(sc)
+                    visual_assets.append(VisualAsset(
+                        sequence_number=i + 1,
+                        asset_type="source_clip",
+                        search_query=search_q,
+                        file_path=clip,
+                        duration_seconds=target_per_clip,
+                    ))
+                else:
+                    logger.warning(f"[{i+1}] No clip found for compilation item: {item}")
+                    visual_assets.append(VisualAsset(
+                        sequence_number=i + 1,
+                        asset_type="web_image",
+                        search_query=item,
+                        duration_seconds=target_per_clip,
+                    ))
 
     elif content_mode == "niche_drama":
         video_urls = [u for u in source_urls if _is_video_url(u)]
@@ -162,12 +207,18 @@ async def clip_sourcing_node(state: ShortsPipelineState) -> dict:
 
 def _is_video_url(url: str) -> bool:
     """Check if a URL is likely a video platform URL (not a news article)."""
+    u = url.lower()
+    if "twitch.tv" in u and "/clip/" in u:
+        return True
+    if "clips.twitch.tv/" in u:
+        return True
+    if "kick.com/clip/" in u or "clips.kick.com/" in u:
+        return True
     video_domains = [
         "youtube.com/watch", "youtu.be/", "youtube.com/shorts/",
-        "clips.twitch.tv/", "twitch.tv/clip/",
         "v.redd.it/", "tiktok.com/",
     ]
-    return any(d in url.lower() for d in video_domains)
+    return any(d in u for d in video_domains)
 
 
 async def _download_best_clip(urls, search_topic, downloader, output_dir, filename, max_duration):

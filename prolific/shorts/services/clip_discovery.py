@@ -13,6 +13,8 @@ VIDEO_URL_PATTERN = re.compile(
     r"youtu\.be/|"
     r"clips\.twitch\.tv/|"
     r"twitch\.tv/\w+/clip/|"
+    r"kick\.com/(?:clip/|\w+/clips/)|"
+    r"clips\.kick\.com/|"
     r"reddit\.com/r/\w+/comments/\w+|"
     r"v\.redd\.it/"
     r")[^\s\"\')]+)",

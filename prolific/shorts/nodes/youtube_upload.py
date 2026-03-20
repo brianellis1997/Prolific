@@ -41,6 +41,8 @@ async def youtube_upload_node(state: ShortsPipelineState) -> dict:
     upload_service = get_youtube_upload_service()
 
     try:
+        thumbnail_path = state.get("thumbnail_path") or None
+
         result = await upload_service.upload_video(
             video_path=video_path,
             title=metadata.title,
@@ -48,6 +50,7 @@ async def youtube_upload_node(state: ShortsPipelineState) -> dict:
             tags=metadata.tags,
             category_id=metadata.category_id,
             privacy_status=metadata.privacy_status,
+            thumbnail_path=thumbnail_path,
         )
 
         video_id = result["video_id"]

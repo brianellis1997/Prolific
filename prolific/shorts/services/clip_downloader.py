@@ -233,6 +233,8 @@ def _detect_platform(url: str) -> str:
     url_lower = url.lower()
     if "twitch" in url_lower:
         return "twitch"
+    elif "kick.com" in url_lower:
+        return "kick"
     elif "youtube" in url_lower or "youtu.be" in url_lower:
         return "youtube"
     elif "reddit" in url_lower:

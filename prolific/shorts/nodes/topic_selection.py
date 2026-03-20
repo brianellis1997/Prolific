@@ -100,6 +100,15 @@ async def topic_selection_node(state: ShortsPipelineState) -> dict:
     niche = state.get("niche") or settings.shorts_niche or "general"
     logger.info(f"Niche: {niche}")
 
+    if niche == "twitch":
+        logger.info("Twitch niche detected — routing directly to twitch_discovery")
+        return {
+            "niche": niche,
+            "content_mode": "twitch_clips",
+            "current_phase": "twitch_discovery",
+            "messages": [AIMessage(content="Twitch niche: routing to Twitch drama discovery")],
+        }
+
     past_topics = await history_service.get_past_topics(hours=48)
     past_topics_str = "\n".join(f"- {t}" for t in past_topics) if past_topics else "(none yet)"
 

@@ -6,6 +6,7 @@ from typing import Annotated, TypedDict
 from langchain_core.messages import BaseMessage
 
 from prolific.agent.state import merge_artifacts_by_id, replace_value
+from prolific.core.config import settings
 from prolific.shorts.schemas import (
     CaptionSegment,
     ClipContentUnderstanding,
@@ -45,6 +46,7 @@ class ShortsPipelineState(TypedDict):
 
     final_video_path: str
     video_metadata: Annotated[ShortsVideoMetadata | None, replace_value]
+    thumbnail_path: str
 
     youtube_video_id: str
     youtube_url: str
@@ -55,7 +57,7 @@ class ShortsPipelineState(TypedDict):
     warnings: Annotated[list[str], operator.add]
 
 
-def create_initial_shorts_state(thread_id: str | None = None) -> ShortsPipelineState:
+def create_initial_shorts_state(thread_id: str | None = None, niche: str | None = None) -> ShortsPipelineState:
     """Create initial state for a shorts pipeline run."""
     from uuid import uuid4
 
@@ -67,7 +69,7 @@ def create_initial_shorts_state(thread_id: str | None = None) -> ShortsPipelineS
         topic="",
         topic_type="",
         content_mode="news_commentary",
-        niche="general",
+        niche=niche or settings.shorts_niche or "general",
         source_urls=[],
         past_short_topics=[],
         compilation_items=[],
@@ -82,6 +84,7 @@ def create_initial_shorts_state(thread_id: str | None = None) -> ShortsPipelineS
         subtitle_path="",
         final_video_path="",
         video_metadata=None,
+        thumbnail_path="",
         youtube_video_id="",
         youtube_url="",
         current_phase="topic_selection",

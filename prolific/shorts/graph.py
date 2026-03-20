@@ -13,6 +13,7 @@ from prolific.shorts.nodes import (
     metadata_generation_node,
     script_writing_node,
     stock_clip_sourcing_node,
+    streaming_discovery_node,
     topic_selection_node,
     tts_generation_node,
     video_assembly_node,
@@ -26,10 +27,12 @@ logger = logging.getLogger(__name__)
 
 def _route_by_content_mode(
     state: ShortsPipelineState,
-) -> Literal["clip_sourcing", "compilation_research", "script_writing"]:
+) -> Literal["clip_sourcing", "compilation_research", "script_writing", "twitch_discovery"]:
     """Route to the correct sub-pipeline based on content_mode."""
     mode = state.get("content_mode", "news_commentary")
-    if mode == "clip_compilation":
+    if mode == "twitch_clips":
+        return "twitch_discovery"
+    elif mode == "clip_compilation":
         return "compilation_research"
     elif mode in ("clip_reaction", "niche_drama"):
         return "clip_sourcing"
@@ -60,13 +63,15 @@ def build_shorts_pipeline_graph(checkpointer=None):
 
     Pipeline routes:
       news_commentary:  topic -> script -> visual_plan -> [stock, images] -> tts -> assembly -> meta -> upload
-      clip_reaction:    topic -> clip_sourcing -> script -> tts -> assembly -> meta -> upload
-      clip_compilation: topic -> compilation_research -> clip_sourcing -> script -> tts -> assembly -> meta -> upload
-      niche_drama:      topic -> clip_sourcing -> script -> visual_plan -> [stock, images] -> tts -> assembly -> meta -> upload
+      clip_reaction:    topic -> clip_sourcing -> clip_analysis -> script -> visual_plan -> ... -> upload
+      clip_compilation: topic -> compilation_research -> clip_sourcing -> clip_analysis -> script -> ... -> upload
+      niche_drama:      topic -> clip_sourcing -> clip_analysis -> script -> visual_plan -> ... -> upload
+      twitch_clips:     topic -> twitch_discovery -> clip_sourcing -> clip_analysis -> script -> ... -> upload
     """
     graph = StateGraph(ShortsPipelineState)
 
     graph.add_node("topic_selection", topic_selection_node)
+    graph.add_node("twitch_discovery", streaming_discovery_node)
     graph.add_node("compilation_research", compilation_research_node)
     graph.add_node("clip_sourcing", clip_sourcing_node)
     graph.add_node("clip_analysis", clip_analysis_node)
@@ -85,12 +90,14 @@ def build_shorts_pipeline_graph(checkpointer=None):
         "topic_selection",
         _route_by_content_mode,
         {
+            "twitch_discovery": "twitch_discovery",
             "compilation_research": "compilation_research",
             "clip_sourcing": "clip_sourcing",
             "script_writing": "script_writing",
         },
     )
 
+    graph.add_edge("twitch_discovery", "clip_sourcing")
     graph.add_edge("compilation_research", "clip_sourcing")
     graph.add_edge("clip_sourcing", "clip_analysis")
     graph.add_edge("clip_analysis", "script_writing")
@@ -116,11 +123,28 @@ def build_shorts_pipeline_graph(checkpointer=None):
     return graph.compile(checkpointer=checkpointer)
 
 
+def _shorts_run_config(thread_id: str, niche: str | None = None) -> dict:
+    """Build LangGraph run config with LangSmith metadata for Shorts runs."""
+    return {
+        "configurable": {"thread_id": thread_id},
+        "run_name": f"shorts-{niche or 'general'}-{thread_id[:8]}",
+        "tags": ["shorts", niche or "general"],
+        "metadata": {
+            "pipeline": "shorts",
+            "niche": niche or "general",
+            "thread_id": thread_id,
+        },
+    }
+
+
 async def run_shorts_pipeline(
     thread_id: str | None = None,
     niche: str | None = None,
 ) -> dict:
     """Run the full shorts pipeline and return final state."""
+    import os
+    os.environ.setdefault("LANGCHAIN_PROJECT", "prolific-shorts")
+
     from prolific.shorts.state import create_initial_shorts_state
 
     initial_state = create_initial_shorts_state(thread_id=thread_id)
@@ -128,8 +152,7 @@ async def run_shorts_pipeline(
         initial_state["niche"] = niche
 
     graph = build_shorts_pipeline_graph()
-
-    config = {"configurable": {"thread_id": initial_state["thread_id"]}}
+    config = _shorts_run_config(initial_state["thread_id"], niche)
     final_state = await graph.ainvoke(initial_state, config=config)
 
     return final_state
@@ -140,6 +163,9 @@ async def stream_shorts_pipeline(
     niche: str | None = None,
 ):
     """Stream the shorts pipeline with progress updates."""
+    import os
+    os.environ.setdefault("LANGCHAIN_PROJECT", "prolific-shorts")
+
     from prolific.shorts.state import create_initial_shorts_state
 
     initial_state = create_initial_shorts_state(thread_id=thread_id)
@@ -147,8 +173,7 @@ async def stream_shorts_pipeline(
         initial_state["niche"] = niche
 
     graph = build_shorts_pipeline_graph()
-
-    config = {"configurable": {"thread_id": initial_state["thread_id"]}}
+    config = _shorts_run_config(initial_state["thread_id"], niche)
 
     yield {
         "thread_id": initial_state["thread_id"],

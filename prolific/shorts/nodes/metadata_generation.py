@@ -56,6 +56,10 @@ async def metadata_generation_node(state: ShortsPipelineState) -> dict:
         sources_text = "\n".join(f"- {url}" for url in source_urls[:5])
         description = f"{description}\n\nSources:\n{sources_text}"
 
+    attribution_texts = state.get("attribution_texts", [])
+    if attribution_texts:
+        description = f"{description}\n{''.join(attribution_texts)}"
+
     if "shorts" not in [t.lower() for t in result.tags]:
         result.tags.insert(0, "Shorts")
 

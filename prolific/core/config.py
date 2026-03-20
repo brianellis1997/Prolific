@@ -124,6 +124,9 @@ class Settings(BaseSettings):
     # Pexels Video API
     pexels_api_key: str = ""
 
+    # Shorts Content Modes
+    shorts_niche: str = "general"  # "twitch", "sports", "celebrity", "curiosity", "general"
+
 
 @lru_cache
 def get_settings() -> Settings:

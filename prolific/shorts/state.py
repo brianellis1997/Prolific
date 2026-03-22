@@ -13,6 +13,7 @@ from prolific.shorts.schemas import (
     ShortScript,
     ShortsVideoMetadata,
     SourceClip,
+    StoryPlan,
     VisualAsset,
 )
 
@@ -33,6 +34,8 @@ class ShortsPipelineState(TypedDict):
 
     clip_content_understanding: Annotated[list[ClipContentUnderstanding] | None, replace_value]
 
+    story_plan: Annotated[StoryPlan | None, replace_value]
+
     script: Annotated[ShortScript | None, replace_value]
 
     source_clips: Annotated[list[SourceClip], merge_artifacts_by_id]
@@ -40,6 +43,7 @@ class ShortsPipelineState(TypedDict):
 
     audio_path: str
     audio_duration_seconds: float
+    audio_segment_paths: list[str]
 
     caption_segments: Annotated[list[CaptionSegment] | None, replace_value]
     subtitle_path: str
@@ -75,11 +79,13 @@ def create_initial_shorts_state(thread_id: str | None = None, niche: str | None 
         compilation_items=[],
         attribution_texts=[],
         clip_content_understanding=None,
+        story_plan=None,
         script=None,
         source_clips=[],
         visual_assets=[],
         audio_path="",
         audio_duration_seconds=0.0,
+        audio_segment_paths=[],
         caption_segments=None,
         subtitle_path="",
         final_video_path="",

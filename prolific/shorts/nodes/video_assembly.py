@@ -234,6 +234,156 @@ async def _get_audio_duration(audio_path: str) -> float:
         return 0.0
 
 
+async def _extract_clip_audio_segment(
+    clip_audio_path: str,
+    start_seconds: float,
+    duration_seconds: float,
+    output_path: str,
+) -> bool:
+    """Extract a segment from a clip's audio track. Returns True on success."""
+    ffmpeg = shutil.which("ffmpeg")
+    if not ffmpeg or not clip_audio_path or not Path(clip_audio_path).exists():
+        return False
+    cmd = [
+        ffmpeg,
+        "-ss", str(start_seconds),
+        "-t", str(duration_seconds),
+        "-i", clip_audio_path,
+        "-c:a", "aac", "-ar", "44100", "-ac", "2",
+        "-y", output_path,
+    ]
+    proc = await asyncio.create_subprocess_exec(
+        *cmd, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE,
+    )
+    _, stderr = await proc.communicate()
+    if proc.returncode != 0:
+        logger.warning(f"Clip audio extraction failed: {stderr.decode()[-200:]}")
+        return False
+    return True
+
+
+async def _concat_audio_segments(segment_paths: list[str], output_path: str) -> None:
+    """Concatenate audio segments with 0.3s crossfade between each."""
+    ffmpeg = shutil.which("ffmpeg")
+    if not ffmpeg:
+        raise RuntimeError("ffmpeg not found")
+
+    if len(segment_paths) == 1:
+        shutil.copy2(segment_paths[0], output_path)
+        return
+
+    concat_file = str(Path(output_path).parent / "concat_mixed_audio.txt")
+    with open(concat_file, "w") as f:
+        for p in segment_paths:
+            f.write(f"file '{Path(p).resolve()}'\n")
+
+    cmd = [
+        ffmpeg, "-f", "concat", "-safe", "0", "-i", concat_file,
+        "-c:a", "aac", "-b:a", "192k", "-y", output_path,
+    ]
+    proc = await asyncio.create_subprocess_exec(
+        *cmd, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE,
+    )
+    _, stderr = await proc.communicate()
+    Path(concat_file).unlink(missing_ok=True)
+    if proc.returncode != 0:
+        raise RuntimeError(f"Mixed audio concat failed: {stderr.decode()[-300:]}")
+
+
+async def _apply_story_plan_durations(
+    visual_assets: list,
+    story_plan,
+    audio_segment_paths: list[str],
+) -> None:
+    """Set visual asset durations from story_plan directives.
+
+    clip_plays segments use clip_duration_seconds directly.
+    narrate/narrate_over segments use the actual TTS file duration (or word-count estimate).
+    """
+    seg_by_seq = {seg.sequence_number: seg for seg in story_plan.segments}
+    narration_idx = 0
+
+    for asset in visual_assets:
+        seg = seg_by_seq.get(asset.sequence_number)
+        if not seg:
+            logger.warning(f"  [{asset.sequence_number}] No matching segment in story_plan, keeping default")
+            continue
+
+        if seg.mode == "clip_plays":
+            duration = seg.clip_duration_seconds or 6.0
+            asset.duration_seconds = max(2.0, duration)
+            logger.info(f"  [{asset.sequence_number}] clip_plays: {asset.duration_seconds:.1f}s")
+
+        elif seg.mode in ("narrate", "narrate_over"):
+            duration = 0.0
+            if narration_idx < len(audio_segment_paths):
+                seg_audio = audio_segment_paths[narration_idx]
+                if Path(seg_audio).exists():
+                    duration = await _get_audio_duration(seg_audio)
+                narration_idx += 1
+
+            if duration <= 0:
+                words = len(seg.narration_text.split()) if seg.narration_text else 5
+                duration = max(2.0, round(words / 2.5, 1))
+
+            asset.duration_seconds = duration
+            logger.info(f"  [{asset.sequence_number}] {seg.mode}: {asset.duration_seconds:.1f}s")
+
+
+async def _build_mixed_audio(
+    story_plan,
+    audio_segment_paths: list[str],
+    source_clips: list,
+    output_dir: Path,
+) -> str | None:
+    """Build a mixed audio track: narration segments interleaved with clip audio.
+
+    Returns path to the mixed audio file, or None if assembly fails.
+    """
+    narration_idx = 0
+    audio_pieces = []
+    fade_duration = 0.3
+
+    for i, seg in enumerate(story_plan.segments):
+        piece_path = str(output_dir / f"audio_piece_{i:02d}.aac")
+
+        if seg.mode == "clip_plays":
+            clip_idx = seg.source_clip_index or 0
+            clip = source_clips[clip_idx] if clip_idx < len(source_clips) else None
+            if not clip or not clip.audio_path:
+                logger.warning(f"  Seg {i}: clip_plays but no audio_path for clip[{clip_idx}]")
+                continue
+
+            duration = seg.clip_duration_seconds or clip.duration_seconds or 8.0
+            success = await _extract_clip_audio_segment(
+                clip.audio_path,
+                seg.clip_start_seconds,
+                duration,
+                piece_path,
+            )
+            if success:
+                audio_pieces.append(piece_path)
+                logger.info(f"  Seg {i}: clip_plays audio from clip[{clip_idx}] ({duration:.1f}s)")
+            else:
+                logger.warning(f"  Seg {i}: clip_plays audio extraction failed, segment will be silent")
+
+        elif seg.mode in ("narrate", "narrate_over") and seg.narration_text:
+            if narration_idx < len(audio_segment_paths):
+                narration_file = audio_segment_paths[narration_idx]
+                if Path(narration_file).exists():
+                    audio_pieces.append(narration_file)
+                    logger.info(f"  Seg {i}: narration[{narration_idx}] \"{seg.narration_text[:40]}...\"")
+                narration_idx += 1
+
+    if not audio_pieces:
+        return None
+
+    mixed_path = str(output_dir / "mixed_audio.aac")
+    await _concat_audio_segments(audio_pieces, mixed_path)
+    logger.info(f"Mixed audio assembled: {mixed_path} ({len(audio_pieces)} pieces)")
+    return mixed_path
+
+
 async def _concat_clips(clip_paths: list[str], audio_path: str, output_path: str) -> str:
     """Concatenate clips using ffmpeg concat demuxer + audio overlay, trimmed to audio length."""
     ffmpeg = shutil.which("ffmpeg")
@@ -307,30 +457,38 @@ async def video_assembly_node(state: ShortsPipelineState) -> dict:
 
     video_service = VideoAssemblyService(output_dir=str(output_dir))
 
-    caption_segments = state.get("caption_segments") or []
-    if not caption_segments and audio_path:
-        try:
-            from prolific.shorts.services.caption import get_caption_service
-            cs = get_caption_service()
-            caption_segments = await cs.generate_word_timestamps(audio_path)
-        except Exception as e:
-            logger.warning(f"Pre-assembly caption gen failed: {e}")
+    story_plan = state.get("story_plan")
+    audio_segment_paths = state.get("audio_segment_paths", [])
+    source_clips = state.get("source_clips", [])
 
-    has_script_text = any(a.script_text for a in visual_assets if a.file_path)
-    if caption_segments and has_script_text:
-        _align_visuals_to_speech(visual_assets, caption_segments, audio_duration)
-    elif caption_segments and not has_script_text:
-        _distribute_by_word_count(visual_assets, caption_segments, audio_duration)
+    caption_segments = state.get("caption_segments") or []
+
+    if story_plan:
+        await _apply_story_plan_durations(visual_assets, story_plan, audio_segment_paths)
+        logger.info(f"Using story_plan durations (skipping speech alignment)")
     else:
-        stock_assets = [a for a in visual_assets if a.asset_type == "stock_clip" and a.file_path]
-        image_assets = [a for a in visual_assets if a.asset_type in ("ai_image", "web_image") and a.file_path]
-        stock_total = sum(a.duration_seconds for a in stock_assets)
-        if audio_duration > 0 and image_assets:
-            remaining_time = max(len(image_assets) * 2.0, audio_duration - stock_total)
-            planned_total = sum(a.duration_seconds for a in image_assets) or 1.0
-            scale = remaining_time / planned_total
-            for asset in image_assets:
-                asset.duration_seconds = max(2.0, round(asset.duration_seconds * scale, 1))
+        if not caption_segments and audio_path:
+            try:
+                cs = get_caption_service()
+                caption_segments = await cs.generate_word_timestamps(audio_path)
+            except Exception as e:
+                logger.warning(f"Pre-assembly caption gen failed: {e}")
+
+        has_script_text = any(a.script_text for a in visual_assets if a.file_path)
+        if caption_segments and has_script_text:
+            _align_visuals_to_speech(visual_assets, caption_segments, audio_duration)
+        elif caption_segments and not has_script_text:
+            _distribute_by_word_count(visual_assets, caption_segments, audio_duration)
+        else:
+            stock_assets = [a for a in visual_assets if a.asset_type == "stock_clip" and a.file_path]
+            image_assets = [a for a in visual_assets if a.asset_type in ("ai_image", "web_image") and a.file_path]
+            stock_total = sum(a.duration_seconds for a in stock_assets)
+            if audio_duration > 0 and image_assets:
+                remaining_time = max(len(image_assets) * 2.0, audio_duration - stock_total)
+                planned_total = sum(a.duration_seconds for a in image_assets) or 1.0
+                scale = remaining_time / planned_total
+                for asset in image_assets:
+                    asset.duration_seconds = max(2.0, round(asset.duration_seconds * scale, 1))
 
     visual_assets = _split_long_segments(visual_assets)
 
@@ -348,7 +506,7 @@ async def video_assembly_node(state: ShortsPipelineState) -> dict:
             continue
 
         if asset.asset_type in ("stock_clip", "source_clip"):
-            if is_compilation and asset.asset_type == "source_clip":
+            if is_compilation and asset.asset_type == "source_clip" and not story_plan:
                 numbered_path = str(output_dir / f"numbered_{asset.sequence_number:02d}.mp4")
                 item_idx = asset.sequence_number - 1
                 label = ""
@@ -375,12 +533,32 @@ async def video_assembly_node(state: ShortsPipelineState) -> dict:
     if not clip_paths:
         return {"errors": ["No clips produced for assembly"], "current_phase": "failed"}
 
+    effective_audio = audio_path
+    if story_plan and audio_segment_paths:
+        mixed = await _build_mixed_audio(story_plan, audio_segment_paths, source_clips, output_dir)
+        if mixed:
+            effective_audio = mixed
+            logger.info(f"Using mixed audio track (clip_plays + narration)")
+
     raw_video = str(output_dir / "raw_assembled.mp4")
-    await _concat_clips(clip_paths, audio_path, raw_video)
+    await _concat_clips(clip_paths, effective_audio, raw_video)
+
+    caption_audio = effective_audio
+    if effective_audio.endswith(".aac"):
+        mp3_path = str(Path(effective_audio).with_suffix(".mp3"))
+        ffmpeg = shutil.which("ffmpeg")
+        if ffmpeg:
+            proc = await asyncio.create_subprocess_exec(
+                ffmpeg, "-i", effective_audio, "-c:a", "libmp3lame", "-q:a", "2", "-y", mp3_path,
+                stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE,
+            )
+            await proc.communicate()
+            if proc.returncode == 0 and Path(mp3_path).exists():
+                caption_audio = mp3_path
 
     caption_service = get_caption_service()
     try:
-        segments = caption_segments if caption_segments else await caption_service.generate_word_timestamps(audio_path)
+        segments = caption_segments if caption_segments else await caption_service.generate_word_timestamps(caption_audio)
 
         subtitle_path = str(output_dir / "captions.ass")
         caption_service.generate_ass_subtitles(

@@ -27,25 +27,30 @@ Here are the top trending clips from Twitch and Kick (last 48 hours):
 
 {clip_list}
 
+ALREADY COVERED (do NOT pick these creators or topics again):
+{past_topics}
+
 Your job:
 1. Find the single most dramatic, viral story — beef, live bans, meltdowns, exposés,
    callouts, confrontations, or shocking moments
 2. IMPORTANT: If the drama involves creators across BOTH platforms (e.g., Creator A on
    Twitch responding to Creator B on Kick), SELECT CLIPS FROM BOTH PLATFORMS to tell
    the complete story. Do not limit yourself to one platform.
-3. Select 2-4 clips total that together tell ONE cohesive narrative
+3. Select 3-4 clips total that together tell ONE cohesive narrative (MINIMUM 3 clips)
 4. Prioritize: high view counts + drama keywords + clips that form a beginning/middle/end
+5. SKIP any creator or story that appears in the ALREADY COVERED list above
 
 Return:
 - topic: Punchy topic (e.g., "xQc and Adin Ross go to war across Twitch and Kick")
-- clip_urls: 2-4 clip URLs — can be from Twitch, Kick, or both
+- clip_urls: 3-4 clip URLs — can be from Twitch, Kick, or both (MUST be at least 3)
 - story_angle: One-sentence hook starting with the most shocking element
 - creators_involved: Names of all streamers in the story
 
 RULES:
 - Only return URLs from the list above — do not fabricate
 - Prefer clips that are under 60 seconds
-- If no clear cross-platform beef exists, pick the best single-platform story"""
+- If no clear cross-platform beef exists, pick the best single-platform story
+- Do NOT pick a story already in the ALREADY COVERED list"""
 
 
 async def streaming_discovery_node(state: ShortsPipelineState) -> dict:
@@ -137,11 +142,24 @@ async def streaming_discovery_node(state: ShortsPipelineState) -> dict:
         )
 
     clip_list_str = "\n".join(clip_lines)
+
+    from prolific.shorts.services.shorts_history import get_shorts_history_service
+    history_service = get_shorts_history_service()
+    past_topics = await history_service.get_past_topics(hours=168)
+    if past_topics:
+        past_topics_str = "\n".join(f"- {t}" for t in past_topics[:20])
+        logger.info(f"Avoiding {len(past_topics)} past topics: {past_topics[:5]}")
+    else:
+        past_topics_str = "(none yet)"
+
     logger.info(f"Sending {len(combined)} clips to LLM for cross-platform story selection")
 
     result = await llm_service.invoke_with_structured_output(
         messages=[
-            SystemMessage(content=STREAMING_STORY_PROMPT.format(clip_list=clip_list_str)),
+            SystemMessage(content=STREAMING_STORY_PROMPT.format(
+                clip_list=clip_list_str,
+                past_topics=past_topics_str,
+            )),
             HumanMessage(content="Select the best drama story now."),
         ],
         output_schema=StreamingDramaStory,

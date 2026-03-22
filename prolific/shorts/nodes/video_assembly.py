@@ -262,8 +262,28 @@ async def _extract_clip_audio_segment(
     return True
 
 
+async def _normalize_audio_to_aac(input_path: str, output_path: str) -> str:
+    """Convert any audio file to AAC 44100Hz stereo for consistent concat."""
+    ffmpeg = shutil.which("ffmpeg")
+    if not ffmpeg:
+        return input_path
+    cmd = [
+        ffmpeg, "-i", input_path,
+        "-c:a", "aac", "-ar", "44100", "-ac", "2", "-b:a", "192k",
+        "-y", output_path,
+    ]
+    proc = await asyncio.create_subprocess_exec(
+        *cmd, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE,
+    )
+    _, stderr = await proc.communicate()
+    if proc.returncode != 0:
+        logger.warning(f"Audio normalize failed for {input_path}: {stderr.decode()[-200:]}")
+        return input_path
+    return output_path
+
+
 async def _concat_audio_segments(segment_paths: list[str], output_path: str) -> None:
-    """Concatenate audio segments with 0.3s crossfade between each."""
+    """Concatenate audio segments, normalizing all to AAC first."""
     ffmpeg = shutil.which("ffmpeg")
     if not ffmpeg:
         raise RuntimeError("ffmpeg not found")
@@ -272,20 +292,31 @@ async def _concat_audio_segments(segment_paths: list[str], output_path: str) -> 
         shutil.copy2(segment_paths[0], output_path)
         return
 
-    concat_file = str(Path(output_path).parent / "concat_mixed_audio.txt")
+    normalized = []
+    out_dir = Path(output_path).parent
+    for i, p in enumerate(segment_paths):
+        norm_path = str(out_dir / f"norm_{i:02d}.aac")
+        result = await _normalize_audio_to_aac(p, norm_path)
+        normalized.append(result)
+        dur = await _get_audio_duration(result)
+        logger.info(f"  Audio piece [{i}]: {Path(p).name} -> {dur:.1f}s")
+
+    concat_file = str(out_dir / "concat_mixed_audio.txt")
     with open(concat_file, "w") as f:
-        for p in segment_paths:
+        for p in normalized:
             f.write(f"file '{Path(p).resolve()}'\n")
 
     cmd = [
         ffmpeg, "-f", "concat", "-safe", "0", "-i", concat_file,
-        "-c:a", "aac", "-b:a", "192k", "-y", output_path,
+        "-c:a", "copy", "-y", output_path,
     ]
     proc = await asyncio.create_subprocess_exec(
         *cmd, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE,
     )
     _, stderr = await proc.communicate()
     Path(concat_file).unlink(missing_ok=True)
+    for p in normalized:
+        Path(p).unlink(missing_ok=True)
     if proc.returncode != 0:
         raise RuntimeError(f"Mixed audio concat failed: {stderr.decode()[-300:]}")
 
@@ -443,9 +474,22 @@ async def video_assembly_node(state: ShortsPipelineState) -> dict:
     """Assemble the final short-form video."""
     logger.info("=== SHORTS: VIDEO ASSEMBLY ===")
 
-    visual_assets = sorted(state.get("visual_assets", []), key=lambda a: a.sequence_number)
+    raw_assets = sorted(state.get("visual_assets", []), key=lambda a: a.sequence_number)
     audio_path = state.get("audio_path", "")
     audio_duration = state.get("audio_duration_seconds", 0.0)
+
+    seen_seq = {}
+    for asset in raw_assets:
+        seq = asset.sequence_number
+        if seq not in seen_seq:
+            seen_seq[seq] = asset
+        elif asset.file_path and not seen_seq[seq].file_path:
+            seen_seq[seq] = asset
+        elif asset.file_path and seen_seq[seq].file_path:
+            pass
+    visual_assets = sorted(seen_seq.values(), key=lambda a: a.sequence_number)
+    if len(visual_assets) < len(raw_assets):
+        logger.info(f"Deduplicated {len(raw_assets)} -> {len(visual_assets)} visual assets by sequence_number")
 
     if not visual_assets:
         return {"errors": ["No visual assets for assembly"], "current_phase": "failed"}

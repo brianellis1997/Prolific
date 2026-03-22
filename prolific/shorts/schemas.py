@@ -49,7 +49,7 @@ class SourceClip(BaseModel):
     """A clip downloaded from YouTube/Twitch/Reddit for reuse."""
 
     id: UUID = Field(default_factory=uuid4)
-    platform: Literal["twitch", "youtube", "reddit", "other"] = "other"
+    platform: Literal["twitch", "kick", "youtube", "reddit", "other"] = "other"
     original_url: str = ""
     creator_name: str = ""
     clip_title: str = ""

@@ -37,6 +37,11 @@ async def story_direction_node(state: ShortsPipelineState) -> dict:
         return {"current_phase": "failed", "errors": ["No source clips for story direction"]}
 
     story_angle = ", ".join(compilation_items[:3]) if compilation_items else topic
+    review_feedback = state.get("story_review_feedback", "")
+    attempt = state.get("story_direction_attempts", 0) + 1
+
+    if review_feedback:
+        logger.info(f"Retry attempt {attempt} with feedback: {review_feedback[:100]}")
 
     clip_summaries = _build_clip_summaries(source_clips, understandings)
 
@@ -47,6 +52,13 @@ async def story_direction_node(state: ShortsPipelineState) -> dict:
         story_angle=story_angle,
         clip_summaries=clip_summaries,
     )
+
+    if review_feedback:
+        prompt += (
+            f"\n\n=== PREVIOUS ATTEMPT WAS REJECTED ===\n"
+            f"The quality reviewer gave this feedback:\n{review_feedback}\n\n"
+            f"Fix ALL issues listed above. This is attempt {attempt}."
+        )
 
     llm_service = get_llm_service()
 

@@ -35,6 +35,8 @@ class ShortsPipelineState(TypedDict):
     clip_content_understanding: Annotated[list[ClipContentUnderstanding] | None, replace_value]
 
     story_plan: Annotated[StoryPlan | None, replace_value]
+    story_direction_attempts: int
+    story_review_feedback: str
 
     script: Annotated[ShortScript | None, replace_value]
 
@@ -80,6 +82,8 @@ def create_initial_shorts_state(thread_id: str | None = None, niche: str | None 
         attribution_texts=[],
         clip_content_understanding=None,
         story_plan=None,
+        story_direction_attempts=0,
+        story_review_feedback="",
         script=None,
         source_clips=[],
         visual_assets=[],

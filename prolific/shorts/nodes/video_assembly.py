@@ -234,6 +234,74 @@ async def _get_audio_duration(audio_path: str) -> float:
         return 0.0
 
 
+async def _add_silent_audio(input_path: str, output_path: str, duration: float) -> str:
+    """Add a silent audio track to a video that has no audio."""
+    ffmpeg = shutil.which("ffmpeg")
+    if not ffmpeg:
+        shutil.copy2(input_path, output_path)
+        return output_path
+    cmd = [
+        ffmpeg,
+        "-i", input_path,
+        "-f", "lavfi", "-i", f"anullsrc=r=44100:cl=stereo",
+        "-c:v", "copy", "-c:a", "aac", "-shortest",
+        "-y", output_path,
+    ]
+    proc = await asyncio.create_subprocess_exec(
+        *cmd, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE,
+    )
+    _, stderr = await proc.communicate()
+    if proc.returncode != 0:
+        shutil.copy2(input_path, output_path)
+    return output_path
+
+
+async def _trim_clip_segment(
+    input_path: str,
+    output_path: str,
+    start_seconds: float,
+    duration_seconds: float,
+    clip_audio_path: str = "",
+) -> str:
+    """Trim a source clip to a specific time range, re-muxing original audio.
+
+    The portrait clip has no audio (-an), so we pull audio from clip_audio_path
+    and mux it in, keeping clip video and audio perfectly in sync.
+    """
+    ffmpeg = shutil.which("ffmpeg")
+    if not ffmpeg:
+        return input_path
+
+    has_audio = clip_audio_path and Path(clip_audio_path).exists()
+
+    if has_audio:
+        cmd = [
+            ffmpeg,
+            "-ss", str(start_seconds), "-t", str(duration_seconds), "-i", input_path,
+            "-ss", str(start_seconds), "-t", str(duration_seconds), "-i", clip_audio_path,
+            "-c:v", "libx264", "-preset", "fast", "-crf", "23", "-pix_fmt", "yuv420p",
+            "-c:a", "aac", "-ar", "44100", "-ac", "2",
+            "-map", "0:v", "-map", "1:a",
+            "-y", output_path,
+        ]
+    else:
+        cmd = [
+            ffmpeg,
+            "-ss", str(start_seconds), "-t", str(duration_seconds), "-i", input_path,
+            "-c:v", "libx264", "-preset", "fast", "-crf", "23", "-pix_fmt", "yuv420p",
+            "-an", "-y", output_path,
+        ]
+
+    proc = await asyncio.create_subprocess_exec(
+        *cmd, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE,
+    )
+    _, stderr = await proc.communicate()
+    if proc.returncode != 0:
+        logger.warning(f"Clip trim failed, using full clip: {stderr.decode()[-200:]}")
+        return input_path
+    return output_path
+
+
 async def _extract_clip_audio_segment(
     clip_audio_path: str,
     start_seconds: float,
@@ -415,6 +483,117 @@ async def _build_mixed_audio(
     return mixed_path
 
 
+async def _concat_clips_with_audio(clip_paths: list[str], output_dir: Path, output_path: str) -> str:
+    """Concatenate clips preserving any embedded audio (for clip_plays sync)."""
+    ffmpeg = shutil.which("ffmpeg")
+    if not ffmpeg:
+        raise RuntimeError("ffmpeg not found")
+
+    concat_file = str(output_dir / "concat_list_av.txt")
+    with open(concat_file, "w") as f:
+        for p in clip_paths:
+            f.write(f"file '{Path(p).resolve()}'\n")
+
+    cmd = [
+        ffmpeg, "-f", "concat", "-safe", "0", "-i", concat_file,
+        "-c:v", "libx264", "-preset", "medium", "-crf", "23",
+        "-pix_fmt", "yuv420p",
+        "-c:a", "aac", "-ar", "44100", "-ac", "2",
+        "-y", output_path,
+    ]
+    proc = await asyncio.create_subprocess_exec(
+        *cmd, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE,
+    )
+    _, stderr = await proc.communicate()
+    Path(concat_file).unlink(missing_ok=True)
+    if proc.returncode != 0:
+        raise RuntimeError(f"concat with audio failed: {stderr.decode()[-300:]}")
+
+    size_mb = Path(output_path).stat().st_size / (1024 * 1024)
+    logger.info(f"Concatenated {len(clip_paths)} clips with audio: {size_mb:.1f}MB")
+    return output_path
+
+
+async def _overlay_narration(
+    video_path: str,
+    output_path: str,
+    story_plan,
+    visual_assets: list,
+    audio_segment_paths: list[str],
+    output_dir: Path,
+) -> str:
+    """Overlay narration segments on top of video at calculated timestamps.
+
+    Clip audio plays naturally from the video. Narration is placed at exact
+    timestamps based on cumulative visual segment durations, overriding
+    clip audio when present.
+    """
+    ffmpeg = shutil.which("ffmpeg")
+    if not ffmpeg:
+        raise RuntimeError("ffmpeg not found")
+
+    cumulative = 0.0
+    narration_idx = 0
+    placements = []
+
+    for asset in visual_assets:
+        seg_match = None
+        for seg in story_plan.segments:
+            if seg.sequence_number == asset.sequence_number:
+                seg_match = seg
+                break
+
+        if seg_match and seg_match.mode in ("narrate", "narrate_over") and seg_match.narration_text:
+            if narration_idx < len(audio_segment_paths):
+                delay_ms = int(cumulative * 1000)
+                placements.append((audio_segment_paths[narration_idx], delay_ms))
+                logger.info(
+                    f"  Narration [{narration_idx}] at {cumulative:.1f}s: "
+                    f"\"{seg_match.narration_text[:40]}...\""
+                )
+                narration_idx += 1
+
+        cumulative += asset.duration_seconds
+
+    if not placements:
+        shutil.copy2(video_path, output_path)
+        return output_path
+
+    inputs = ["-i", video_path]
+    for path, _ in placements:
+        inputs.extend(["-i", path])
+
+    filter_parts = []
+    for i, (_, delay_ms) in enumerate(placements):
+        filter_parts.append(f"[{i+1}:a]adelay={delay_ms}|{delay_ms},volume=1.5[n{i}]")
+
+    clip_audio = "[0:a]volume=0.8[bg]"
+    mix_inputs = "[bg]" + "".join(f"[n{i}]" for i in range(len(placements)))
+    amix = f"{mix_inputs}amix=inputs={len(placements)+1}:duration=longest:normalize=0[aout]"
+
+    filter_complex = ";".join([clip_audio] + filter_parts + [amix])
+
+    cmd = [
+        ffmpeg,
+        *inputs,
+        "-filter_complex", filter_complex,
+        "-map", "0:v", "-map", "[aout]",
+        "-c:v", "copy", "-c:a", "aac", "-b:a", "192k",
+        "-y", output_path,
+    ]
+    proc = await asyncio.create_subprocess_exec(
+        *cmd, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE,
+    )
+    _, stderr = await proc.communicate()
+    if proc.returncode != 0:
+        logger.warning(f"Narration overlay failed: {stderr.decode()[-300:]}")
+        shutil.copy2(video_path, output_path)
+        return output_path
+
+    logger.info(f"Narration overlaid: {len(placements)} segments at calculated timestamps")
+    return output_path
+
+
 async def _concat_clips(clip_paths: list[str], audio_path: str, output_path: str) -> str:
     """Concatenate clips using ffmpeg concat demuxer + audio overlay, trimmed to audio length."""
     ffmpeg = shutil.which("ffmpeg")
@@ -478,18 +657,45 @@ async def video_assembly_node(state: ShortsPipelineState) -> dict:
     audio_path = state.get("audio_path", "")
     audio_duration = state.get("audio_duration_seconds", 0.0)
 
-    seen_seq = {}
-    for asset in raw_assets:
-        seq = asset.sequence_number
-        if seq not in seen_seq:
-            seen_seq[seq] = asset
-        elif asset.file_path and not seen_seq[seq].file_path:
-            seen_seq[seq] = asset
-        elif asset.file_path and seen_seq[seq].file_path:
-            pass
-    visual_assets = sorted(seen_seq.values(), key=lambda a: a.sequence_number)
-    if len(visual_assets) < len(raw_assets):
-        logger.info(f"Deduplicated {len(raw_assets)} -> {len(visual_assets)} visual assets by sequence_number")
+    story_plan = state.get("story_plan")
+    if story_plan:
+        assets_by_seq = {}
+        for asset in raw_assets:
+            assets_by_seq.setdefault(asset.sequence_number, []).append(asset)
+
+        visual_assets = []
+        for seg in story_plan.segments:
+            candidates = assets_by_seq.get(seg.sequence_number, [])
+            best = None
+            if seg.mode in ("clip_plays", "narrate_over"):
+                for c in candidates:
+                    if c.asset_type == "source_clip" and c.file_path:
+                        best = c
+                        break
+            else:
+                for c in candidates:
+                    if c.asset_type in ("web_image", "stock_clip") and c.file_path:
+                        best = c
+                        break
+            if not best:
+                for c in candidates:
+                    if c.file_path:
+                        best = c
+                        break
+            if best:
+                visual_assets.append(best)
+            else:
+                logger.warning(f"  [{seg.sequence_number}] No visual asset with file_path for {seg.mode}")
+        logger.info(f"Rebuilt {len(visual_assets)} visual assets from story_plan (was {len(raw_assets)} raw)")
+    else:
+        seen_seq = {}
+        for asset in raw_assets:
+            seq = asset.sequence_number
+            if seq not in seen_seq:
+                seen_seq[seq] = asset
+            elif asset.file_path and not seen_seq[seq].file_path:
+                seen_seq[seq] = asset
+        visual_assets = sorted(seen_seq.values(), key=lambda a: a.sequence_number)
 
     if not visual_assets:
         return {"errors": ["No visual assets for assembly"], "current_phase": "failed"}
@@ -501,7 +707,6 @@ async def video_assembly_node(state: ShortsPipelineState) -> dict:
 
     video_service = VideoAssemblyService(output_dir=str(output_dir))
 
-    story_plan = state.get("story_plan")
     audio_segment_paths = state.get("audio_segment_paths", [])
     source_clips = state.get("source_clips", [])
 
@@ -542,6 +747,7 @@ async def video_assembly_node(state: ShortsPipelineState) -> dict:
     content_mode = state.get("content_mode", "news_commentary")
     is_compilation = content_mode == "clip_compilation"
     compilation_items = state.get("compilation_items", [])
+    seg_by_seq = {seg.sequence_number: seg for seg in story_plan.segments} if story_plan else {}
 
     clip_paths = []
     for asset in visual_assets:
@@ -560,6 +766,27 @@ async def video_assembly_node(state: ShortsPipelineState) -> dict:
                     asset.file_path, numbered_path, label, asset.duration_seconds
                 )
                 clip_paths.append(numbered_path)
+            elif story_plan and asset.asset_type == "source_clip":
+                seg = seg_by_seq.get(asset.sequence_number)
+                if seg and seg.clip_duration_seconds:
+                    clip_audio = ""
+                    clip_idx = seg.source_clip_index or 0
+                    if clip_idx < len(source_clips) and source_clips[clip_idx].audio_path:
+                        clip_audio = source_clips[clip_idx].audio_path
+                    trimmed_path = str(output_dir / f"trimmed_{asset.sequence_number:02d}.mp4")
+                    trimmed = await _trim_clip_segment(
+                        asset.file_path, trimmed_path,
+                        seg.clip_start_seconds, seg.clip_duration_seconds,
+                        clip_audio_path=clip_audio,
+                    )
+                    clip_paths.append(trimmed)
+                    has_audio_label = " (with audio)" if clip_audio else " (no audio)"
+                    logger.info(
+                        f"  [{asset.sequence_number}] Trimmed source clip: "
+                        f"{seg.clip_start_seconds:.1f}s + {seg.clip_duration_seconds:.1f}s{has_audio_label}"
+                    )
+                else:
+                    clip_paths.append(asset.file_path)
             else:
                 clip_paths.append(asset.file_path)
         else:
@@ -572,28 +799,39 @@ async def video_assembly_node(state: ShortsPipelineState) -> dict:
                 width=1080,
                 height=1920,
             )
-            clip_paths.append(kb_path)
+            if story_plan:
+                kb_with_audio = str(output_dir / f"kb_{asset.sequence_number:02d}_a.mp4")
+                await _add_silent_audio(kb_path, kb_with_audio, asset.duration_seconds)
+                clip_paths.append(kb_with_audio)
+            else:
+                clip_paths.append(kb_path)
 
     if not clip_paths:
         return {"errors": ["No clips produced for assembly"], "current_phase": "failed"}
 
-    effective_audio = audio_path
     if story_plan and audio_segment_paths:
-        mixed = await _build_mixed_audio(story_plan, audio_segment_paths, source_clips, output_dir)
-        if mixed:
-            effective_audio = mixed
-            logger.info(f"Using mixed audio track (clip_plays + narration)")
+        raw_video = str(output_dir / "raw_assembled.mp4")
+        await _concat_clips_with_audio(clip_paths, output_dir, raw_video)
 
-    raw_video = str(output_dir / "raw_assembled.mp4")
-    await _concat_clips(clip_paths, effective_audio, raw_video)
+        narrated_video = str(output_dir / "narrated.mp4")
+        await _overlay_narration(
+            raw_video, narrated_video, story_plan, visual_assets,
+            audio_segment_paths, output_dir,
+        )
+        raw_video = narrated_video
+        effective_audio = narrated_video
+    else:
+        effective_audio = audio_path
+        raw_video = str(output_dir / "raw_assembled.mp4")
+        await _concat_clips(clip_paths, effective_audio, raw_video)
 
     caption_audio = effective_audio
-    if effective_audio.endswith(".aac"):
-        mp3_path = str(Path(effective_audio).with_suffix(".mp3"))
-        ffmpeg = shutil.which("ffmpeg")
-        if ffmpeg:
+    if not effective_audio.endswith(".mp3"):
+        mp3_path = str(output_dir / "caption_audio.mp3")
+        ffmpeg_bin = shutil.which("ffmpeg")
+        if ffmpeg_bin:
             proc = await asyncio.create_subprocess_exec(
-                ffmpeg, "-i", effective_audio, "-c:a", "libmp3lame", "-q:a", "2", "-y", mp3_path,
+                ffmpeg_bin, "-i", effective_audio, "-c:a", "libmp3lame", "-q:a", "2", "-y", mp3_path,
                 stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE,
             )
             await proc.communicate()

@@ -14,6 +14,7 @@ from prolific.shorts.nodes import (
     script_writing_node,
     stock_clip_sourcing_node,
     story_direction_node,
+    story_review_node,
     streaming_discovery_node,
     topic_selection_node,
     tts_generation_node,
@@ -49,6 +50,16 @@ def _route_after_clip_analysis(
     if source_clips:
         return "story_direction"
     return "script_writing"
+
+
+def _route_after_story_review(
+    state: ShortsPipelineState,
+) -> str:
+    """After review: approve (continue to assets) or retry (back to story_direction)."""
+    story_plan = state.get("story_plan")
+    if story_plan is None:
+        return "story_direction"
+    return "asset_generation"
 
 
 def _route_after_visual_planning(
@@ -91,6 +102,7 @@ def build_shorts_pipeline_graph(checkpointer=None):
     graph.add_node("clip_sourcing", clip_sourcing_node)
     graph.add_node("clip_analysis", clip_analysis_node)
     graph.add_node("story_direction", story_direction_node)
+    graph.add_node("story_review", story_review_node)
     graph.add_node("script_writing", script_writing_node)
     graph.add_node("visual_planning", visual_planning_node)
     graph.add_node("stock_clip_sourcing", stock_clip_sourcing_node)
@@ -123,13 +135,14 @@ def build_shorts_pipeline_graph(checkpointer=None):
         {"story_direction": "story_direction", "script_writing": "script_writing"},
     )
 
+    graph.add_edge("story_direction", "story_review")
+
     graph.add_conditional_edges(
-        "story_direction",
-        _route_after_visual_planning,
+        "story_review",
+        _route_after_story_review,
         {
-            "stock_clip_sourcing": "stock_clip_sourcing",
-            "image_generation": "image_generation",
-            "tts_generation": "tts_generation",
+            "story_direction": "story_direction",
+            "asset_generation": "image_generation",
         },
     )
 

@@ -13,6 +13,7 @@ from prolific.shorts.nodes import (
     metadata_generation_node,
     script_writing_node,
     stock_clip_sourcing_node,
+    story_direction_node,
     streaming_discovery_node,
     topic_selection_node,
     tts_generation_node,
@@ -40,6 +41,16 @@ def _route_by_content_mode(
         return "script_writing"
 
 
+def _route_after_clip_analysis(
+    state: ShortsPipelineState,
+) -> str:
+    """After clip analysis: use Director Agent if we have source clips, else fall back to script."""
+    source_clips = state.get("source_clips", [])
+    if source_clips:
+        return "story_direction"
+    return "script_writing"
+
+
 def _route_after_visual_planning(
     state: ShortsPipelineState,
 ) -> list[str]:
@@ -63,10 +74,14 @@ def build_shorts_pipeline_graph(checkpointer=None):
 
     Pipeline routes:
       news_commentary:  topic -> script -> visual_plan -> [stock, images] -> tts -> assembly -> meta -> upload
-      clip_reaction:    topic -> clip_sourcing -> clip_analysis -> script -> visual_plan -> ... -> upload
-      clip_compilation: topic -> compilation_research -> clip_sourcing -> clip_analysis -> script -> ... -> upload
-      niche_drama:      topic -> clip_sourcing -> clip_analysis -> script -> visual_plan -> ... -> upload
-      twitch_clips:     topic -> twitch_discovery -> clip_sourcing -> clip_analysis -> script -> ... -> upload
+      clip_reaction:    topic -> clip_sourcing -> clip_analysis -> story_direction -> [stock, images] -> tts -> assembly -> upload
+      clip_compilation: topic -> compilation_research -> clip_sourcing -> clip_analysis -> story_direction -> ... -> upload
+      niche_drama:      topic -> clip_sourcing -> clip_analysis -> story_direction -> [stock, images] -> tts -> assembly -> upload
+      twitch_clips:     topic -> twitch_discovery -> clip_sourcing -> clip_analysis -> story_direction -> ... -> upload
+
+    story_direction replaces script_writing + visual_planning for all clip-based modes.
+    It produces a StoryPlan with clip_plays/narrate/narrate_over segments and derives
+    ShortScript + VisualAsset list for downstream compatibility.
     """
     graph = StateGraph(ShortsPipelineState)
 
@@ -75,6 +90,7 @@ def build_shorts_pipeline_graph(checkpointer=None):
     graph.add_node("compilation_research", compilation_research_node)
     graph.add_node("clip_sourcing", clip_sourcing_node)
     graph.add_node("clip_analysis", clip_analysis_node)
+    graph.add_node("story_direction", story_direction_node)
     graph.add_node("script_writing", script_writing_node)
     graph.add_node("visual_planning", visual_planning_node)
     graph.add_node("stock_clip_sourcing", stock_clip_sourcing_node)
@@ -100,7 +116,23 @@ def build_shorts_pipeline_graph(checkpointer=None):
     graph.add_edge("twitch_discovery", "clip_sourcing")
     graph.add_edge("compilation_research", "clip_sourcing")
     graph.add_edge("clip_sourcing", "clip_analysis")
-    graph.add_edge("clip_analysis", "script_writing")
+
+    graph.add_conditional_edges(
+        "clip_analysis",
+        _route_after_clip_analysis,
+        {"story_direction": "story_direction", "script_writing": "script_writing"},
+    )
+
+    graph.add_conditional_edges(
+        "story_direction",
+        _route_after_visual_planning,
+        {
+            "stock_clip_sourcing": "stock_clip_sourcing",
+            "image_generation": "image_generation",
+            "tts_generation": "tts_generation",
+        },
+    )
+
     graph.add_edge("script_writing", "visual_planning")
 
     graph.add_conditional_edges(

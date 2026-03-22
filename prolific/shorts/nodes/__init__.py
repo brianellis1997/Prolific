@@ -7,6 +7,7 @@ from prolific.shorts.nodes.image_generation import image_generation_node
 from prolific.shorts.nodes.metadata_generation import metadata_generation_node
 from prolific.shorts.nodes.script_writing import script_writing_node
 from prolific.shorts.nodes.stock_clip_sourcing import stock_clip_sourcing_node
+from prolific.shorts.nodes.story_direction import story_direction_node
 from prolific.shorts.nodes.topic_selection import topic_selection_node
 from prolific.shorts.nodes.tts_generation import tts_generation_node
 from prolific.shorts.nodes.streaming_discovery import streaming_discovery_node
@@ -20,6 +21,7 @@ __all__ = [
     "streaming_discovery_node",
     "twitch_discovery_node",
     "clip_analysis_node",
+    "story_direction_node",
     "script_writing_node",
     "visual_planning_node",
     "stock_clip_sourcing_node",

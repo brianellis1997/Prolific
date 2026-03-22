@@ -54,29 +54,62 @@ class ClipDownloader:
             logger.warning(f"yt-dlp info error for {url}: {e}")
             return None
 
+    async def _extract_audio(self, input_path: str, output_path: str) -> None:
+        """Extract audio track from a video file to AAC."""
+        if not self.ffmpeg:
+            return
+        cmd = [
+            self.ffmpeg, "-i", input_path,
+            "-vn", "-c:a", "aac", "-ar", "44100", "-ac", "2",
+            "-y", output_path,
+        ]
+        proc = await asyncio.create_subprocess_exec(
+            *cmd, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE,
+        )
+        _, stderr = await proc.communicate()
+        if proc.returncode != 0:
+            logger.warning(f"Audio extraction failed: {stderr.decode()[-200:]}")
+
     async def download_clip(
         self,
         url: str,
         output_dir: str,
         filename: str = "clip",
         max_duration: int = 60,
-    ) -> str | None:
-        """Download a clip and convert to 1080x1920 portrait, no audio."""
+    ) -> tuple[str, str] | None:
+        """Download a clip and convert to 1080x1920 portrait (no audio).
+
+        Returns (portrait_video_path, audio_path) or None on failure.
+        The audio_path is the original clip audio for use in clip_plays mode.
+        """
         output_dir_path = Path(output_dir)
         output_dir_path.mkdir(parents=True, exist_ok=True)
 
         raw_path = str(output_dir_path / f"{filename}_raw.mp4")
         final_path = str(output_dir_path / f"{filename}.mp4")
+        audio_path = str(output_dir_path / f"{filename}_audio.aac")
 
-        cmd = [
-            self.yt_dlp,
-            "-f", "bestvideo[height<=1080]+bestaudio/best[height<=1080]",
-            "--merge-output-format", "mp4",
-            "--no-playlist",
-            "--no-warnings",
-            "-o", raw_path,
-            url,
-        ]
+        is_hls = ".m3u8" in url or url.endswith(".m3u8")
+
+        if is_hls and self.ffmpeg:
+            cmd = [
+                self.ffmpeg,
+                "-i", url,
+                "-t", str(max_duration),
+                "-c:v", "libx264", "-preset", "fast", "-crf", "23",
+                "-c:a", "aac", "-ar", "44100", "-ac", "2",
+                "-y", raw_path,
+            ]
+        else:
+            cmd = [
+                self.yt_dlp,
+                "-f", "bestvideo[height<=1080]+bestaudio/best[height<=1080]",
+                "--merge-output-format", "mp4",
+                "--no-playlist",
+                "--no-warnings",
+                "-o", raw_path,
+                url,
+            ]
 
         try:
             proc = await asyncio.create_subprocess_exec(
@@ -84,18 +117,21 @@ class ClipDownloader:
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.PIPE,
             )
-            _, stderr = await asyncio.wait_for(proc.communicate(), timeout=120)
+            timeout = 180 if is_hls else 120
+            _, stderr = await asyncio.wait_for(proc.communicate(), timeout=timeout)
             if proc.returncode != 0:
-                logger.error(f"yt-dlp download failed: {stderr.decode()[-500:]}")
+                label = "ffmpeg HLS" if is_hls else "yt-dlp"
+                logger.error(f"{label} download failed: {stderr.decode()[-500:]}")
                 return None
 
             if not Path(raw_path).exists():
                 logger.error(f"Downloaded file not found at {raw_path}")
                 return None
 
+            await self._extract_audio(raw_path, audio_path)
             await self._convert_to_portrait(raw_path, final_path, max_duration)
             Path(raw_path).unlink(missing_ok=True)
-            return final_path
+            return final_path, audio_path if Path(audio_path).exists() else ""
 
         except asyncio.TimeoutError:
             logger.error(f"yt-dlp download timed out for {url}")
@@ -198,8 +234,9 @@ class ClipDownloader:
                 duration = result.get("duration", 0) or 0
                 if duration > 0 and duration <= max_duration * 2:
                     video_url = result.get("url") or f"https://www.youtube.com/watch?v={result.get('id', '')}"
-                    path = await self.download_clip(video_url, output_dir, filename, max_duration)
-                    if path:
+                    dl_result = await self.download_clip(video_url, output_dir, filename, max_duration)
+                    if dl_result:
+                        clip_path, _ = dl_result
                         info = {
                             "title": result.get("title", ""),
                             "uploader": result.get("uploader", result.get("channel", "")),
@@ -208,7 +245,7 @@ class ClipDownloader:
                             "url": video_url,
                             "platform": "youtube",
                         }
-                        return path, info
+                        return clip_path, info
 
             return None, None
 

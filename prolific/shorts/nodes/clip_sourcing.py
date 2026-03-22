@@ -30,7 +30,7 @@ async def clip_sourcing_node(state: ShortsPipelineState) -> dict:
     visual_assets = []
 
     if content_mode == "clip_reaction":
-        clip, info = await _download_best_clip(
+        result = await _download_best_clip(
             urls=source_urls,
             search_topic=topic,
             downloader=downloader,
@@ -38,13 +38,15 @@ async def clip_sourcing_node(state: ShortsPipelineState) -> dict:
             filename="reaction_clip",
             max_duration=30,
         )
-        if clip:
+        if result:
+            clip, audio_path, info = result
             sc = SourceClip(
                 platform=info.get("platform", "other") if info else "other",
                 original_url=info.get("url", "") if info else "",
                 creator_name=info.get("uploader", "") if info else "",
                 clip_title=info.get("title", "") if info else "",
                 file_path=clip,
+                audio_path=audio_path,
                 duration_seconds=info.get("duration", 0) if info else 0,
                 sequence_number=1,
                 view_count=info.get("view_count", 0) if info else 0,
@@ -72,13 +74,14 @@ async def clip_sourcing_node(state: ShortsPipelineState) -> dict:
             logger.info(f"Downloading {len(clip_sources)} direct clip URLs (Twitch/YouTube)")
             for i, url in enumerate(clip_sources):
                 filename = f"comp_{i:02d}"
-                clip_path = await downloader.download_clip(
+                dl_result = await downloader.download_clip(
                     url=url,
                     output_dir=str(output_dir),
                     filename=filename,
                     max_duration=int(target_per_clip + 5),
                 )
-                if clip_path:
+                if dl_result:
+                    clip_path, audio_path = dl_result
                     info = await downloader.get_clip_info(url)
                     sc = SourceClip(
                         platform=info.get("platform", "other") if info else "other",
@@ -86,6 +89,7 @@ async def clip_sourcing_node(state: ShortsPipelineState) -> dict:
                         creator_name=info.get("uploader", "") if info else "",
                         clip_title=info.get("title", "") if info else "",
                         file_path=clip_path,
+                        audio_path=audio_path,
                         duration_seconds=info.get("duration", 0) if info else 0,
                         sequence_number=i + 1,
                         view_count=info.get("view_count", 0) if info else 0,
@@ -111,20 +115,22 @@ async def clip_sourcing_node(state: ShortsPipelineState) -> dict:
                 filename = f"comp_{i:02d}"
                 search_q = f"{item} {topic}"
 
-                clip, info = await _search_and_download(
+                result = await _search_and_download(
                     query=search_q,
                     downloader=downloader,
                     output_dir=str(output_dir),
                     filename=filename,
                     max_duration=int(target_per_clip + 2),
                 )
-                if clip and info:
+                if result:
+                    clip, audio_path, info = result
                     sc = SourceClip(
                         platform=info.get("platform", "youtube"),
                         original_url=info.get("url", ""),
                         creator_name=info.get("uploader", ""),
                         clip_title=info.get("title", ""),
                         file_path=clip,
+                        audio_path=audio_path,
                         duration_seconds=info.get("duration", 0),
                         sequence_number=i + 1,
                         view_count=info.get("view_count", 0),
@@ -149,25 +155,27 @@ async def clip_sourcing_node(state: ShortsPipelineState) -> dict:
     elif content_mode == "niche_drama":
         video_urls = [u for u in source_urls if _is_video_url(u)]
         if not video_urls:
-            clip, info = await _search_and_download(
+            result = await _search_and_download(
                 query=topic,
                 downloader=downloader,
                 output_dir=str(output_dir),
                 filename="drama_00",
                 max_duration=15,
             )
-            if clip and info:
+            if result:
+                _, _, info = result
                 video_urls = [info.get("url", "")]
 
         for i, url in enumerate(video_urls[:2]):
             filename = f"drama_{i:02d}"
-            clip_path = await downloader.download_clip(
+            dl_result = await downloader.download_clip(
                 url=url,
                 output_dir=str(output_dir),
                 filename=filename,
                 max_duration=15,
             )
-            if clip_path:
+            if dl_result:
+                clip_path, audio_path = dl_result
                 info = await downloader.get_clip_info(url)
                 sc = SourceClip(
                     platform=info.get("platform", "other") if info else "other",
@@ -175,6 +183,7 @@ async def clip_sourcing_node(state: ShortsPipelineState) -> dict:
                     creator_name=info.get("uploader", "") if info else "",
                     clip_title=info.get("title", "") if info else "",
                     file_path=clip_path,
+                    audio_path=audio_path,
                     duration_seconds=info.get("duration", 0) if info else 0,
                     sequence_number=i + 1,
                     view_count=info.get("view_count", 0) if info else 0,
@@ -222,27 +231,36 @@ def _is_video_url(url: str) -> bool:
 
 
 async def _download_best_clip(urls, search_topic, downloader, output_dir, filename, max_duration):
-    """Try URLs first, then search if none work."""
+    """Try URLs first, then search if none work. Returns (path, audio_path, info) or None."""
     for url in urls:
-        path = await downloader.download_clip(url, output_dir, filename, max_duration)
-        if path:
+        dl_result = await downloader.download_clip(url, output_dir, filename, max_duration)
+        if dl_result:
+            clip_path, audio_path = dl_result
             info = await downloader.get_clip_info(url)
-            return path, info
+            return clip_path, audio_path, info
 
     return await _search_and_download(search_topic, downloader, output_dir, filename, max_duration)
 
 
 async def _search_and_download(query, downloader, output_dir, filename, max_duration):
-    """Search YouTube and download the best clip."""
+    """Search YouTube and download the best clip. Returns (path, audio_path, info) or None."""
     try:
-        path, info = await downloader.search_and_download(
+        result = await downloader.search_and_download(
             query=query,
             output_dir=output_dir,
             filename=filename,
             max_results=5,
             max_duration=max_duration,
         )
-        return path, info
+        if result is None:
+            return None
+        path, info = result
+        if path is None:
+            return None
+        audio_path = str(Path(path).parent / f"{Path(path).stem}_audio.aac")
+        if not Path(audio_path).exists():
+            audio_path = ""
+        return path, audio_path, info
     except Exception as e:
         logger.warning(f"Search and download failed for '{query}': {e}")
-        return None, None
+        return None

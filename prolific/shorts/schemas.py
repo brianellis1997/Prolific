@@ -7,6 +7,28 @@ from uuid import UUID, uuid4
 from pydantic import BaseModel, Field
 
 
+class SegmentDirective(BaseModel):
+    """A single story segment directive from the Director Agent."""
+
+    sequence_number: int
+    mode: Literal["narrate", "clip_plays", "narrate_over"] = "narrate"
+    narration_text: str = ""
+    source_clip_index: int | None = None
+    clip_start_seconds: float = 0.0
+    clip_duration_seconds: float | None = None
+    asset_type: str = "web_image"
+    search_query: str = ""
+    ken_burns_direction: str = "zoom_in"
+    why: str = ""
+
+
+class StoryPlan(BaseModel):
+    """Director Agent output: ordered story segments with audio/visual decisions."""
+
+    segments: list[SegmentDirective] = Field(default_factory=list)
+    hook: str = ""
+
+
 class ShortScript(BaseModel):
     """Script for a short-form video (25-30 seconds)."""
 
@@ -32,6 +54,7 @@ class SourceClip(BaseModel):
     creator_name: str = ""
     clip_title: str = ""
     file_path: str | None = None
+    audio_path: str = ""
     duration_seconds: float = 0.0
     transcript: str = ""
     sequence_number: int = 0

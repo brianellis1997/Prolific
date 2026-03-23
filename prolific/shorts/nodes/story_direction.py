@@ -164,11 +164,16 @@ def _build_clip_summaries(source_clips: list, understandings: list) -> str:
                     lines.append(f"  Tone: {va.emotional_tone}")
                 if va.visual_summary:
                     lines.append(f"  Visual: {va.visual_summary}")
-            if u.key_moments:
+            if u.timestamped_moments:
+                lines.append(f"  KEY MOMENTS WITH TIMESTAMPS:")
+                for tm in u.timestamped_moments:
+                    lines.append(f"    @{tm.timestamp_seconds:.1f}s — {tm.description}")
+                lines.append(f"  Use these timestamps for clip_start_seconds!")
+            elif u.key_moments:
                 moments_str = " | ".join(u.key_moments[:4])
                 lines.append(f"  Key moments: {moments_str}")
             if u.transcript:
-                lines.append(f"  Transcript (first 200 chars): {u.transcript[:200]}")
+                lines.append(f"  Transcript: {u.transcript[:500]}")
         parts.append("\n".join(lines))
 
     return "\n\n".join(parts)

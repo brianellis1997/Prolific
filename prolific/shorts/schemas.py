@@ -94,6 +94,12 @@ class ClipVisualAnalysis(BaseModel):
     visual_summary: str = ""
 
 
+class TimestampedMoment(BaseModel):
+    """A key moment in a clip with its approximate timestamp."""
+    description: str = ""
+    timestamp_seconds: float = 0.0
+
+
 class ClipContentUnderstanding(BaseModel):
     """Combined transcript + visual understanding of a clip."""
 
@@ -102,6 +108,7 @@ class ClipContentUnderstanding(BaseModel):
     clip_duration_seconds: float = 0.0
     content_summary: str = ""
     key_moments: list[str] = Field(default_factory=list)
+    timestamped_moments: list[TimestampedMoment] = Field(default_factory=list)
 
 
 class CaptionSegment(BaseModel):

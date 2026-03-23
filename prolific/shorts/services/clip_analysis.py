@@ -6,7 +6,7 @@ import logging
 import shutil
 from pathlib import Path
 
-from prolific.shorts.schemas import ClipContentUnderstanding, ClipVisualAnalysis
+from prolific.shorts.schemas import ClipContentUnderstanding, ClipVisualAnalysis, TimestampedMoment
 
 logger = logging.getLogger(__name__)
 
@@ -24,7 +24,12 @@ Be specific and factual. Only name people you are confident you can identify."""
 
 CONTENT_SUMMARY_PROMPT = """Based on this clip analysis, provide:
 1. content_summary: A 2-3 sentence summary of what this clip is about
-2. key_moments: List 3-5 specific moments or events that happen in the clip that a narrator could reference
+2. key_moments: List 3-5 specific moments or events that happen in the clip
+3. timestamped_moments: For each key moment, estimate the TIMESTAMP (in seconds) where
+   it occurs. Use the frame timestamps and transcript context to estimate. Format each as:
+   {{"description": "what happens", "timestamp_seconds": 8.5}}
+
+CLIP DURATION: {duration:.1f} seconds
 
 TRANSCRIPT:
 {transcript}
@@ -36,12 +41,16 @@ People visible: {people}
 Actions: {actions}
 Setting: {setting}
 
+CRITICAL: Timestamps must be within 0 to {duration:.1f} seconds. The "money moment" (most
+dramatic/interesting part) should be identified — this is where clip_plays should start.
 Be specific. Only include moments that are clearly supported by the transcript or visual evidence."""
 
 
-async def extract_key_frames(clip_path: str, output_dir: str, num_frames: int = 6) -> list[str]:
-    """Extract evenly-spaced key frames from a video clip."""
-    ffprobe = shutil.which("ffprobe")
+async def extract_key_frames(clip_path: str, output_dir: str, num_frames: int = 6) -> list[tuple[str, float]]:
+    """Extract evenly-spaced key frames from a video clip.
+
+    Returns list of (frame_path, timestamp_seconds) tuples.
+    """
     ffmpeg = shutil.which("ffmpeg")
     if not ffmpeg:
         return []
@@ -53,9 +62,9 @@ async def extract_key_frames(clip_path: str, output_dir: str, num_frames: int = 
     frames_dir = Path(output_dir) / "frames"
     frames_dir.mkdir(parents=True, exist_ok=True)
 
-    frame_paths = []
+    frame_results = []
     for i in range(num_frames):
-        timestamp = duration * (i + 1) / (num_frames + 1)
+        timestamp = round(duration * (i + 1) / (num_frames + 1), 1)
         output_path = str(frames_dir / f"frame_{i:02d}.jpg")
 
         cmd = [
@@ -67,27 +76,28 @@ async def extract_key_frames(clip_path: str, output_dir: str, num_frames: int = 
         )
         await proc.communicate()
         if proc.returncode == 0 and Path(output_path).exists():
-            frame_paths.append(output_path)
+            frame_results.append((output_path, timestamp))
 
-    logger.info(f"Extracted {len(frame_paths)} frames from {clip_path}")
-    return frame_paths
+    logger.info(f"Extracted {len(frame_results)} frames from {clip_path}")
+    return frame_results
 
 
 async def analyze_clip_visuals(
-    frame_paths: list[str], context: str = ""
+    frame_data: list[tuple[str, float]], context: str = ""
 ) -> ClipVisualAnalysis | None:
     """Analyze video frames with vision model to understand clip content."""
-    if not frame_paths:
+    if not frame_data:
         return None
 
     try:
         from prolific.services.llm import get_llm_service
         llm_service = get_llm_service()
 
-        pick = _pick_representative_frames(frame_paths, max_frames=4)
+        pick = _pick_representative_frames(frame_data, max_frames=4)
 
         content_blocks = [{"type": "text", "text": VISUAL_ANALYSIS_PROMPT}]
-        for fp in pick:
+        for fp, ts in pick:
+            content_blocks.append({"type": "text", "text": f"[Frame at {ts:.1f}s]"})
             img_data = base64.b64encode(Path(fp).read_bytes()).decode()
             content_blocks.append({
                 "type": "image_url",
@@ -139,18 +149,20 @@ async def build_content_understanding(
     frames_task = extract_key_frames(clip_path, output_dir)
     duration_task = _get_duration(clip_path)
 
-    transcript, frame_paths, duration = await asyncio.gather(
+    transcript, frame_data, duration = await asyncio.gather(
         transcript_task, frames_task, duration_task
     )
 
-    visual_analysis = await analyze_clip_visuals(frame_paths or [], context=topic)
+    visual_analysis = await analyze_clip_visuals(frame_data or [], context=topic)
 
     content_summary = ""
     key_moments = []
+    timestamped_moments = []
     if transcript or visual_analysis:
-        content_summary, key_moments = await _generate_summary(
+        content_summary, key_moments, timestamped_moments = await _generate_summary(
             transcript=transcript or "",
             visual_analysis=visual_analysis,
+            duration=duration,
         )
 
     understanding = ClipContentUnderstanding(
@@ -159,6 +171,7 @@ async def build_content_understanding(
         clip_duration_seconds=duration,
         content_summary=content_summary,
         key_moments=key_moments,
+        timestamped_moments=timestamped_moments,
     )
 
     logger.info(
@@ -173,49 +186,60 @@ async def build_content_understanding(
 async def _generate_summary(
     transcript: str,
     visual_analysis: ClipVisualAnalysis | None,
-) -> tuple[str, list[str]]:
-    """Use LLM to generate content summary and key moments."""
+    duration: float = 0.0,
+) -> tuple[str, list[str], list[TimestampedMoment]]:
+    """Use LLM to generate content summary, key moments, and timestamped moments."""
     try:
         from pydantic import BaseModel, Field
         from langchain_core.messages import HumanMessage, SystemMessage
         from prolific.services.llm import get_llm_service
 
+        class MomentOutput(BaseModel):
+            description: str = ""
+            timestamp_seconds: float = 0.0
+
         class SummaryOutput(BaseModel):
             content_summary: str = ""
             key_moments: list[str] = Field(default_factory=list)
+            timestamped_moments: list[MomentOutput] = Field(default_factory=list)
 
         llm_service = get_llm_service()
 
         prompt = CONTENT_SUMMARY_PROMPT.format(
-            transcript=transcript[:800] if transcript else "(no transcript available)",
+            transcript=transcript[:1500] if transcript else "(no transcript available)",
             visual_summary=visual_analysis.visual_summary if visual_analysis else "(no visual analysis)",
             people=", ".join(visual_analysis.people_visible) if visual_analysis else "unknown",
             actions=", ".join(visual_analysis.actions_described) if visual_analysis else "unknown",
             setting=visual_analysis.setting if visual_analysis else "unknown",
+            duration=duration,
         )
 
         result = await llm_service.invoke_with_structured_output(
             messages=[
                 SystemMessage(content=prompt),
-                HumanMessage(content="Generate the summary and key moments."),
+                HumanMessage(content="Generate the summary, key moments, and timestamps."),
             ],
             output_schema=SummaryOutput,
             tier="research",
             temperature=0.3,
         )
-        return result.content_summary, result.key_moments
+        timestamped = [
+            TimestampedMoment(description=m.description, timestamp_seconds=m.timestamp_seconds)
+            for m in result.timestamped_moments
+        ]
+        return result.content_summary, result.key_moments, timestamped
 
     except Exception as e:
         logger.warning(f"Summary generation failed: {e}")
-        return "", []
+        return "", [], []
 
 
-def _pick_representative_frames(frame_paths: list[str], max_frames: int = 4) -> list[str]:
+def _pick_representative_frames(frame_data: list[tuple[str, float]], max_frames: int = 4) -> list[tuple[str, float]]:
     """Pick evenly-spaced representative frames."""
-    if len(frame_paths) <= max_frames:
-        return frame_paths
-    step = len(frame_paths) / max_frames
-    return [frame_paths[int(i * step)] for i in range(max_frames)]
+    if len(frame_data) <= max_frames:
+        return frame_data
+    step = len(frame_data) / max_frames
+    return [frame_data[int(i * step)] for i in range(max_frames)]
 
 
 async def _get_duration(path: str) -> float:

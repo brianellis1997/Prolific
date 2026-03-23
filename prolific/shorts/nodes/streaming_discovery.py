@@ -1,7 +1,9 @@
-"""Streaming drama discovery node — pulls clips from Twitch and Kick, picks the best story.
+"""Streaming drama discovery node — finds trending drama via web search, then matches clips.
 
-Cross-platform beef (e.g., xQc on Twitch vs Adin on Kick) is treated as one story.
-The LLM selects 2-4 clips from any combination of platforms.
+Step 1: Web search for what's actually trending in streaming drama
+Step 2: LLM picks the hottest story from search results
+Step 3: Match available Twitch/Kick clips to that story
+Step 4: If no clips match, search YouTube for clips about the topic
 """
 
 import logging
@@ -15,49 +17,81 @@ from prolific.shorts.state import ShortsPipelineState
 logger = logging.getLogger(__name__)
 
 
-class StreamingDramaStory(BaseModel):
+DRAMA_SEARCH_QUERIES = [
+    "streaming drama controversy this week twitch kick",
+    "streamer beef drama ban exposed today",
+    "twitch kick streamer controversy viral clip",
+]
+
+
+class TrendingDrama(BaseModel):
     topic: str = ""
-    clip_urls: list[str] = Field(default_factory=list)
     story_angle: str = ""
     creators_involved: list[str] = Field(default_factory=list)
+    clip_search_queries: list[str] = Field(default_factory=list)
 
 
-STREAMING_STORY_PROMPT = """You are a streaming drama content curator for YouTube Shorts.
-Here are the top trending clips from Twitch and Kick (last 48 hours):
+TOPIC_SELECTION_PROMPT = """You are a streaming drama content curator. Based on web search results
+about current streaming drama, pick the SINGLE hottest story that would make the best YouTube Short.
 
+=== WEB SEARCH RESULTS ===
+{search_results}
+
+=== AVAILABLE CLIPS FROM TWITCH/KICK (last 48 hours) ===
 {clip_list}
 
-ALREADY COVERED (do NOT pick these creators or topics again):
+ALREADY COVERED (do NOT pick):
 {past_topics}
 
-Your job:
-1. Find the single most dramatic, viral story — beef, live bans, meltdowns, exposés,
-   callouts, confrontations, or shocking moments
-2. IMPORTANT: If the drama involves creators across BOTH platforms (e.g., Creator A on
-   Twitch responding to Creator B on Kick), SELECT CLIPS FROM BOTH PLATFORMS to tell
-   the complete story. Do not limit yourself to one platform.
-3. Select 3-4 clips total that together tell ONE cohesive narrative (MINIMUM 3 clips)
-4. Prioritize: high view counts + drama keywords + clips that form a beginning/middle/end
-5. SKIP any creator or story that appears in the ALREADY COVERED list above
+Pick the story that:
+1. Is ACTUALLY trending — people are talking about it on Reddit, Twitter, YouTube
+2. Has real DRAMA — beef, bans, exposures, confrontations, meltdowns (not just "popular clip")
+3. Multiple clips or angles exist (so we can build a 30-second story)
+4. Would make someone stop scrolling and say "wait what?"
 
 Return:
-- topic: Punchy topic (e.g., "xQc and Adin Ross go to war across Twitch and Kick")
-- clip_urls: 3-4 clip URLs — can be from Twitch, Kick, or both (MUST be at least 3)
-- story_angle: One-sentence hook starting with the most shocking element
-- creators_involved: Names of all streamers in the story
+- topic: Punchy headline (e.g., "Clavicular Gets Slapped at Nightclub on Stream")
+- story_angle: One-sentence hook with the most shocking detail
+- creators_involved: Streamer names in the story
+- clip_search_queries: 3-4 YouTube search queries to find clips about THIS specific story
+  (e.g., "Clavicular nightclub slap clip", "Clavicular kick stream slap reaction")
 
-RULES:
-- Only return URLs from the list above — do not fabricate
-- Prefer clips that are under 60 seconds
-- If no clear cross-platform beef exists, pick the best single-platform story
-- Do NOT pick a story already in the ALREADY COVERED list"""
+If a story from the web search matches clips in the available list, PREFER that story.
+The best topic has BOTH web buzz AND available clips."""
+
+
+CLIP_MATCHING_PROMPT = """Match available Twitch/Kick clips to this specific story.
+
+STORY: {topic}
+CREATORS: {creators}
+STORY ANGLE: {story_angle}
+
+AVAILABLE CLIPS:
+{clip_list}
+
+Select 3-4 clips that relate to this story. Pick clips where:
+- The streamer is one of the creators involved (even if the clip title is vague)
+- OR the clip title mentions the same event/topic
+- OR the clip is from the same streamer during a recent broadcast
+
+Be LENIENT — if a clip is from the right streamer, include it even if the title
+doesn't explicitly mention the story. Streamers' recent clips are likely related.
+
+If fewer than 2 clips match, return an empty list — we'll search YouTube instead.
+
+Return only clip URLs from the list above that match. Do NOT fabricate URLs."""
+
+
+class ClipMatchResult(BaseModel):
+    matched_urls: list[str] = Field(default_factory=list)
 
 
 async def streaming_discovery_node(state: ShortsPipelineState) -> dict:
-    """Discover the top streaming drama story across Twitch and Kick."""
+    """Discover trending streaming drama via web search, then find matching clips."""
     logger.info("=== SHORTS: STREAMING DRAMA DISCOVERY (Twitch + Kick) ===")
 
     import asyncio
+    from prolific.services.web_search import WebSearchService
     from prolific.shorts.services.twitch_api import (
         JUST_CHATTING_GAME_ID,
         IRL_GAME_ID,
@@ -69,63 +103,62 @@ async def streaming_discovery_node(state: ShortsPipelineState) -> dict:
         score_clip_drama as kick_score,
     )
 
-    client = get_twitch_client()
     llm_service = get_llm_service()
 
-    twitch_jc, twitch_irl, kick_clips = await asyncio.gather(
+    search_service = WebSearchService()
+    search_tasks = [
+        search_service.search(
+            q, max_results=5,
+            include_domains=["reddit.com", "dexerto.com", "kotaku.com", "dotesports.com",
+                             "ginx.tv", "livestreamfails.com", "twitter.com", "x.com"],
+        )
+        for q in DRAMA_SEARCH_QUERIES
+    ]
+
+    client = get_twitch_client()
+    clip_tasks = [
         client.get_top_clips(JUST_CHATTING_GAME_ID, hours_back=48, max_clips=35),
         client.get_top_clips(IRL_GAME_ID, hours_back=48, max_clips=15),
         get_kick_clips(time_range="day", max_clips=30),
-        return_exceptions=True,
-    )
+    ]
 
-    if isinstance(twitch_jc, Exception):
-        logger.warning(f"Twitch JC fetch failed: {twitch_jc}")
-        twitch_jc = []
-    if isinstance(twitch_irl, Exception):
-        logger.warning(f"Twitch IRL fetch failed: {twitch_irl}")
-        twitch_irl = []
-    if isinstance(kick_clips, Exception):
-        logger.warning(f"Kick fetch failed: {kick_clips}")
-        kick_clips = []
+    all_results = await asyncio.gather(*search_tasks, *clip_tasks, return_exceptions=True)
 
-    for clip in twitch_jc + twitch_irl:
+    search_results_raw = []
+    for r in all_results[:len(search_tasks)]:
+        if isinstance(r, Exception):
+            logger.warning(f"Search failed: {r}")
+        else:
+            search_results_raw.extend(r)
+
+    twitch_jc = all_results[len(search_tasks)] if not isinstance(all_results[len(search_tasks)], Exception) else []
+    twitch_irl = all_results[len(search_tasks)+1] if not isinstance(all_results[len(search_tasks)+1], Exception) else []
+    kick_clips = all_results[len(search_tasks)+2] if not isinstance(all_results[len(search_tasks)+2], Exception) else []
+
+    for clip in list(twitch_jc) + list(twitch_irl):
         clip["platform"] = "twitch"
-    for clip in kick_clips:
+    for clip in list(kick_clips):
         clip["platform"] = "kick"
 
     twitch_all = list(twitch_jc) + list(twitch_irl)
     kick_all = list(kick_clips)
-
-    logger.info(
-        f"Fetched {len(twitch_all)} Twitch clips, {len(kick_all)} Kick clips"
-    )
-
-    if not twitch_all and not kick_all:
-        logger.warning("No clips found from any platform, falling back to news_commentary")
-        return {
-            "content_mode": "news_commentary",
-            "topic": "trending news",
-            "current_phase": "script_writing",
-            "messages": [AIMessage(content="No streaming clips found, using news mode")],
-        }
-
     top_twitch = sorted(twitch_all, key=twitch_score, reverse=True)[:15]
     top_kick = sorted(kick_all, key=kick_score, reverse=True)[:10]
     combined = top_twitch + top_kick
 
-    for clip in top_twitch:
-        score = twitch_score(clip)
-        logger.info(
-            f"  [TWITCH] score={score:.2f} views={clip.get('view_count',0):,} "
-            f"streamer={clip.get('broadcaster_name','?')} title={clip.get('title','')[:60]}"
-        )
-    for clip in top_kick:
-        score = kick_score(clip)
-        logger.info(
-            f"  [KICK]   score={score:.2f} views={clip.get('view_count',0):,} "
-            f"streamer={clip.get('broadcaster_name','?')} title={clip.get('title','')[:60]}"
-        )
+    logger.info(f"Web search: {len(search_results_raw)} results | Clips: {len(twitch_all)} Twitch, {len(kick_all)} Kick")
+
+    search_text_parts = []
+    seen_titles = set()
+    for r in search_results_raw:
+        title = r.title if hasattr(r, 'title') else str(r.get('title', ''))
+        if title in seen_titles:
+            continue
+        seen_titles.add(title)
+        snippet = r.snippet if hasattr(r, 'snippet') else str(r.get('snippet', ''))
+        search_text_parts.append(f"- {title}\n  {snippet}")
+    search_text = "\n".join(search_text_parts[:15]) or "(no search results)"
+    logger.info(f"Top search results:\n{search_text[:500]}")
 
     clip_lines = []
     for i, clip in enumerate(combined):
@@ -135,56 +168,77 @@ async def streaming_discovery_node(state: ShortsPipelineState) -> dict:
         broadcaster = clip.get("broadcaster_name", "?")
         clip_lines.append(
             f"[{i+1}][{platform}] \"{clip.get('title', '')}\" | "
-            f"Streamer: {broadcaster} | "
-            f"Views: {views:,} | "
-            f"Duration: {duration:.0f}s | "
-            f"URL: {clip.get('url', '')}"
+            f"Streamer: {broadcaster} | Views: {views:,} | "
+            f"Duration: {duration:.0f}s | URL: {clip.get('url', '')}"
         )
-
-    clip_list_str = "\n".join(clip_lines)
+    clip_list_str = "\n".join(clip_lines) or "(no clips available)"
 
     from prolific.shorts.services.shorts_history import get_shorts_history_service
     history_service = get_shorts_history_service()
     past_topics = await history_service.get_past_topics(hours=168)
+    past_topics_str = "\n".join(f"- {t}" for t in past_topics[:20]) if past_topics else "(none yet)"
     if past_topics:
-        past_topics_str = "\n".join(f"- {t}" for t in past_topics[:20])
-        logger.info(f"Avoiding {len(past_topics)} past topics: {past_topics[:5]}")
-    else:
-        past_topics_str = "(none yet)"
+        logger.info(f"Avoiding {len(past_topics)} past topics")
 
-    logger.info(f"Sending {len(combined)} clips to LLM for cross-platform story selection")
-
-    result = await llm_service.invoke_with_structured_output(
+    drama = await llm_service.invoke_with_structured_output(
         messages=[
-            SystemMessage(content=STREAMING_STORY_PROMPT.format(
+            SystemMessage(content=TOPIC_SELECTION_PROMPT.format(
+                search_results=search_text,
                 clip_list=clip_list_str,
                 past_topics=past_topics_str,
             )),
-            HumanMessage(content="Select the best drama story now."),
+            HumanMessage(content="Pick the hottest streaming drama story now."),
         ],
-        output_schema=StreamingDramaStory,
+        output_schema=TrendingDrama,
         tier="research",
         temperature=0.3,
     )
 
-    topic = result.topic or (combined[0].get("title", "Streaming Drama") if combined else "Streaming Drama")
+    topic = drama.topic or "Streaming Drama"
+    logger.info(f"Selected topic: {topic}")
+    logger.info(f"Story angle: {drama.story_angle}")
+    logger.info(f"Creators: {drama.creators_involved}")
+    logger.info(f"Clip search queries: {drama.clip_search_queries}")
 
-    valid_urls = {c.get("url", "") for c in combined}
-    clip_urls = [u for u in result.clip_urls if u in valid_urls][:4]
+    clip_urls = []
+    if combined:
+        match_result = await llm_service.invoke_with_structured_output(
+            messages=[
+                SystemMessage(content=CLIP_MATCHING_PROMPT.format(
+                    topic=topic,
+                    creators=", ".join(drama.creators_involved),
+                    story_angle=drama.story_angle,
+                    clip_list=clip_list_str,
+                )),
+                HumanMessage(content="Match clips to this story."),
+            ],
+            output_schema=ClipMatchResult,
+            tier="research",
+            temperature=0.1,
+        )
+        valid_urls = {c.get("url", "") for c in combined}
+        clip_urls = [u for u in match_result.matched_urls if u in valid_urls][:4]
+        logger.info(f"Matched {len(clip_urls)} clips from Twitch/Kick to story")
 
-    if not clip_urls:
-        clip_urls = [c["url"] for c in combined[:3] if c.get("url")]
+    if len(clip_urls) < 2:
+        logger.info(f"Not enough platform clips ({len(clip_urls)}), will search YouTube for clips")
+        source_urls = clip_urls
+        search_queries = drama.clip_search_queries or [f"{topic} clip", f"{' '.join(drama.creators_involved)} stream clip"]
+        for q in search_queries[:3]:
+            source_urls.append(f"ytsearch:{q}")
+        clip_urls = source_urls
 
     platforms_used = set()
     for url in clip_urls:
-        if "kick.com" in url or "clips.kick.com" in url:
+        if "kick.com" in url:
             platforms_used.add("Kick")
-        elif "twitch.tv" in url or "clips.twitch.tv" in url:
+        elif "twitch.tv" in url:
             platforms_used.add("Twitch")
+        elif "ytsearch:" in url:
+            platforms_used.add("YouTube")
 
     platform_label = " + ".join(sorted(platforms_used)) if platforms_used else "Streaming"
-    logger.info(f"Story: {topic}")
-    logger.info(f"Platforms in story: {platform_label} | {len(clip_urls)} clips")
+    logger.info(f"Final: {topic} | {platform_label} | {len(clip_urls)} clip sources")
 
     return {
         "topic": topic,

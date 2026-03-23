@@ -71,9 +71,45 @@ async def clip_sourcing_node(state: ShortsPipelineState) -> dict:
         )
 
         if use_direct_urls:
-            logger.info(f"Downloading {len(clip_sources)} direct clip URLs (Twitch/YouTube)")
+            logger.info(f"Downloading {len(clip_sources)} clip sources (direct + search)")
             for i, url in enumerate(clip_sources):
                 filename = f"comp_{i:02d}"
+
+                if url.startswith("ytsearch:"):
+                    query = url[len("ytsearch:"):]
+                    logger.info(f"[{i+1}] Searching YouTube: {query}")
+                    result = await _search_and_download(
+                        query=query,
+                        downloader=downloader,
+                        output_dir=str(output_dir),
+                        filename=filename,
+                        max_duration=120,
+                    )
+                    if result:
+                        clip_path, audio_path, info = result
+                        sc = SourceClip(
+                            platform="youtube",
+                            original_url=info.get("url", ""),
+                            creator_name=info.get("uploader", ""),
+                            clip_title=info.get("title", ""),
+                            file_path=clip_path,
+                            audio_path=audio_path,
+                            duration_seconds=info.get("duration", 0),
+                            sequence_number=i + 1,
+                            view_count=info.get("view_count", 0),
+                        )
+                        source_clips.append(sc)
+                        visual_assets.append(VisualAsset(
+                            sequence_number=i + 1,
+                            asset_type="source_clip",
+                            search_query=query,
+                            file_path=clip_path,
+                            duration_seconds=target_per_clip,
+                        ))
+                    else:
+                        logger.warning(f"[{i+1}] YouTube search failed: {query}")
+                    continue
+
                 dl_result = await downloader.download_clip(
                     url=url,
                     output_dir=str(output_dir),
@@ -217,6 +253,8 @@ async def clip_sourcing_node(state: ShortsPipelineState) -> dict:
 def _is_video_url(url: str) -> bool:
     """Check if a URL is likely a video platform URL (not a news article)."""
     u = url.lower()
+    if u.startswith("ytsearch:"):
+        return True
     if "twitch.tv" in u and "/clip/" in u:
         return True
     if "clips.twitch.tv/" in u:

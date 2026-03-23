@@ -615,7 +615,7 @@ async def _concat_clips(clip_paths: list[str], audio_path: str, output_path: str
     cmd = [
         ffmpeg, "-f", "concat", "-safe", "0", "-i", concat_file,
         "-c:v", "libx264", "-preset", "medium", "-crf", "23",
-        "-pix_fmt", "yuv420p", "-y", concat_video,
+        "-pix_fmt", "yuv420p", "-an", "-y", concat_video,
     ]
     proc = await asyncio.create_subprocess_exec(
         *cmd, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE,
@@ -631,6 +631,7 @@ async def _concat_clips(clip_paths: list[str], audio_path: str, output_path: str
     cmd2 = [
         ffmpeg, "-i", concat_video, "-i", audio_path,
         *trim_args,
+        "-map", "0:v", "-map", "1:a",
         "-c:v", "copy", "-c:a", "aac", "-b:a", "192k",
         "-y", output_path,
     ]
@@ -647,6 +648,63 @@ async def _concat_clips(clip_paths: list[str], audio_path: str, output_path: str
     size_mb = Path(output_path).stat().st_size / (1024 * 1024)
     logger.info(f"Assembled video: {output_path} ({size_mb:.1f}MB, {len(clip_paths)}, trimmed to {audio_duration:.1f}s)")
     return output_path
+
+
+async def _verify_final_video(video_path: str) -> list[str]:
+    """Verify the final video has correct audio, video, and reasonable duration."""
+    issues = []
+    ffprobe = shutil.which("ffprobe")
+    if not ffprobe or not Path(video_path).exists():
+        issues.append("Video file missing")
+        return issues
+
+    cmd = [
+        ffprobe, "-v", "error", "-show_entries",
+        "stream=codec_type,duration,codec_name",
+        "-show_entries", "format=duration",
+        "-of", "json", video_path,
+    ]
+    proc = await asyncio.create_subprocess_exec(
+        *cmd, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE,
+    )
+    stdout, _ = await proc.communicate()
+
+    import json
+    try:
+        info = json.loads(stdout.decode())
+    except (json.JSONDecodeError, UnicodeDecodeError):
+        issues.append("Could not probe video file")
+        return issues
+
+    streams = info.get("streams", [])
+    has_video = any(s.get("codec_type") == "video" for s in streams)
+    has_audio = any(s.get("codec_type") == "audio" for s in streams)
+
+    if not has_video:
+        issues.append("No video stream")
+    if not has_audio:
+        issues.append("No audio stream — voiceover is missing")
+
+    fmt_duration = float(info.get("format", {}).get("duration", 0))
+    if fmt_duration < 5:
+        issues.append(f"Video too short: {fmt_duration:.1f}s")
+    elif fmt_duration > 120:
+        issues.append(f"Video too long: {fmt_duration:.1f}s")
+
+    if has_audio:
+        audio_stream = next(s for s in streams if s.get("codec_type") == "audio")
+        audio_dur = float(audio_stream.get("duration", 0))
+        if audio_dur < 5:
+            issues.append(f"Audio too short: {audio_dur:.1f}s — voiceover likely missing")
+
+    file_size = Path(video_path).stat().st_size
+    if file_size < 100_000:
+        issues.append(f"File suspiciously small: {file_size / 1024:.0f}KB")
+
+    if not issues:
+        logger.info(f"Video verified: {fmt_duration:.1f}s, {file_size / (1024*1024):.1f}MB, audio+video OK")
+
+    return issues
 
 
 async def video_assembly_node(state: ShortsPipelineState) -> dict:
@@ -851,23 +909,26 @@ async def video_assembly_node(state: ShortsPipelineState) -> dict:
 
         Path(raw_video).unlink(missing_ok=True)
         logger.info(f"Final video with captions: {final_video}")
-
-        return {
-            "caption_segments": segments,
-            "subtitle_path": subtitle_path,
-            "final_video_path": final_video,
-            "current_phase": "metadata_generation",
-            "messages": [AIMessage(content=f"Video assembled with captions: {final_video}")],
-        }
+        video_to_verify = final_video
 
     except Exception as e:
         logger.warning(f"Caption generation failed, using video without captions: {e}")
         final_video = str(output_dir / "final_short.mp4")
         Path(raw_video).rename(final_video)
+        video_to_verify = final_video
 
+    issues = await _verify_final_video(video_to_verify)
+    if issues:
+        logger.error(f"VERIFICATION FAILED: {issues}")
         return {
             "final_video_path": final_video,
-            "current_phase": "metadata_generation",
-            "warnings": [f"Captions skipped: {e}"],
-            "messages": [AIMessage(content=f"Video assembled (no captions): {final_video}")],
+            "current_phase": "failed",
+            "errors": [f"Video verification failed: {'; '.join(issues)}"],
+            "messages": [AIMessage(content=f"Video failed verification: {'; '.join(issues)}")],
         }
+
+    return {
+        "final_video_path": final_video,
+        "current_phase": "metadata_generation",
+        "messages": [AIMessage(content=f"Video assembled and verified: {final_video}")],
+    }

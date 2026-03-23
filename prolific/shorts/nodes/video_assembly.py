@@ -810,16 +810,12 @@ async def video_assembly_node(state: ShortsPipelineState) -> dict:
         return {"errors": ["No clips produced for assembly"], "current_phase": "failed"}
 
     if story_plan and audio_segment_paths:
-        raw_video = str(output_dir / "raw_assembled.mp4")
-        await _concat_clips_with_audio(clip_paths, output_dir, raw_video)
+        mixed = await _build_mixed_audio(story_plan, audio_segment_paths, source_clips, output_dir)
+        effective_audio = mixed if mixed else audio_path
+        logger.info(f"Using mixed audio track (sequential narration + clip audio)")
 
-        narrated_video = str(output_dir / "narrated.mp4")
-        await _overlay_narration(
-            raw_video, narrated_video, story_plan, visual_assets,
-            audio_segment_paths, output_dir,
-        )
-        raw_video = narrated_video
-        effective_audio = narrated_video
+        raw_video = str(output_dir / "raw_assembled.mp4")
+        await _concat_clips(clip_paths, effective_audio, raw_video)
     else:
         effective_audio = audio_path
         raw_video = str(output_dir / "raw_assembled.mp4")

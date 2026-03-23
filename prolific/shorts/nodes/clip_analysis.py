@@ -52,12 +52,47 @@ async def clip_analysis_node(state: ShortsPipelineState) -> dict:
             for km in understanding.key_moments[:3]:
                 logger.info(f"  Moment: {km}")
 
+    relevant_clips = []
+    relevant_understandings = []
+    topic_lower = topic.lower()
+    topic_words = set(topic_lower.split())
+
+    for clip, understanding in zip(source_clips, understandings):
+        if not clip.file_path:
+            continue
+        summary = (understanding.content_summary or "").lower()
+        transcript = (understanding.transcript or "").lower()
+        title = (clip.clip_title or "").lower()
+        combined_text = f"{summary} {transcript} {title}"
+
+        overlap = sum(1 for w in topic_words if len(w) > 3 and w in combined_text)
+        relevant = overlap >= 2 or any(
+            creator.lower() in combined_text
+            for creator in topic_lower.split() if len(creator) > 3
+        )
+
+        if relevant:
+            relevant_clips.append(clip)
+            relevant_understandings.append(understanding)
+            logger.info(f"  [{clip.sequence_number}] RELEVANT to topic (matched {overlap} words)")
+        else:
+            logger.warning(f"  [{clip.sequence_number}] NOT relevant to topic: {understanding.content_summary[:60]}")
+
+    if relevant_clips:
+        source_clips_out = relevant_clips
+        understandings_out = relevant_understandings
+    else:
+        logger.warning("No clips matched topic — keeping all clips")
+        source_clips_out = [c for c in source_clips if c.file_path]
+        understandings_out = understandings
+
     summary_parts = []
-    for u in understandings:
+    for u in understandings_out:
         summary_parts.append(f"Clip ({u.clip_duration_seconds:.0f}s): {u.content_summary[:80]}")
 
     return {
-        "clip_content_understanding": understandings,
+        "source_clips": source_clips_out,
+        "clip_content_understanding": understandings_out,
         "current_phase": "script_writing",
-        "messages": [AIMessage(content=f"Analyzed {len(understandings)} clips: {'; '.join(summary_parts)}")],
+        "messages": [AIMessage(content=f"Analyzed {len(understandings_out)} relevant clips: {'; '.join(summary_parts)}")],
     }

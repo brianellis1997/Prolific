@@ -312,6 +312,18 @@ TOPIC: {topic}
 STORY ANGLE: {story_angle}
 TARGET DURATION: 45-55 seconds total
 
+=== TONE AND CONTENT RULES ===
+
+BE DIRECT. Do NOT sanitize, soften, or dance around controversial topics. If someone ran
+over someone, SAY "he ran over someone." If someone got banned for showing something, SAY
+what they showed. The narration should hit like a headline — shocking, specific, factual.
+Vague narration like "things got out of hand" is BANNED. Say EXACTLY what happened.
+
+MINIMIZE WEB IMAGES. Prefer narrate_over (showing the actual clip muted) over narrate
+(showing a random Google image). Viewers want to see real footage, not stock photos or
+logos. Only use narrate (web image) for the opening hook and closing line — everything
+else should be narrate_over or clip_plays showing ACTUAL CLIPS.
+
 === CLIPS AVAILABLE ===
 
 {clip_summaries}

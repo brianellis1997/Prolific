@@ -18,9 +18,10 @@ logger = logging.getLogger(__name__)
 
 
 DRAMA_SEARCH_QUERIES = [
-    "streaming drama controversy this week twitch kick",
-    "streamer beef drama ban exposed today",
-    "twitch kick streamer controversy viral clip",
+    "streaming drama controversy today twitch kick 2026",
+    "streamer beef drama ban exposed this week",
+    "twitch kick streamer controversy viral clip today",
+    "livestreamfail drama this week",
 ]
 
 
@@ -44,7 +45,9 @@ ALREADY COVERED (do NOT pick):
 {past_topics}
 
 Pick the story that:
-1. Is ACTUALLY trending — people are talking about it on Reddit, Twitter, YouTube
+1. HAPPENED THIS WEEK — not old news from months ago. If the search result is about
+   something that happened more than 7 days ago, SKIP IT unless there's a brand new
+   development (arrest, ban, response) from the last 48 hours
 2. Has real DRAMA — beef, bans, exposures, confrontations, meltdowns (not just "popular clip")
 3. Multiple clips or angles exist (so we can build a 30-second story)
 4. Would make someone stop scrolling and say "wait what?"

@@ -2,7 +2,10 @@ FROM python:3.12-slim
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
     ffmpeg \
+    tzdata \
     && rm -rf /var/lib/apt/lists/*
+
+ENV TZ=US/Eastern
 
 RUN pip install --no-cache-dir yt-dlp
 

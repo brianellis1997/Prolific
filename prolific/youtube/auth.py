@@ -12,6 +12,11 @@ import sys
 
 
 def main():
+    import argparse
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--output", help="Custom output path for credentials")
+    args, _ = parser.parse_known_args()
+
     from prolific.core.config import settings
 
     try:
@@ -23,11 +28,12 @@ def main():
     SCOPES = [
         "https://www.googleapis.com/auth/youtube.upload",
         "https://www.googleapis.com/auth/youtube",
+        "https://www.googleapis.com/auth/youtube.force-ssl",
         "https://www.googleapis.com/auth/yt-analytics.readonly",
     ]
 
     client_secrets = settings.youtube_client_secrets_path
-    credentials_path = settings.youtube_credentials_path
+    credentials_path = args.output or settings.youtube_credentials_path
 
     print(f"Client secrets file: {client_secrets}")
     print(f"Credentials will be saved to: {credentials_path}")

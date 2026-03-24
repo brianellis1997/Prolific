@@ -15,10 +15,24 @@ class YouTubeUploadService:
 
     def _get_authenticated_service(self):
         """Build authenticated YouTube API service."""
+        import base64
+        import os
         from google.oauth2.credentials import Credentials
         from googleapiclient.discovery import build
 
-        creds_data = json.loads(Path(self.credentials_path).read_text())
+        creds_data = None
+        env_key = os.environ.get("YOUTUBE_CREDENTIALS_B64") if self.credentials_path == settings.youtube_credentials_path else None
+        shorts_env_key = os.environ.get("SHORTS_CREDENTIALS_B64") if "shorts" in str(self.credentials_path) or self.credentials_path == getattr(settings, "shorts_credentials_path", "") else None
+
+        if shorts_env_key:
+            creds_data = json.loads(base64.b64decode(shorts_env_key))
+        elif env_key:
+            creds_data = json.loads(base64.b64decode(env_key))
+        elif Path(self.credentials_path).exists():
+            creds_data = json.loads(Path(self.credentials_path).read_text())
+        else:
+            raise FileNotFoundError(f"No credentials at {self.credentials_path} and no *_CREDENTIALS_B64 env var set")
+
         credentials = Credentials(
             token=creds_data.get("token"),
             refresh_token=creds_data.get("refresh_token"),

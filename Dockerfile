@@ -5,7 +5,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     tzdata \
     && rm -rf /var/lib/apt/lists/*
 
-ENV TZ=US/Eastern
+ENV TZ=America/New_York
 
 RUN pip install --no-cache-dir yt-dlp
 

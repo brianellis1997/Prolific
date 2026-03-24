@@ -97,7 +97,7 @@ class Settings(BaseSettings):
     # Scheduler
     youtube_cron_hour: int = 20
     youtube_cron_minute: int = 0
-    youtube_cron_timezone: str = "US/Eastern"
+    youtube_cron_timezone: str = "America/New_York"
     youtube_cron_enabled: bool = False
 
     # Shorts Pipeline

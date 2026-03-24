@@ -45,7 +45,7 @@ def start_scheduler():
             trigger = CronTrigger(
                 hour=hour,
                 minute=0,
-                timezone="US/Eastern",
+                timezone="America/New_York",
             )
             _scheduler.add_job(
                 _scheduled_run,

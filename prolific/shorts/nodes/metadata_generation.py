@@ -63,10 +63,20 @@ async def metadata_generation_node(state: ShortsPipelineState) -> dict:
     if "shorts" not in [t.lower() for t in result.tags]:
         result.tags.insert(0, "Shorts")
 
+    niche = state.get("niche", "general")
+    category_map = {
+        "curiosity": "27",
+        "sports": "17",
+        "celebrity": "24",
+        "twitch": "20",
+        "general": "22",
+    }
+
     metadata = ShortsVideoMetadata(
         title=result.title[:100],
         description=description,
         tags=result.tags[:15],
+        category_id=category_map.get(niche, "22"),
     )
 
     logger.info(f"Title: {metadata.title}")

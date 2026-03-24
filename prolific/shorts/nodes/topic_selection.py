@@ -114,20 +114,31 @@ async def topic_selection_node(state: ShortsPipelineState) -> dict:
 
     trending_context, source_urls = await _get_trending_context(niche)
 
-    from prolific.shorts.prompts import (
-        NICHE_DESCRIPTIONS,
-        NICHE_TOPIC_BRAINSTORM_SYSTEM,
-        TOPIC_SELECT_SYSTEM,
-    )
-
-    niche_description = NICHE_DESCRIPTIONS.get(niche, NICHE_DESCRIPTIONS["general"])
-
-    brainstorm_prompt = NICHE_TOPIC_BRAINSTORM_SYSTEM.format(
-        niche_description=niche_description,
-        num_candidates=8,
-        trending_context=trending_context if trending_context else "(no trending data available)",
-        past_topics=past_topics_str,
-    )
+    if niche == "curiosity":
+        from prolific.shorts.prompts import (
+            CURIOSITY_TOPIC_BRAINSTORM_SYSTEM,
+            CURIOSITY_TOPIC_SELECT_SYSTEM,
+        )
+        brainstorm_prompt = CURIOSITY_TOPIC_BRAINSTORM_SYSTEM.format(
+            num_candidates=8,
+            trending_context=trending_context if trending_context else "(no trending data available)",
+            past_topics=past_topics_str,
+        )
+        select_prompt = CURIOSITY_TOPIC_SELECT_SYSTEM
+    else:
+        from prolific.shorts.prompts import (
+            NICHE_DESCRIPTIONS,
+            NICHE_TOPIC_BRAINSTORM_SYSTEM,
+            TOPIC_SELECT_SYSTEM,
+        )
+        niche_description = NICHE_DESCRIPTIONS.get(niche, NICHE_DESCRIPTIONS["general"])
+        brainstorm_prompt = NICHE_TOPIC_BRAINSTORM_SYSTEM.format(
+            niche_description=niche_description,
+            num_candidates=8,
+            trending_context=trending_context if trending_context else "(no trending data available)",
+            past_topics=past_topics_str,
+        )
+        select_prompt = TOPIC_SELECT_SYSTEM
 
     brainstorm_result = await llm_service.invoke_with_structured_output(
         messages=[
@@ -156,7 +167,7 @@ async def topic_selection_node(state: ShortsPipelineState) -> dict:
 
     selection_result = await llm_service.invoke_with_structured_output(
         messages=[
-            SystemMessage(content=TOPIC_SELECT_SYSTEM),
+            SystemMessage(content=select_prompt),
             HumanMessage(content=f"Candidates:\n{candidates_str}\n\nSelect the best one."),
         ],
         output_schema=ShortTopicSelection,
@@ -170,6 +181,8 @@ async def topic_selection_node(state: ShortsPipelineState) -> dict:
     content_mode = chosen.content_mode
     valid_modes = {"news_commentary", "clip_reaction", "clip_compilation", "niche_drama"}
     if content_mode not in valid_modes:
+        content_mode = "news_commentary"
+    if niche == "curiosity":
         content_mode = "news_commentary"
 
     verified_urls = []

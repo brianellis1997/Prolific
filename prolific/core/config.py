@@ -91,7 +91,7 @@ class Settings(BaseSettings):
     youtube_credentials_path: str = "./youtube_credentials_slumber.json"
     youtube_client_secrets_path: str = "./client_secrets.json"
     shorts_credentials_path: str = "./youtube_credentials.json"
-    youtube_default_privacy: str = "unlisted"
+    youtube_default_privacy: str = "public"
     youtube_category_id: str = "27"
 
     # Scheduler

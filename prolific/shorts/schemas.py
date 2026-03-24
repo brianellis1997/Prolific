@@ -126,7 +126,7 @@ class ShortsVideoMetadata(BaseModel):
     description: str = ""
     tags: list[str] = Field(default_factory=list)
     category_id: str = "22"
-    privacy_status: str = "unlisted"
+    privacy_status: str = "public"
 
     class Config:
         frozen = False

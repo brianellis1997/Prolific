@@ -97,7 +97,7 @@ class VideoMetadata(BaseModel):
     description: str = ""
     tags: list[str] = Field(default_factory=list)
     category_id: str = "27"
-    privacy_status: str = "unlisted"
+    privacy_status: str = "public"
 
     class Config:
         frozen = False

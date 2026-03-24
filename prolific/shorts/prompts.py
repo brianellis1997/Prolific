@@ -133,14 +133,17 @@ RULES:
 - Consecutive similar ideas can share one visual if cutting would feel jarring.
 
 For each segment choose one of two asset types:
-- **stock_clip**: Real-world footage. Good for: animals in action, locations, machines working.
+- **stock_clip** (STRONGLY PREFERRED — use for 70-80% of segments): Real video footage.
+  Video is always more engaging than static images. Use for: animals, nature, machines,
+  people, environments, action shots, anything that moves.
   Provide a 2-4 word search_query for Pexels. The query MUST include the actual subject
   (e.g., "mantis shrimp striking", "gorilla close up", "Swiss army bunker").
   Do NOT use generic/metaphorical queries like "high speed camera" or "fighter jet."
-- **web_image**: Real photos of the subject. Good for: close-ups, diagrams, specific details.
-  Provide a specific search_query like "mantis shrimp claw close up" or "gorilla bench press."
+- **web_image** (use sparingly — max 1-2 per short): Real photos. Only use for very
+  specific things that won't have video footage: diagrams, infographics, close-up details,
+  historical paintings, maps, microscope images.
 
-DO NOT use ai_image — disabled. Default to web_image if unsure.
+DO NOT use ai_image — disabled. Default to stock_clip if unsure.
 Alternate ken_burns_direction: zoom_in, zoom_out, pan_left, pan_right.
 
 For each segment output:

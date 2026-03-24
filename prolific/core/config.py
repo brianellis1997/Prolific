@@ -88,8 +88,9 @@ class Settings(BaseSettings):
     elevenlabs_model_id: str = "eleven_turbo_v2_5"
 
     # YouTube Data API
-    youtube_credentials_path: str = "./youtube_credentials.json"
+    youtube_credentials_path: str = "./youtube_credentials_slumber.json"
     youtube_client_secrets_path: str = "./client_secrets.json"
+    shorts_credentials_path: str = "./youtube_credentials.json"
     youtube_default_privacy: str = "unlisted"
     youtube_category_id: str = "27"
 

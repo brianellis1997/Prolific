@@ -4,9 +4,9 @@ import logging
 
 from langchain_core.messages import AIMessage
 
+from prolific.core.config import settings
 from prolific.shorts.services.shorts_history import get_shorts_history_service
 from prolific.shorts.state import ShortsPipelineState
-from prolific.youtube.services.youtube_api import get_youtube_upload_service
 
 logger = logging.getLogger(__name__)
 
@@ -38,7 +38,8 @@ async def youtube_upload_node(state: ShortsPipelineState) -> dict:
     if not metadata:
         return {"errors": ["No metadata for upload"], "current_phase": "failed"}
 
-    upload_service = get_youtube_upload_service()
+    from prolific.youtube.services.youtube_api import YouTubeUploadService
+    upload_service = YouTubeUploadService(credentials_path=settings.shorts_credentials_path)
 
     try:
         thumbnail_path = state.get("thumbnail_path") or None

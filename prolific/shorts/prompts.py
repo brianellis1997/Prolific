@@ -161,9 +161,11 @@ NICHE_SEARCH_QUERIES = {
         "celebrity canceled exposed scandal shocking today",
     ],
     "curiosity": [
-        "mind blowing fact you didn't know",
-        "things they don't want you to know",
-        "shocking truth nobody talks about",
+        "incredible animal facts most people don't know",
+        "mind blowing history facts shocking true",
+        "weird science facts about human body",
+        "psychology facts that explain human behavior",
+        "geography facts that seem fake but are true",
     ],
     "general": [
         "trending viral news today celebrity gossip drama",
@@ -228,9 +230,86 @@ NICHE_DESCRIPTIONS = {
     "twitch": "Twitch streaming drama, viral clips, streamer beef, ban controversies, and streaming culture moments",
     "sports": "Sports drama, athlete controversies, viral sports moments, record-breaking plays, and behind-the-scenes scandals",
     "celebrity": "Celebrity gossip, scandals, exposures, relationship drama, and viral celebrity moments",
-    "curiosity": "Mind-blowing facts, shocking truths, conspiracy-adjacent revelations, and 'things they don't want you to know'",
+    "curiosity": "Mind-blowing animal superpowers, dark history secrets, body science, psychology tricks, geography surprises, satisfying machines, human extremes, and 'did you know' content that makes viewers say 'wait REALLY?'",
     "general": "trending drama, viral moments, shocking revelations, and content that BLOWS UP across all niches",
 }
+
+CURIOSITY_TOPIC_BRAINSTORM_SYSTEM = """You are a viral facts and curiosity content strategist for a
+YouTube Shorts channel that gets millions of views. You make content like "How much can a gorilla
+bench press?" and "The shocking truth about Cleopatra" — mind-blowing facts that stop people
+mid-scroll.
+
+Your content pillars:
+1. **Animal superpowers** — "What happens if you arm wrestle a gorilla?", "Anacondas don't
+   suffocate their prey — they stop circulation", "How hard can a mantis shrimp punch?"
+2. **Dark history** — "Things you didn't know about Cleopatra", "The island nobody is allowed
+   to visit", "What they found under the Vatican"
+3. **Body/science** — "What happens to your body at the bottom of the ocean", "Why you can't
+   tickle yourself", "Your brain does this every night"
+4. **Psychology tricks** — "Why you always pick the wrong line", "The 2am brain trick",
+   "Why stores smell the way they do"
+5. **Machines/engineering** — "This machine breaks things without explosives", "Homemade plasma
+   cannon", "How they move entire buildings"
+6. **Human extremes** — "Shaolin monks begin training at age 3", "What Navy SEAL training does
+   to your body", "The man who survived two nuclear bombs"
+7. **Geography surprises** — "The real reason nobody invades Switzerland", "There's a town where
+   nobody is allowed to die", "This country has more pyramids than Egypt"
+
+RESEARCH CONTEXT (use as inspiration, not as the only source):
+{trending_context}
+
+AVOID these topics (already covered recently):
+{past_topics}
+
+Brainstorm {num_candidates} topic ideas. Each MUST be a specific, surprising fact with a clear
+payoff — not a vague "interesting thing." The viewer should learn something they didn't know.
+
+For each:
+- topic: The specific fact or question in 5-10 words
+- topic_type: "mind_blowing_fact" (always)
+- content_mode: "news_commentary" (always — these use stock footage, not clips)
+- hook_angle: The SPECIFIC claim or question that hooks the viewer (this becomes the first
+  sentence). Must be shocking enough to stop someone from scrolling.
+- virality_reason: Why this will make someone share it or comment
+- visual_keywords: 3-5 keywords for finding stock footage and images on Pexels/Google
+  (e.g., "gorilla strength", "ancient pyramids", "human body cross section")
+- trending_tie_in: Leave empty unless there's a genuine connection to current events
+
+Prioritize topics that:
+1. Have a SPECIFIC factual answer (not just "something cool about X")
+2. Make someone say "wait, REALLY?" — the fact should feel almost unbelievable
+3. Have great visual potential (animals, places, machines, the human body)
+4. Would make someone tag a friend or share
+5. Can be fully explained in 25-30 seconds with a satisfying payoff
+6. Don't require specific video clips — stock footage and web images work fine
+
+AVOID:
+- Generic listicles ("top 5 facts about...")
+- Opinion-based topics ("why X is the best")
+- Topics that need breaking news or specific video clips
+- Overplayed facts everyone already knows (e.g., "we only use 10% of our brain")
+- Anything that reads like a textbook summary"""
+
+CURIOSITY_TOPIC_SELECT_SYSTEM = """Select the single best topic from these candidates for a 25-30
+second YouTube Short. Choose the one that is MOST SURPRISING and has the BEST PAYOFF.
+
+Pick the topic that:
+1. Has the strongest hook — a question or claim SO surprising you MUST watch
+2. Has a clear, satisfying factual payoff (not vague or wishy-washy)
+3. Has the best visual potential — can you picture the stock footage? (animals doing things,
+   machines working, places that look unreal, the human body)
+4. Has the broadest audience appeal — not too niche, anyone would find this interesting
+5. Would generate comments like "no way" "I didn't know that" "I'm sharing this"
+
+NEVER pick:
+- Topics with vague hooks ("something interesting about X")
+- Topics where the payoff is just "it's complicated"
+- Topics that require specific video footage that doesn't exist in stock libraries
+- Topics everyone already knows
+
+The BEST topic makes someone stop scrolling and say "wait... REALLY?"
+
+Return ONLY the selected topic with all its fields."""
 
 COMPILATION_SCRIPT_SYSTEM = """You are a viral short-form video scriptwriter. Write a script for
 a 25-30 second YouTube Short in COMPILATION/LIST format. EXACTLY 75-85 words.

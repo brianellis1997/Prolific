@@ -56,18 +56,36 @@ async def stock_clip_sourcing_node(state: ShortsPipelineState) -> dict:
             updated_assets.append(updated)
             logger.info(f"[{asset.sequence_number}] Stock clip: {asset.search_query} -> {result}")
         else:
+            from prolific.shorts.nodes.image_generation import _search_web_images, _download_web_image
+            img_dir = output_dir.parent / "images"
+            img_dir.mkdir(parents=True, exist_ok=True)
+            img_path = str(img_dir / f"web_fallback_{asset.sequence_number:02d}.png")
+
+            file_path = None
+            try:
+                urls = await _search_web_images(asset.search_query)
+                for url in urls[:5]:
+                    if await _download_web_image(url, img_path):
+                        file_path = img_path
+                        break
+            except Exception as e:
+                logger.warning(f"Web image fallback failed: {e}")
+
             fallback = VisualAsset(
                 id=asset.id,
                 sequence_number=asset.sequence_number,
-                asset_type="ai_image",
-                image_prompt=f"Dramatic portrait scene related to: {asset.search_query}. Bold colors, 9:16 vertical composition.",
+                asset_type="web_image",
+                search_query=asset.search_query,
+                file_path=file_path,
                 width=asset.width,
                 height=asset.height,
                 duration_seconds=asset.duration_seconds,
                 ken_burns_direction=asset.ken_burns_direction,
+                script_text=asset.script_text,
             )
             fallback_to_image.append(fallback)
-            logger.warning(f"[{asset.sequence_number}] No stock clip for '{asset.search_query}', falling back to AI image")
+            status = "web image" if file_path else "no fallback"
+            logger.warning(f"[{asset.sequence_number}] No stock clip for '{asset.search_query}', fell back to {status}")
 
     all_updated = updated_assets + fallback_to_image
 

@@ -142,7 +142,7 @@ class YouTubeAnalyticsService:
             })
         return results
 
-    async def get_channel_insights(self) -> ChannelInsights:
+    async def get_channel_insights(self, db_path: str | None = None, table: str = "videos") -> ChannelInsights:
         import aiosqlite
 
         video_stats = await self.get_all_video_stats()
@@ -152,12 +152,19 @@ class YouTubeAnalyticsService:
 
         video_id_to_stats = {s["video_id"]: s for s in video_stats}
 
-        async with aiosqlite.connect(settings.youtube_history_db_path) as db:
+        history_db = db_path or settings.youtube_history_db_path
+        async with aiosqlite.connect(history_db) as db:
             db.row_factory = aiosqlite.Row
-            cursor = await db.execute(
-                "SELECT youtube_video_id, topic, title, is_biography, era_tags, region_tags "
-                "FROM videos WHERE youtube_video_id IS NOT NULL AND youtube_video_id != ''"
-            )
+            if table == "shorts":
+                cursor = await db.execute(
+                    "SELECT youtube_video_id, topic, topic as title, 0 as is_biography, '[]' as era_tags, '[]' as region_tags "
+                    "FROM shorts WHERE youtube_video_id IS NOT NULL AND youtube_video_id != ''"
+                )
+            else:
+                cursor = await db.execute(
+                    "SELECT youtube_video_id, topic, title, is_biography, era_tags, region_tags "
+                    "FROM videos WHERE youtube_video_id IS NOT NULL AND youtube_video_id != ''"
+                )
             rows = await cursor.fetchall()
 
         performances = []

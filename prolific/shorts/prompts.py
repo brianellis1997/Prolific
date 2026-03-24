@@ -271,6 +271,11 @@ Your content pillars:
 RESEARCH CONTEXT (use as inspiration, not as the only source):
 {trending_context}
 
+CHANNEL PERFORMANCE DATA (use this to lean into what works):
+{performance_context}
+If certain topic categories are getting more views, generate MORE candidates in those categories.
+But always include at least 2 candidates from other categories to keep variety.
+
 AVOID these topics (already covered recently):
 {past_topics}
 

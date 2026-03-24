@@ -70,6 +70,24 @@ async def _get_trending_context(niche: str) -> tuple[str, list[str]]:
         return "", []
 
 
+async def _get_shorts_performance_context() -> str:
+    """Pull YouTube analytics for the shorts channel to identify top-performing topics."""
+    try:
+        from prolific.youtube.services.youtube_analytics import YouTubeAnalyticsService
+        analytics = YouTubeAnalyticsService(credentials_path=settings.shorts_credentials_path)
+        insights = await analytics.get_channel_insights(
+            db_path=settings.shorts_history_db_path,
+            table="shorts",
+        )
+        if insights.summary and insights.total_videos_analyzed > 2:
+            logger.info(f"Shorts analytics: {insights.total_videos_analyzed} videos analyzed")
+            return insights.summary
+        return ""
+    except Exception as e:
+        logger.warning(f"Shorts analytics fetch failed (non-fatal): {e}")
+        return ""
+
+
 async def _verify_clips_available(candidate: ShortTopicCandidate) -> list[str]:
     """Quick check if clips are findable for a candidate. Returns verified URLs."""
     if candidate.content_mode == "news_commentary":
@@ -113,6 +131,7 @@ async def topic_selection_node(state: ShortsPipelineState) -> dict:
     past_topics_str = "\n".join(f"- {t}" for t in past_topics) if past_topics else "(none yet)"
 
     trending_context, source_urls = await _get_trending_context(niche)
+    performance_context = await _get_shorts_performance_context()
 
     if niche == "curiosity":
         from prolific.shorts.prompts import (
@@ -123,6 +142,7 @@ async def topic_selection_node(state: ShortsPipelineState) -> dict:
             num_candidates=8,
             trending_context=trending_context if trending_context else "(no trending data available)",
             past_topics=past_topics_str,
+            performance_context=performance_context if performance_context else "(no performance data yet — channel is new)",
         )
         select_prompt = CURIOSITY_TOPIC_SELECT_SYSTEM
     else:

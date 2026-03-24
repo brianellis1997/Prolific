@@ -130,23 +130,36 @@ class PexelsService:
         duration: float = 2.5,
         width: int = 1080,
         height: int = 1920,
+        used_video_ids: set | None = None,
     ) -> str | None:
-        """Search, download, trim and resize a stock clip. Returns path or None."""
+        """Search, download, trim and resize a stock clip. Returns path or None.
+
+        Pass used_video_ids to avoid fetching the same Pexels video twice.
+        """
         try:
             videos = await self.search_videos(query)
             if not videos:
                 logger.warning(f"No Pexels results for '{query}'")
                 return None
 
+            trim_duration = duration + 3.0
+
             for video in videos:
+                video_id = video.get("id")
+                if used_video_ids is not None and video_id in used_video_ids:
+                    continue
+
                 best_file = self._pick_best_file(video)
                 if not best_file:
                     continue
 
                 raw_path = str(Path(output_path).parent / f"raw_{Path(output_path).name}")
                 await self.download_video(best_file["link"], raw_path)
-                result = await self.trim_and_resize(raw_path, output_path, duration, width, height)
+                result = await self.trim_and_resize(raw_path, output_path, trim_duration, width, height)
                 Path(raw_path).unlink(missing_ok=True)
+
+                if used_video_ids is not None and video_id:
+                    used_video_ids.add(video_id)
                 return result
 
             logger.warning(f"No suitable video files for '{query}'")

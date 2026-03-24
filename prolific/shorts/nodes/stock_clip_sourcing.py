@@ -30,6 +30,7 @@ async def stock_clip_sourcing_node(state: ShortsPipelineState) -> dict:
 
     updated_assets = []
     fallback_to_image = []
+    used_video_ids = set()
 
     for asset in stock_segments:
         output_path = str(output_dir / f"clip_{asset.sequence_number:02d}.mp4")
@@ -39,6 +40,7 @@ async def stock_clip_sourcing_node(state: ShortsPipelineState) -> dict:
             duration=asset.duration_seconds,
             width=asset.width,
             height=asset.height,
+            used_video_ids=used_video_ids,
         )
 
         if result:

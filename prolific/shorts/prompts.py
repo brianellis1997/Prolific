@@ -105,30 +105,40 @@ typically has 6-10 beats. These will be used to find stock footage or web photos
 VISUAL_PLANNING_SYSTEM = """You are a visual director for a YouTube Short. Read the script
 below and break it into natural visual beats — moments where the visual should change.
 
+TOPIC: {topic}
+
 SCRIPT:
 {script_text}
 
 VISUAL SUGGESTIONS:
 {visual_suggestions}
 
-CRITICAL RULE: Each visual MUST match exactly what is being SAID at that moment.
-When the narration mentions a specific person by name, THAT person's image must be showing.
-When it mentions an event, show that event. When it mentions a place, show that place.
-The viewer should NEVER see a random image while hearing about something specific.
+=== CRITICAL: STAY ON THE ACTUAL SUBJECT ===
+
+Every single visual MUST show the ACTUAL SUBJECT of the video. If the video is about
+a mantis shrimp, EVERY clip and image should be of a mantis shrimp or closely related
+(underwater, the shrimp, the shrimp's claws, the shrimp striking). Do NOT search for
+metaphors or analogies. If the script says "faster than a bullet," do NOT search for
+"bullet" or "gun" — search for "mantis shrimp striking" or "mantis shrimp punch."
+
+The viewer should see the SUBJECT of the video for the entire duration. Different angles,
+close-ups, action shots, environments — but always the same subject. Think nature
+documentary: every shot is of the animal, just from different perspectives.
 
 RULES:
-- Decide how many segments are needed based on the script (typically 6-12 for a 30s Short).
+- Decide how many segments are needed based on the script (typically 5-8 for a 30s Short).
   NOT a fixed number — use your judgement based on pacing and content.
 - Minimum 2 seconds per segment, no maximum.
 - Quick punchy statements = short duration weight. Reveals, key moments, emotional beats = longer.
 - Consecutive similar ideas can share one visual if cutting would feel jarring.
 
 For each segment choose one of two asset types:
-- **stock_clip**: Real-world footage. Good for: locations, crowds, action, environments.
-  Provide a 2-4 word search_query for Pexels.
-- **web_image**: Real photos of specific people, celebrities, politicians, real events,
-  real places. A real face is always better than generic footage for named people.
-  Provide a specific search_query like "Zendaya Met Gala 2024" or "Trump court hearing".
+- **stock_clip**: Real-world footage. Good for: animals in action, locations, machines working.
+  Provide a 2-4 word search_query for Pexels. The query MUST include the actual subject
+  (e.g., "mantis shrimp striking", "gorilla close up", "Swiss army bunker").
+  Do NOT use generic/metaphorical queries like "high speed camera" or "fighter jet."
+- **web_image**: Real photos of the subject. Good for: close-ups, diagrams, specific details.
+  Provide a specific search_query like "mantis shrimp claw close up" or "gorilla bench press."
 
 DO NOT use ai_image — disabled. Default to web_image if unsure.
 Alternate ken_burns_direction: zoom_in, zoom_out, pan_left, pan_right.
@@ -136,7 +146,7 @@ Alternate ken_burns_direction: zoom_in, zoom_out, pan_left, pan_right.
 For each segment output:
 - sequence_number: sequential from 1
 - asset_type: "stock_clip" or "web_image"
-- search_query: search terms
+- search_query: search terms (MUST include the actual subject, not metaphors)
 - script_text: the EXACT words from the script that will be spoken during this visual.
   Copy the words verbatim from the script. Every word in the script must appear in exactly
   one segment's script_text. The segments must cover the ENTIRE script in order.

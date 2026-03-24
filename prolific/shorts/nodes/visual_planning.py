@@ -73,6 +73,7 @@ async def visual_planning_node(state: ShortsPipelineState) -> dict:
         )
 
     prompt = VISUAL_PLANNING_SYSTEM.format(
+        topic=topic,
         script_text=script.full_text,
         visual_suggestions="\n".join(f"- {s}" for s in script.visual_suggestions),
     ) + extra_guidance

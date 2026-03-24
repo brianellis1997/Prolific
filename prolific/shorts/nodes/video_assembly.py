@@ -137,7 +137,7 @@ def _find_best_match(words_with_times: list, segment_words: list, start_from: in
     return start_from if start_from < len(words_with_times) else -1
 
 
-MAX_IMAGE_DURATION = 7.0
+MAX_IMAGE_DURATION = 4.0
 KB_DIRECTIONS = ["zoom_in", "zoom_out", "pan_left", "pan_right"]
 
 

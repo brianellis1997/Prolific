@@ -34,34 +34,51 @@ class TTSService:
         self.style = style
         self.use_speaker_boost = use_speaker_boost
 
-    async def synthesize_text(self, text: str, output_path: str) -> float:
+    async def synthesize_text(self, text: str, output_path: str, max_retries: int = 3) -> float:
         """Synthesize text to MP3 file. Returns duration in seconds."""
-        async with httpx.AsyncClient(timeout=120.0) as client:
-            response = await client.post(
-                f"{ELEVENLABS_BASE_URL}/text-to-speech/{self.voice_id}",
-                headers={
-                    "xi-api-key": self.api_key,
-                    "Content-Type": "application/json",
-                },
-                json={
-                    "text": text,
-                    "model_id": self.model_id,
-                    "voice_settings": {
-                        "stability": self.stability,
-                        "similarity_boost": self.similarity_boost,
-                        "style": self.style,
-                        "use_speaker_boost": self.use_speaker_boost,
-                    },
-                },
-            )
-            response.raise_for_status()
+        import asyncio
 
-            Path(output_path).parent.mkdir(parents=True, exist_ok=True)
-            Path(output_path).write_bytes(response.content)
+        last_error = None
+        for attempt in range(max_retries):
+            try:
+                async with httpx.AsyncClient(timeout=120.0) as client:
+                    response = await client.post(
+                        f"{ELEVENLABS_BASE_URL}/text-to-speech/{self.voice_id}",
+                        headers={
+                            "xi-api-key": self.api_key,
+                            "Content-Type": "application/json",
+                        },
+                        json={
+                            "text": text,
+                            "model_id": self.model_id,
+                            "voice_settings": {
+                                "stability": self.stability,
+                                "similarity_boost": self.similarity_boost,
+                                "style": self.style,
+                                "use_speaker_boost": self.use_speaker_boost,
+                            },
+                        },
+                    )
+                    response.raise_for_status()
 
-        duration = self._estimate_mp3_duration(output_path)
-        logger.info(f"Synthesized {len(text)} chars -> {output_path} (~{duration:.0f}s)")
-        return duration
+                    Path(output_path).parent.mkdir(parents=True, exist_ok=True)
+                    Path(output_path).write_bytes(response.content)
+
+                duration = self._estimate_mp3_duration(output_path)
+                logger.info(f"Synthesized {len(text)} chars -> {output_path} (~{duration:.0f}s)")
+                return duration
+
+            except (httpx.HTTPStatusError, httpx.ConnectError, httpx.ReadTimeout) as e:
+                last_error = e
+                status = getattr(getattr(e, 'response', None), 'status_code', '?')
+                if attempt < max_retries - 1:
+                    wait = (attempt + 1) * 10
+                    logger.warning(f"TTS attempt {attempt+1} failed (status={status}), retrying in {wait}s...")
+                    await asyncio.sleep(wait)
+                else:
+                    logger.error(f"TTS failed after {max_retries} attempts: {e}")
+
+        raise last_error
 
     async def synthesize_long_text(
         self,

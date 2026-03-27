@@ -40,7 +40,10 @@ async def _get_trending_context(niche: str) -> tuple[str, list[str]]:
         from prolific.shorts.prompts import NICHE_SEARCH_QUERIES
         search_service = get_web_search_service()
 
-        queries = NICHE_SEARCH_QUERIES.get(niche, NICHE_SEARCH_QUERIES["general"])
+        import random
+        all_queries = NICHE_SEARCH_QUERIES.get(niche, NICHE_SEARCH_QUERIES["general"])
+        queries = random.sample(all_queries, min(5, len(all_queries)))
+        logger.info(f"Search queries this run: {queries}")
 
         all_headlines = []
         all_urls = []

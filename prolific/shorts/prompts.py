@@ -179,6 +179,21 @@ NICHE_SEARCH_QUERIES = {
         "weird science facts about human body",
         "psychology facts that explain human behavior",
         "geography facts that seem fake but are true",
+        "craziest engineering machines you won't believe exist",
+        "dark secrets ancient civilizations hid",
+        "ocean deep sea creatures terrifying facts",
+        "space facts that will blow your mind",
+        "human body things you didn't know you could do",
+        "insects bugs superpowers abilities shocking",
+        "foods that are secretly dangerous or weird",
+        "survival facts that could save your life",
+        "optical illusions brain tricks explained",
+        "ancient weapons and inventions ahead of their time",
+        "volcanoes earthquakes natural disasters shocking facts",
+        "parasites that control their host mind control nature",
+        "martial arts fighting techniques unbelievable strength",
+        "plants that can kill move or think",
+        "records feats of human endurance extreme",
     ],
     "general": [
         "trending viral news today celebrity gossip drama",
@@ -268,8 +283,13 @@ Your content pillars:
 7. **Geography surprises** — "The real reason nobody invades Switzerland", "There's a town where
    nobody is allowed to die", "This country has more pyramids than Egypt"
 
-RESEARCH CONTEXT (use as inspiration, not as the only source):
+RESEARCH CONTEXT (use ONLY as a starting point — do NOT just repackage these):
 {trending_context}
+
+IMPORTANT: The research above is just a nudge. You have vast knowledge of amazing facts across
+every field. Use YOUR OWN knowledge to come up with fresh, surprising topics. Do NOT just rephrase
+facts from the search results above. The best topics come from YOUR recall of obscure, specific
+facts — things most people genuinely haven't heard of.
 
 CHANNEL PERFORMANCE DATA (use this to lean into what works):
 {performance_context}

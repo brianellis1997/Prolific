@@ -128,7 +128,7 @@ async def topic_selection_node(state: ShortsPipelineState) -> dict:
         }
 
     past_topics = await history_service.get_past_topics(hours=720)
-    past_topics_str = "\n".join(f"- {t}" for t in past_topics) if past_topics else "(none yet)"
+    past_topics_str = "\n".join(f"- {t}" for t in past_topics[:30]) if past_topics else "(none yet)"
 
     trending_context, source_urls = await _get_trending_context(niche)
     performance_context = await _get_shorts_performance_context()

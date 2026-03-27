@@ -127,8 +127,7 @@ async def topic_selection_node(state: ShortsPipelineState) -> dict:
             "messages": [AIMessage(content="Twitch niche: routing to Twitch drama discovery")],
         }
 
-    past_topics = await history_service.get_past_topics(hours=48)
-    past_topics_str = "\n".join(f"- {t}" for t in past_topics) if past_topics else "(none yet)"
+    past_topics_str = await history_service.get_past_topics_with_keywords(hours=720)
 
     trending_context, source_urls = await _get_trending_context(niche)
     performance_context = await _get_shorts_performance_context()

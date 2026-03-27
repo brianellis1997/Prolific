@@ -48,6 +48,48 @@ class ShortsHistoryService:
             rows = await cursor.fetchall()
             return [row[0] for row in rows]
 
+    async def get_past_topics_with_keywords(self, hours: int = 720) -> str:
+        """Get past topics with extracted keywords for fuzzy duplicate avoidance.
+
+        Returns a formatted string for the LLM prompt that includes both the
+        full topic AND extracted key subjects so rephrased duplicates get caught.
+        """
+        cutoff = (datetime.utcnow() - timedelta(hours=hours)).isoformat()
+
+        async with aiosqlite.connect(self.db_path) as db:
+            await self._ensure_table(db)
+            cursor = await db.execute(
+                "SELECT topic FROM shorts WHERE created_at > ? ORDER BY created_at DESC",
+                (cutoff,),
+            )
+            rows = await cursor.fetchall()
+
+        if not rows:
+            return "(none yet)"
+
+        topics = [row[0] for row in rows]
+        stop_words = {
+            "the", "a", "an", "is", "are", "was", "were", "in", "on", "at",
+            "to", "for", "of", "and", "or", "but", "not", "its", "it", "this",
+            "that", "your", "you", "can", "will", "how", "why", "what", "than",
+            "from", "with", "has", "had", "have", "been", "do", "does", "did",
+            "just", "more", "most", "really", "actually", "still", "even",
+            "every", "after", "before", "about", "when", "if", "so", "be",
+        }
+
+        all_subjects = set()
+        lines = []
+        for topic in topics:
+            words = [w.lower().strip(".,!?'\"") for w in topic.split()]
+            keywords = [w for w in words if len(w) > 3 and w not in stop_words]
+            all_subjects.update(keywords)
+            lines.append(f"- {topic}")
+
+        lines.append(f"\nKEY SUBJECTS ALREADY COVERED (do NOT reuse in ANY form):")
+        lines.append(", ".join(sorted(all_subjects)))
+
+        return "\n".join(lines)
+
     async def record_short(
         self,
         short_id: str,

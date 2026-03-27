@@ -276,8 +276,12 @@ CHANNEL PERFORMANCE DATA (use this to lean into what works):
 If certain topic categories are getting more views, generate MORE candidates in those categories.
 But always include at least 2 candidates from other categories to keep variety.
 
-AVOID these topics (already covered recently):
+ALREADY COVERED — do NOT repeat these topics or any variation of them:
 {past_topics}
+
+CRITICAL: If a KEY SUBJECT appears in the list above, do NOT make a video about it even with
+different wording. "Woolly mammoths outlived pyramids" and "Mammoths were alive during the
+pyramids" are THE SAME TOPIC. Check the key subjects list — if the main noun is there, skip it.
 
 Brainstorm {num_candidates} topic ideas. Each MUST be a specific, surprising fact with a clear
 payoff — not a vague "interesting thing." The viewer should learn something they didn't know.

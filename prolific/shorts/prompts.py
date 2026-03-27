@@ -276,12 +276,15 @@ CHANNEL PERFORMANCE DATA (use this to lean into what works):
 If certain topic categories are getting more views, generate MORE candidates in those categories.
 But always include at least 2 candidates from other categories to keep variety.
 
-ALREADY COVERED — do NOT repeat these topics or any variation of them:
+VIDEOS YOU'VE ALREADY MADE (your content history):
 {past_topics}
 
-CRITICAL: If a KEY SUBJECT appears in the list above, do NOT make a video about it even with
-different wording. "Woolly mammoths outlived pyramids" and "Mammoths were alive during the
-pyramids" are THE SAME TOPIC. Check the key subjects list — if the main noun is there, skip it.
+Think like a smart content creator looking at your history:
+- NEVER remake the same video with different wording (if you already covered "woolly mammoths
+  lived during the pyramids," don't make "mammoths were alive when pyramids were built" — same thing)
+- BUT related topics with a genuinely different angle ARE great (if "gorilla bench press" did
+  well, "gorilla squat strength" is a smart follow-up — same animal, different fact)
+- Look at what subjects you've covered a lot and branch into NEW areas you haven't touched yet
 
 Brainstorm {num_candidates} topic ideas. Each MUST be a specific, surprising fact with a clear
 payoff — not a vague "interesting thing." The viewer should learn something they didn't know.

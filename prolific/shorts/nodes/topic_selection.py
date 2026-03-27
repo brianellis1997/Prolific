@@ -1,6 +1,7 @@
 """Topic selection node - finds trending content with niche awareness and content mode selection."""
 
 import logging
+from pathlib import Path
 
 from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
 from pydantic import BaseModel, Field
@@ -70,6 +71,52 @@ async def _get_trending_context(niche: str) -> tuple[str, list[str]]:
         return "", []
 
 
+async def _get_past_video_titles() -> list[str]:
+    """Fetch recent video titles directly from YouTube — the source of truth."""
+    try:
+        import asyncio
+        import json
+        import base64
+        import os
+        from google.oauth2.credentials import Credentials
+        from googleapiclient.discovery import build
+
+        creds_data = None
+        b64 = os.environ.get("SHORTS_CREDENTIALS_B64")
+        if b64:
+            creds_data = json.loads(base64.b64decode(b64))
+        elif Path(settings.shorts_credentials_path).exists():
+            creds_data = json.loads(Path(settings.shorts_credentials_path).read_text())
+
+        if not creds_data:
+            logger.warning("No shorts credentials for past video lookup")
+            return []
+
+        creds = Credentials(
+            token=creds_data.get("token"),
+            refresh_token=creds_data.get("refresh_token"),
+            token_uri=creds_data.get("token_uri"),
+            client_id=creds_data.get("client_id"),
+            client_secret=creds_data.get("client_secret"),
+        )
+
+        def _fetch():
+            yt = build("youtube", "v3", credentials=creds)
+            resp = yt.search().list(
+                part="snippet", forMine=True, type="video",
+                maxResults=30, order="date",
+            ).execute()
+            return [item["snippet"]["title"] for item in resp.get("items", [])]
+
+        titles = await asyncio.get_event_loop().run_in_executor(None, _fetch)
+        logger.info(f"Fetched {len(titles)} past video titles from YouTube")
+        return titles
+
+    except Exception as e:
+        logger.warning(f"YouTube past titles fetch failed (non-fatal): {e}")
+        return []
+
+
 async def _get_shorts_performance_context() -> str:
     """Pull YouTube analytics for the shorts channel to identify top-performing topics."""
     try:
@@ -127,7 +174,7 @@ async def topic_selection_node(state: ShortsPipelineState) -> dict:
             "messages": [AIMessage(content="Twitch niche: routing to Twitch drama discovery")],
         }
 
-    past_topics = await history_service.get_past_topics(hours=720)
+    past_topics = await _get_past_video_titles()
     past_topics_str = "\n".join(f"- {t}" for t in past_topics[:30]) if past_topics else "(none yet)"
 
     trending_context, source_urls = await _get_trending_context(niche)

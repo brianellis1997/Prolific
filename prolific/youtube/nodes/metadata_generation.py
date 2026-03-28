@@ -35,9 +35,14 @@ async def metadata_generation_node(state: YouTubePipelineState) -> dict:
     timestamp_lines = []
     cumulative = 0.0
     for s in sections:
-        mins = int(cumulative // 60)
-        secs = int(cumulative % 60)
-        timestamp_lines.append(f"{mins:02d}:{secs:02d} - {s.title}")
+        total_secs = int(cumulative)
+        hours = total_secs // 3600
+        mins = (total_secs % 3600) // 60
+        secs = total_secs % 60
+        if hours > 0:
+            timestamp_lines.append(f"{hours}:{mins:02d}:{secs:02d} - {s.title}")
+        else:
+            timestamp_lines.append(f"{mins:02d}:{secs:02d} - {s.title}")
         cumulative += duration_by_section.get(s.section_number, 0)
 
     section_titles_with_timestamps = "\n".join(timestamp_lines)

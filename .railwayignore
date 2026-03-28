@@ -1,0 +1,17 @@
+shorts_output/
+youtube_output/
+chroma_data/
+generated_images/
+frontend/
+blog/
+.venv/
+node_modules/
+*.mp4
+*.mp3
+*.aac
+*.wav
+*.png
+*.jpg
+wait_really_pfp.png
+youtube_credentials*.json
+client_secrets.json

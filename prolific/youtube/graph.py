@@ -59,15 +59,19 @@ def build_youtube_pipeline_graph(checkpointer=None):
 
 async def run_youtube_pipeline(thread_id: str | None = None) -> dict:
     """Run the full YouTube pipeline and return final state."""
+    from prolific.core.pipeline_lock import acquire_pipeline, release_pipeline
     from prolific.youtube.state import create_initial_youtube_state
 
     initial_state = create_initial_youtube_state(thread_id=thread_id)
-    graph = build_youtube_pipeline_graph()
 
-    config = {"configurable": {"thread_id": initial_state["thread_id"]}}
-    final_state = await graph.ainvoke(initial_state, config=config)
-
-    return final_state
+    run_id = acquire_pipeline("slumber_archives_youtube")
+    try:
+        graph = build_youtube_pipeline_graph()
+        config = {"configurable": {"thread_id": initial_state["thread_id"]}}
+        final_state = await graph.ainvoke(initial_state, config=config)
+        return final_state
+    finally:
+        release_pipeline(run_id)
 
 
 async def stream_youtube_pipeline(thread_id: str | None = None):

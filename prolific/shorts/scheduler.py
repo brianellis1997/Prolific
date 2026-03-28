@@ -14,11 +14,8 @@ SHORTS_SCHEDULE_HOURS = [9, 12, 16, 20]
 async def _scheduled_run():
     """Execute a scheduled shorts pipeline run."""
     import datetime
-    from prolific.core.pipeline_lock import acquire_pipeline, release_pipeline
-
     now = datetime.datetime.now().strftime("%Y-%m-%d %H:%M")
     logger.info(f"=== SCHEDULED SHORTS RUN TRIGGERED ({now}) ===")
-    run_id = acquire_pipeline("wait_really_shorts")
     try:
         from prolific.shorts.graph import run_shorts_pipeline
         state = await run_shorts_pipeline()
@@ -28,8 +25,6 @@ async def _scheduled_run():
         logger.info(f"Scheduled run complete: {topic} | {phase} | {url}")
     except Exception as e:
         logger.error(f"Scheduled shorts run failed: {e}", exc_info=True)
-    finally:
-        release_pipeline(run_id)
 
 
 def start_scheduler():

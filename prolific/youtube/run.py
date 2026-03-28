@@ -22,8 +22,6 @@ async def main() -> int:
     logger.info("=== YOUTUBE SLEEP HISTORY PIPELINE STARTING ===")
 
     exit_code = 0
-    from prolific.core.pipeline_lock import acquire_pipeline, release_pipeline
-    run_id = acquire_pipeline("slumber_archives_youtube")
 
     try:
         from prolific.youtube.services.cost_tracker import snapshot_before, snapshot_after
@@ -63,7 +61,6 @@ async def main() -> int:
         logger.error(f"Pipeline failed: {e}", exc_info=True)
         exit_code = 1
 
-    release_pipeline(run_id)
     elapsed = (datetime.now(UTC) - start_time).total_seconds()
     logger.info(f"=== PIPELINE {'COMPLETE' if exit_code == 0 else 'FAILED'} in {elapsed:.0f}s ===")
 

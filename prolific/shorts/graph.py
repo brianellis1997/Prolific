@@ -190,17 +190,21 @@ async def run_shorts_pipeline(
     import os
     os.environ.setdefault("LANGCHAIN_PROJECT", "prolific-shorts")
 
+    from prolific.core.pipeline_lock import acquire_pipeline, release_pipeline
     from prolific.shorts.state import create_initial_shorts_state
 
     initial_state = create_initial_shorts_state(thread_id=thread_id)
     if niche:
         initial_state["niche"] = niche
 
-    graph = build_shorts_pipeline_graph()
-    config = _shorts_run_config(initial_state["thread_id"], niche)
-    final_state = await graph.ainvoke(initial_state, config=config)
-
-    return final_state
+    run_id = acquire_pipeline("wait_really_shorts", topic=initial_state.get("topic", ""))
+    try:
+        graph = build_shorts_pipeline_graph()
+        config = _shorts_run_config(initial_state["thread_id"], niche)
+        final_state = await graph.ainvoke(initial_state, config=config)
+        return final_state
+    finally:
+        release_pipeline(run_id)
 
 
 async def stream_shorts_pipeline(

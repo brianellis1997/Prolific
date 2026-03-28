@@ -1,70 +1,49 @@
-"""Thumbnail text overlay using Pillow."""
+"""Thumbnail text overlay using Pillow — two-color emphasis text."""
 
 import logging
 from pathlib import Path
 
-from PIL import Image, ImageDraw, ImageFont, ImageFilter
+from PIL import Image, ImageDraw, ImageFont
 
 logger = logging.getLogger(__name__)
 
 FONT_PATH = str(Path(__file__).parent.parent / "fonts" / "BebasNeue-Regular.ttf")
 THUMBNAIL_W = 1280
 THUMBNAIL_H = 720
+PRIMARY_COLOR = (255, 255, 255)
+EMPHASIS_COLOR = (255, 40, 40)
+STROKE_COLOR = (0, 0, 0)
 
 
-def _get_multiline_size(
-    draw: ImageDraw.ImageDraw,
-    text: str,
-    font: ImageFont.FreeTypeFont,
-    stroke_width: int = 0,
-) -> tuple[int, int]:
-    """Get the total width and height of multiline text."""
-    bbox = draw.multiline_textbbox(
-        (0, 0), text, font=font, stroke_width=stroke_width, align="center"
-    )
-    return bbox[2] - bbox[0], bbox[3] - bbox[1]
+def _split_emphasis(text: str) -> tuple[list[str], list[bool]]:
+    """Split hook text into lines, marking the last line as emphasis (red).
 
+    For 2-3 word hooks, the last word is emphasis.
+    For 4+ word hooks, the last line (1-2 words) is emphasis.
+    """
+    words = text.upper().split()
+    if len(words) <= 2:
+        return [text.upper()], [False]
 
-def _fit_text_size(
-    draw: ImageDraw.ImageDraw,
-    text: str,
-    font_path: str,
-    max_width: int,
-    max_height: int,
-    start_size: int = 200,
-    min_size: int = 40,
-    stroke_width: int = 5,
-) -> ImageFont.FreeTypeFont:
-    """Find the largest font size that fits within the bounding box."""
-    for size in range(start_size, min_size - 1, -4):
-        font = ImageFont.truetype(font_path, size=size)
-        text_w, text_h = _get_multiline_size(draw, text, font, stroke_width)
-        if text_w <= max_width and text_h <= max_height:
-            return font
-    return ImageFont.truetype(font_path, size=min_size)
+    if len(words) <= 4:
+        lines = [" ".join(words[:-1]), words[-1]]
+        emphasis = [False, True]
+    else:
+        mid = len(words) - 2
+        lines = [" ".join(words[:mid]), " ".join(words[mid:])]
+        emphasis = [False, True]
 
-
-def _wrap_text(text: str, max_words_per_line: int = 3) -> str:
-    """Wrap text to multiple lines, max N words per line."""
-    words = text.split()
-    if len(words) <= max_words_per_line:
-        return text
-    lines = []
-    for i in range(0, len(words), max_words_per_line):
-        lines.append(" ".join(words[i : i + max_words_per_line]))
-    return "\n".join(lines)
+    return lines, emphasis
 
 
 def add_text_overlay(
     image_path: str,
     hook_text: str,
     output_path: str | None = None,
-    position: str = "bottom",
-    text_color: str = "white",
-    stroke_color: str = "black",
-    stroke_width: int = 5,
+    position: str = "top",
+    stroke_width: int = 6,
 ) -> str:
-    """Add bold text overlay to a thumbnail image."""
+    """Add bold two-color text overlay to a thumbnail image."""
     if output_path is None:
         output_path = image_path
 
@@ -74,37 +53,39 @@ def add_text_overlay(
     overlay = Image.new("RGBA", img.size, (0, 0, 0, 0))
     draw = ImageDraw.Draw(overlay)
 
-    hook_upper = hook_text.upper().strip()
-    wrapped = _wrap_text(hook_upper, max_words_per_line=3)
-
-    max_text_w = int(THUMBNAIL_W * 0.85)
-    max_text_h = int(THUMBNAIL_H * 0.45)
-    font = _fit_text_size(
-        draw, wrapped, FONT_PATH, max_text_w, max_text_h,
-        start_size=180, stroke_width=stroke_width,
-    )
-
-    text_w, text_h = _get_multiline_size(draw, wrapped, font, stroke_width)
-
-    text_x = (THUMBNAIL_W - text_w) // 2
-    if position == "bottom":
-        text_y = THUMBNAIL_H - text_h - 40
-    elif position == "top":
-        text_y = 40
-    else:
-        text_y = (THUMBNAIL_H - text_h) // 2
-
     _draw_gradient_vignette(overlay, position)
 
-    draw.multiline_text(
-        (text_x, text_y),
-        wrapped,
-        font=font,
-        fill=text_color,
-        stroke_width=stroke_width,
-        stroke_fill=stroke_color,
-        align="center",
-    )
+    lines, emphasis_flags = _split_emphasis(hook_text)
+
+    font = _fit_font(draw, lines, stroke_width)
+
+    line_heights = []
+    line_widths = []
+    for line in lines:
+        bbox = draw.textbbox((0, 0), line, font=font, stroke_width=stroke_width)
+        line_widths.append(bbox[2] - bbox[0])
+        line_heights.append(bbox[3] - bbox[1])
+
+    line_spacing = 10
+    total_h = sum(line_heights) + line_spacing * (len(lines) - 1)
+
+    if position == "top":
+        y_start = 30
+    elif position == "bottom":
+        y_start = THUMBNAIL_H - total_h - 40
+    else:
+        y_start = (THUMBNAIL_H - total_h) // 2
+
+    y = y_start
+    for i, (line, is_emphasis) in enumerate(zip(lines, emphasis_flags)):
+        x = (THUMBNAIL_W - line_widths[i]) // 2
+        color = EMPHASIS_COLOR if is_emphasis else PRIMARY_COLOR
+
+        draw.text(
+            (x, y), line, font=font,
+            fill=color, stroke_width=stroke_width, stroke_fill=STROKE_COLOR,
+        )
+        y += line_heights[i] + line_spacing
 
     result = Image.alpha_composite(img, overlay)
     result = result.convert("RGB")
@@ -114,14 +95,33 @@ def add_text_overlay(
     return output_path
 
 
+def _fit_font(draw, lines: list[str], stroke_width: int) -> ImageFont.FreeTypeFont:
+    """Find largest font that fits all lines within the thumbnail width."""
+    max_w = int(THUMBNAIL_W * 0.90)
+    max_h = int(THUMBNAIL_H * 0.50)
+
+    for size in range(180, 40, -4):
+        font = ImageFont.truetype(FONT_PATH, size=size)
+        widths = []
+        heights = []
+        for line in lines:
+            bbox = draw.textbbox((0, 0), line, font=font, stroke_width=stroke_width)
+            widths.append(bbox[2] - bbox[0])
+            heights.append(bbox[3] - bbox[1])
+        if max(widths) <= max_w and sum(heights) <= max_h:
+            return font
+
+    return ImageFont.truetype(FONT_PATH, size=40)
+
+
 def _draw_gradient_vignette(
     overlay: Image.Image,
-    position: str = "bottom",
-    max_alpha: int = 200,
+    position: str = "top",
+    max_alpha: int = 180,
 ) -> None:
-    """Draw a smooth gradient fade for text readability (no hard box)."""
+    """Draw a smooth gradient fade for text readability."""
     w, h = overlay.size
-    gradient_height = int(h * 0.55)
+    gradient_height = int(h * 0.50)
 
     gradient = Image.new("L", (1, gradient_height), 0)
 

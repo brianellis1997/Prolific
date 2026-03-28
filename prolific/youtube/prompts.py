@@ -197,13 +197,12 @@ TAGS (15-20):
   bedtime stories for adults, sleep history, history narration, educational, documentary
 - Plus 5-10 topic-specific tags"""
 
-THUMBNAIL_PROMPT_TEMPLATE = """A stunning YouTube thumbnail image in {style} style.
+THUMBNAIL_PROMPT_TEMPLATE = """A stunning YouTube thumbnail illustration in {style} style.
 Subject: {topic}. The image should be dramatic and eye-catching with warm golden
 lighting, rich colors, and a sense of historical grandeur. Cinematic composition.
-Bold white text reading "{hook_text}" is prominently displayed on the image in large,
-bold font. Place the text wherever it has the most visual impact - it can be centered,
-off to one side, at the top, bottom, or anywhere that creates a striking composition.
-The text must be clearly legible with good contrast against the background.
+DO NOT include any text, words, letters, or writing in the image. The image should be
+a pure illustration with no text overlay — text will be added separately afterward.
+Leave visual space on the left or top portion of the image for text to be overlaid later.
 1280x720 resolution."""
 
 THUMBNAIL_HOOK_SYSTEM = """You write SHORT, curiosity-driven thumbnail text for YouTube videos.

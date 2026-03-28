@@ -34,13 +34,35 @@ class TTSService:
         self.style = style
         self.use_speaker_boost = use_speaker_boost
 
-    async def synthesize_text(self, text: str, output_path: str, max_retries: int = 3) -> float:
+    async def synthesize_text(
+        self,
+        text: str,
+        output_path: str,
+        max_retries: int = 3,
+        previous_text: str = "",
+        next_text: str = "",
+    ) -> float:
         """Synthesize text to MP3 file. Returns duration in seconds."""
         import asyncio
 
         last_error = None
         for attempt in range(max_retries):
             try:
+                body = {
+                    "text": text,
+                    "model_id": self.model_id,
+                    "voice_settings": {
+                        "stability": self.stability,
+                        "similarity_boost": self.similarity_boost,
+                        "style": self.style,
+                        "use_speaker_boost": self.use_speaker_boost,
+                    },
+                }
+                if previous_text:
+                    body["previous_text"] = previous_text[-1000:]
+                if next_text:
+                    body["next_text"] = next_text[:1000]
+
                 async with httpx.AsyncClient(timeout=120.0) as client:
                     response = await client.post(
                         f"{ELEVENLABS_BASE_URL}/text-to-speech/{self.voice_id}",
@@ -48,16 +70,7 @@ class TTSService:
                             "xi-api-key": self.api_key,
                             "Content-Type": "application/json",
                         },
-                        json={
-                            "text": text,
-                            "model_id": self.model_id,
-                            "voice_settings": {
-                                "stability": self.stability,
-                                "similarity_boost": self.similarity_boost,
-                                "style": self.style,
-                                "use_speaker_boost": self.use_speaker_boost,
-                            },
-                        },
+                        json=body,
                     )
                     response.raise_for_status()
 
@@ -86,7 +99,7 @@ class TTSService:
         output_dir: str,
         prefix: str = "chunk",
     ) -> list[tuple[str, float]]:
-        """Split long text into chunks, synthesize each. Returns [(path, duration)]."""
+        """Split long text into chunks, synthesize each with context continuity."""
         chunks = self._split_text(text, CHUNK_SIZE)
         results = []
 
@@ -94,25 +107,34 @@ class TTSService:
 
         for i, chunk in enumerate(chunks):
             output_path = str(Path(output_dir) / f"{prefix}_{i:04d}.mp3")
-            duration = await self.synthesize_text(chunk, output_path)
+            prev = chunks[i - 1] if i > 0 else ""
+            nxt = chunks[i + 1] if i < len(chunks) - 1 else ""
+            duration = await self.synthesize_text(
+                chunk, output_path,
+                previous_text=prev, next_text=nxt,
+            )
             results.append((output_path, duration))
 
         return results
 
     async def stitch_audio(self, audio_paths: list[str], output_path: str) -> float:
-        """Concatenate MP3 files. Returns total duration in seconds."""
+        """Concatenate MP3 files with volume normalization. Returns total duration."""
         from pydub import AudioSegment
 
+        target_dbfs = -18.0
         combined = AudioSegment.empty()
         for path in audio_paths:
             segment = AudioSegment.from_mp3(path)
+            if segment.dBFS != float('-inf') and segment.dBFS != 0:
+                change = target_dbfs - segment.dBFS
+                segment = segment.apply_gain(change)
             combined += segment
 
         Path(output_path).parent.mkdir(parents=True, exist_ok=True)
         combined.export(output_path, format="mp3")
 
         total_duration = len(combined) / 1000.0
-        logger.info(f"Stitched {len(audio_paths)} files -> {output_path} ({total_duration:.0f}s)")
+        logger.info(f"Stitched {len(audio_paths)} files -> {output_path} ({total_duration:.0f}s, normalized to {target_dbfs}dBFS)")
         return total_duration
 
     @staticmethod

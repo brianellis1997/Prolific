@@ -1,7 +1,12 @@
 """Topic selection node - picks a history topic avoiding past videos."""
 
+import asyncio
+import base64
+import json
 import logging
+import os
 import random
+from pathlib import Path
 
 from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
 from pydantic import BaseModel, Field
@@ -12,6 +17,47 @@ from prolific.youtube.services.channel_history import get_channel_history_servic
 from prolific.youtube.state import YouTubePipelineState
 
 logger = logging.getLogger(__name__)
+
+
+async def _get_past_youtube_titles() -> list[str]:
+    """Fetch past video titles from the Slumber Archives YouTube channel."""
+    try:
+        from google.oauth2.credentials import Credentials
+        from googleapiclient.discovery import build
+
+        creds_data = None
+        b64 = os.environ.get("YOUTUBE_CREDENTIALS_B64")
+        if b64:
+            creds_data = json.loads(base64.b64decode(b64))
+        elif Path(settings.youtube_credentials_path).exists():
+            creds_data = json.loads(Path(settings.youtube_credentials_path).read_text())
+
+        if not creds_data:
+            return []
+
+        creds = Credentials(
+            token=creds_data.get("token"),
+            refresh_token=creds_data.get("refresh_token"),
+            token_uri=creds_data.get("token_uri"),
+            client_id=creds_data.get("client_id"),
+            client_secret=creds_data.get("client_secret"),
+        )
+
+        def _fetch():
+            yt = build("youtube", "v3", credentials=creds)
+            resp = yt.search().list(
+                part="snippet", forMine=True, type="video",
+                maxResults=50, order="date",
+            ).execute()
+            return [item["snippet"]["title"] for item in resp.get("items", [])]
+
+        titles = await asyncio.get_event_loop().run_in_executor(None, _fetch)
+        logger.info(f"Fetched {len(titles)} past video titles from YouTube")
+        return titles
+
+    except Exception as e:
+        logger.warning(f"YouTube past titles fetch failed: {e}")
+        return []
 
 
 class TopicCandidate(BaseModel):
@@ -81,7 +127,10 @@ async def topic_selection_node(state: YouTubePipelineState) -> dict:
     history_service = get_channel_history_service()
     await history_service.initialize()
 
-    past_topics = await history_service.get_past_topics(limit=200)
+    db_topics = await history_service.get_past_topics(limit=200)
+    yt_topics = await _get_past_youtube_titles()
+    all_past = list(dict.fromkeys(db_topics + yt_topics))
+    past_topics = all_past[:50]
     past_topics_str = "\n".join(f"- {t}" for t in past_topics) if past_topics else "(none yet)"
 
     total_videos = await history_service.get_total_count()

@@ -8,15 +8,13 @@ You must brainstorm {num_candidates} unique, interesting history topic ideas.
 
 CONTENT MIX RULE: {content_type_instruction}
 
-TRENDING NEWS CONTEXT (use this to inspire ~30% of your suggestions):
+TRENDING NEWS CONTEXT (optional inspiration — most topics should NOT come from this):
 {trending_context}
 
-For trending-inspired topics: DO NOT cover the news itself. Instead, create a historical
-deep dive that relates to what's in the news. For example, if there's news about Iran,
-suggest "The Complete History of the Persian Empire" or "The Life of Cyrus the Great."
-The video must still be a calm, timeless history narration - NOT a news reaction.
-If a topic is inspired by trending news, fill in the trending_tie_in field explaining
-the connection. Leave trending_tie_in empty for purely evergreen topics.
+If something trending loosely inspires a topic, fine — but do NOT force connections. Most
+of your suggestions should come from your own knowledge of fascinating history, not from
+current news. The channel covers ALL of world history — vary the regions and eras widely.
+If a topic is genuinely inspired by trending news, fill in trending_tie_in. Otherwise leave empty.
 
 AVOID these topics that have already been covered:
 {past_topics}
@@ -51,8 +49,8 @@ for a sleep history YouTube video. Choose the topic that:
 2. Would appeal to the widest audience
 3. Is distinct from past videos on the channel
 4. Has enough depth for 1-2 hours of calm narration
-5. If a topic has a TRENDING tie-in, give it a significant bonus - trending topics
-   capture search traffic from people looking up the topic due to current events
+5. A trending tie-in is a small bonus, not a deciding factor — prioritize topic
+   quality and variety over trending relevance
 6. Aligns with topics/eras/regions that have historically performed well on the channel
    (if performance data is available in the candidates list)
 

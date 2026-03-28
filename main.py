@@ -75,8 +75,15 @@ async def root():
 
 @app.get("/health")
 async def health():
-    """Global health check."""
-    return {"status": "healthy"}
+    """Global health check — reports if any pipeline is actively running."""
+    from prolific.core.pipeline_lock import get_active_pipelines
+    active = get_active_pipelines()
+    return {
+        "status": "healthy",
+        "pipelines_running": len(active),
+        "active_pipelines": active,
+        "safe_to_deploy": len(active) == 0,
+    }
 
 
 if __name__ == "__main__":

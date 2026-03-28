@@ -41,11 +41,10 @@ Prioritize topics that are:
    The topic should make someone think "oh I want to learn about that." Boring/obscure
    topics like niche artists or minor historical events will get zero views.
 2. Rich enough for 1-2 hours of narration with a strong narrative arc
-3. Not oversaturated on YouTube (avoid topics with 100+ existing videos)
-4. The NARRATION STYLE is calm and sleep-friendly — the TOPIC itself should be dramatic,
+3. The NARRATION STYLE is calm and sleep-friendly — the TOPIC itself should be dramatic,
    interesting, full of intrigue. Wars, empires, legendary figures, mysteries, betrayals.
    People fall asleep to interesting stories, not boring ones.
-5. Aligned with what the channel's analytics show performs well"""
+4. Aligned with what the channel's analytics show performs well"""
 
 TOPIC_SELECT_SYSTEM = """You are selecting the single best topic from a list of candidates
 for a sleep history YouTube video. Choose the topic that:

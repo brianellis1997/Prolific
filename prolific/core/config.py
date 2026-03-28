@@ -75,8 +75,8 @@ class Settings(BaseSettings):
     # YouTube Pipeline
     youtube_script_model: str = "google/gemini-3-flash-preview"
     youtube_image_model: str = "google/gemini-3.1-flash-image-preview"
-    youtube_target_word_count: int = 30000
-    youtube_max_images: int = 18
+    youtube_target_word_count: int = 10000
+    youtube_max_images: int = 8
     youtube_image_style: str = "oil painting, historical illustration, warm muted tones, cinematic lighting"
     youtube_output_dir: str = "./youtube_output"
     youtube_history_db_path: str = "./youtube_history.sqlite"

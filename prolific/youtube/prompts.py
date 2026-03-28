@@ -36,23 +36,25 @@ If certain eras or regions consistently get more views, prioritize similar topic
 Don't slavishly copy past successes - but use the data to inform your creative instincts.
 
 Prioritize topics that are:
-1. Rich enough for 2+ hours of narration
-2. Have a natural narrative arc (especially for biographies)
-3. Not oversaturated on YouTube
-4. Calming and interesting rather than disturbing or graphic
-5. Likely to catch search traffic (trending-adjacent topics get a bonus here)
-6. Aligned with what the channel's analytics show performs well"""
+1. FASCINATING — pick topics people are genuinely curious about. Cleopatra, Genghis Khan,
+   the Roman Empire, Vikings, Alexander the Great, the Aztecs, Samurai, Tesla vs Edison.
+   The topic should make someone think "oh I want to learn about that." Boring/obscure
+   topics like niche artists or minor historical events will get zero views.
+2. Rich enough for 1-2 hours of narration with a strong narrative arc
+3. Not oversaturated on YouTube (avoid topics with 100+ existing videos)
+4. The NARRATION STYLE is calm and sleep-friendly — the TOPIC itself should be dramatic,
+   interesting, full of intrigue. Wars, empires, legendary figures, mysteries, betrayals.
+   People fall asleep to interesting stories, not boring ones.
+5. Aligned with what the channel's analytics show performs well"""
 
 TOPIC_SELECT_SYSTEM = """You are selecting the single best topic from a list of candidates
 for a sleep history YouTube video. Choose the topic that:
-1. Has the strongest narrative potential for long-form narration
-2. Would appeal to the widest audience
+1. Is the most INTERESTING and COMPELLING — would someone actually want to listen to this?
+2. Would appeal to the widest audience — famous figures and events beat obscure ones
 3. Is distinct from past videos on the channel
-4. Has enough depth for 1-2 hours of calm narration
-5. A trending tie-in is a small bonus, not a deciding factor — prioritize topic
-   quality and variety over trending relevance
-6. Aligns with topics/eras/regions that have historically performed well on the channel
-   (if performance data is available in the candidates list)
+4. Has enough drama, intrigue, and depth for 1-2 hours of narration
+5. Pick legendary figures (Cleopatra, Caesar, Napoleon) and epic events (fall of Rome,
+   age of pirates) over niche/obscure topics that nobody searches for
 
 Return the index (0-based) of your chosen topic and a brief rationale."""
 

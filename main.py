@@ -29,13 +29,17 @@ async def lifespan(app: FastAPI):
     logger.info("Starting Prolific Content Generation API")
     from prolific.youtube.scheduler import start_scheduler as start_youtube_scheduler
     from prolific.shorts.scheduler import start_scheduler as start_shorts_scheduler
+    from prolific.youtube.comment_scheduler import start_scheduler as start_comment_scheduler
     start_youtube_scheduler()
     start_shorts_scheduler()
+    start_comment_scheduler()
     yield
     from prolific.youtube.scheduler import stop_scheduler as stop_youtube_scheduler
     from prolific.shorts.scheduler import stop_scheduler as stop_shorts_scheduler
+    from prolific.youtube.comment_scheduler import stop_scheduler as stop_comment_scheduler
     stop_youtube_scheduler()
     stop_shorts_scheduler()
+    stop_comment_scheduler()
     logger.info("Shutting down Prolific Content Generation API")
 
 

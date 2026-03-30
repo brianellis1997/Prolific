@@ -139,6 +139,98 @@ class YouTubeUploadService:
             logger.warning(f"Failed to post comment on {video_id}: {e}")
             return None
 
+    async def list_comment_threads(self, video_id: str, max_results: int = 50) -> list[dict]:
+        """Fetch top-level comment threads for a video."""
+        import asyncio
+        try:
+            youtube = self._get_authenticated_service()
+
+            def _fetch():
+                response = youtube.commentThreads().list(
+                    videoId=video_id,
+                    part="snippet,replies",
+                    maxResults=max_results,
+                    order="time",
+                ).execute()
+                threads = []
+                for item in response.get("items", []):
+                    snippet = item["snippet"]["topLevelComment"]["snippet"]
+                    existing_replies = []
+                    if item.get("replies"):
+                        for reply in item["replies"]["comments"]:
+                            existing_replies.append({
+                                "author": reply["snippet"]["authorDisplayName"],
+                                "text": reply["snippet"]["textOriginal"],
+                                "author_channel_id": reply["snippet"].get("authorChannelId", {}).get("value", ""),
+                            })
+                    threads.append({
+                        "thread_id": item["id"],
+                        "comment_id": item["snippet"]["topLevelComment"]["id"],
+                        "author": snippet["authorDisplayName"],
+                        "author_channel_id": snippet.get("authorChannelId", {}).get("value", ""),
+                        "text": snippet["textOriginal"],
+                        "published_at": snippet["publishedAt"],
+                        "reply_count": item["snippet"]["totalReplyCount"],
+                        "existing_replies": existing_replies,
+                    })
+                return threads
+
+            return await asyncio.get_event_loop().run_in_executor(None, _fetch)
+        except Exception as e:
+            logger.warning(f"Failed to list comments for {video_id}: {e}")
+            return []
+
+    async def reply_to_comment(self, parent_id: str, text: str) -> str | None:
+        """Reply to a comment thread. Returns reply comment ID or None."""
+        import asyncio
+        try:
+            youtube = self._get_authenticated_service()
+            body = {
+                "snippet": {
+                    "parentId": parent_id,
+                    "textOriginal": text,
+                },
+            }
+            request = youtube.comments().insert(part="snippet", body=body)
+            loop = asyncio.get_event_loop()
+            response = await loop.run_in_executor(None, request.execute)
+            reply_id = response["id"]
+            logger.info(f"Replied to {parent_id}: {text[:50]}...")
+            return reply_id
+        except Exception as e:
+            logger.warning(f"Failed to reply to {parent_id}: {e}")
+            return None
+
+    async def get_channel_id(self) -> str | None:
+        """Get the authenticated channel's ID."""
+        import asyncio
+        try:
+            youtube = self._get_authenticated_service()
+            def _fetch():
+                resp = youtube.channels().list(part="id", mine=True).execute()
+                items = resp.get("items", [])
+                return items[0]["id"] if items else None
+            return await asyncio.get_event_loop().run_in_executor(None, _fetch)
+        except Exception as e:
+            logger.warning(f"Failed to get channel ID: {e}")
+            return None
+
+    async def get_recent_video_ids(self, max_results: int = 20) -> list[str]:
+        """Get recent video IDs from the channel."""
+        import asyncio
+        try:
+            youtube = self._get_authenticated_service()
+            def _fetch():
+                resp = youtube.search().list(
+                    part="id", forMine=True, type="video",
+                    maxResults=max_results, order="date",
+                ).execute()
+                return [item["id"]["videoId"] for item in resp.get("items", [])]
+            return await asyncio.get_event_loop().run_in_executor(None, _fetch)
+        except Exception as e:
+            logger.warning(f"Failed to get recent videos: {e}")
+            return []
+
     @staticmethod
     def _execute_upload(request):
         """Execute resumable upload with progress logging and retry."""

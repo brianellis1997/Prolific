@@ -122,6 +122,10 @@ class Settings(BaseSettings):
     shorts_cron_interval_hours: int = 4
     shorts_cron_enabled: bool = False
 
+    # Comment Reply Scheduler
+    comment_reply_enabled: bool = False
+    comment_reply_interval_hours: int = 2
+
     # Pexels Video API
     pexels_api_key: str = ""
 

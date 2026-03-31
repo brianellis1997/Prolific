@@ -56,17 +56,31 @@ async def thumbnail_generation_node(state: YouTubePipelineState) -> dict:
 
     try:
         prompt = THUMBNAIL_PROMPT_TEMPLATE.format(
-            style=style, topic=topic, hook_text=hook_text
+            style=style, topic=topic,
         )
         await service.generate_image(
             prompt=prompt,
             output_path=output_path,
         )
-        logger.info(f"AI thumbnail with text generated: {output_path}")
+        logger.info(f"AI thumbnail generated: {output_path}")
+
+        final_path = str(output_dir / "thumbnail_final.jpg")
+        add_text_overlay(output_path, hook_text, output_path=final_path, position="top")
+        logger.info(f"Text overlay applied: '{hook_text}' -> {final_path}")
+
+        from PIL import Image
+        img = Image.open(final_path)
+        compressed_path = str(output_dir / "thumbnail.jpg")
+        img.save(compressed_path, "JPEG", quality=85, optimize=True)
+        size_kb = Path(compressed_path).stat().st_size / 1024
+        if size_kb > 2000:
+            img.save(compressed_path, "JPEG", quality=60, optimize=True)
+            size_kb = Path(compressed_path).stat().st_size / 1024
+        logger.info(f"Thumbnail compressed: {size_kb:.0f}KB")
 
         thumbnail = ThumbnailAsset(
             prompt=prompt,
-            file_path=output_path,
+            file_path=compressed_path,
             title_overlay_text=hook_text,
         )
     except Exception as e:

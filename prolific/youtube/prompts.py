@@ -197,34 +197,61 @@ TAGS (15-20):
   bedtime stories for adults, sleep history, history narration, educational, documentary
 - Plus 5-10 topic-specific tags"""
 
-THUMBNAIL_PROMPT_TEMPLATE = """A stunning YouTube thumbnail illustration in {style} style.
-Subject: {topic}. The image should be dramatic and eye-catching with warm golden
-lighting, rich colors, and a sense of historical grandeur. Cinematic composition.
-DO NOT include any text, words, letters, or writing in the image. The image should be
-a pure illustration with no text overlay — text will be added separately afterward.
-Leave visual space on the left or top portion of the image for text to be overlaid later.
+THUMBNAIL_PROMPT_TEMPLATE = """A stunning YouTube thumbnail in {style} style.
+Subject: {topic}.
+
+The image MUST include bold text reading "{hook_text}" prominently displayed.
+The text must be VERY LARGE, BOLD, and readable even at small thumbnail size.
+Style the text to match the era — stone-carved for ancient topics, rustic for medieval,
+brush-stroke for Asian topics. But the text MUST have strong contrast against the
+background (use dark outlines, drop shadows, or a subtle darkened area behind the text).
+The text needs to POP — it should be the first thing someone sees, even as a tiny
+thumbnail in a YouTube feed. White or light-colored text with heavy black outlines works
+well. The styling should add character without sacrificing readability.
+
+Position the text on the LEFT side of the image, taking up roughly 40% of the frame.
+The illustration should be on the RIGHT — showing the subject at their most POWERFUL
+or dramatic moment (in battle, on a throne, commanding armies, making a discovery).
+Do NOT show death scenes or deathbeds unless the hook specifically references death.
+
+The illustration should be dramatic and eye-catching with warm golden lighting, rich
+colors, and a sense of historical grandeur. Cinematic composition.
 1280x720 resolution."""
 
 THUMBNAIL_HOOK_SYSTEM = """You write SHORT, curiosity-driven thumbnail text for YouTube videos.
 This is for a history channel. The text must make someone STOP scrolling and click.
 
 Rules:
-- EXACTLY 2-5 words
-- Must trigger curiosity - the viewer NEEDS to know more
-- Use power words: "secretly", "nobody knew", "erased", "hidden", "untold", "lost", "they lied"
-- Frame it as a revelation, a secret, or something shocking
-- Make it personal when possible ("She Was Erased" > "A Forgotten Queen")
-- Present tense feels more urgent ("They Hid This" > "It Was Hidden")
+- EXACTLY 3-5 words
+- The text MUST reference something SPECIFIC to this person or story — not generic
+- It should tease a specific detail, event, or twist from their life
+- Someone reading it should think "wait, what happened?" about THIS specific topic
 - No question marks
 
-GREAT examples (study these patterns):
-  "They Erased Her Story"
-  "Nobody Saw It Coming"
-  "History Got This Wrong"
-  "She Outsmarted Everyone"
-  "The Truth They Buried"
-  "It All Went Wrong"
-  "This Changed Everything"
+BAD examples (these do NOT make people click):
+  "He Outsmarted History" — generic, could be about anyone
+  "Dead At 32 Undefeated" — just a Wikipedia fact, no curiosity
+  "This Changed Everything" — meaningless
+  "His Army Begged Stop" — boring, no emotional pull
+
+The best hooks are OPEN QUESTIONS or INCOMPLETE STATEMENTS that your brain
+can't resolve without clicking. They hint at something dramatic but don't
+give the answer. The viewer thinks "wait... what?" and HAS to click.
+
+GOOD examples (these create a CURIOSITY GAP):
+  For Alexander: "WHAT HAPPENED IN BABYLON" — you don't know, you must click
+  For Cleopatra: "WHY THEY FEARED HER" — who feared her? why?
+  For Caesar: "WHAT HIS FRIEND DID" — what did he do??
+  For Rumi: "HIS SECRET HEARTBREAK" — what heartbreak?
+  For Genghis Khan: "WHAT HE DID TO HIS BROTHER" — oh no, what happened?
+  For Napoleon: "WHY THEY EXILED HIM TWICE" — wait, twice?
+  For Nero: "WHAT HE DID WHILE ROME BURNED" — I need to know
+
+Patterns that work:
+  "WHAT [person] DID TO [thing]" — implies something dramatic happened
+  "WHY THEY [verbed] HIM/HER" — implies others reacted strongly
+  "WHAT HAPPENED IN [place]" — implies a specific dramatic event
+  "HIS/HER SECRET [noun]" — implies hidden knowledge
   "The World Forgot Him"
   "They Never Found It"
   "He Predicted The Future"

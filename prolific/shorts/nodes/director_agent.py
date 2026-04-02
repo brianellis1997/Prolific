@@ -67,8 +67,16 @@ SCENE IDEAS (from topic research — use as inspiration, not requirements):
 YOUR TASK: Create a shot list where each shot:
 1. Covers a COMPLETE sentence or thought — NEVER cut mid-sentence
 2. Has a start_time and end_time that match EXACTLY where those words are spoken
-3. Describes a vivid, specific scene the character is IN (mid-action, not static)
+3. Describes a vivid, specific scene the character is IN (mid-action, exploring, reacting)
 4. Specifies a camera angle that's DIFFERENT from adjacent shots
+
+CRITICAL — FIRST 3 SECONDS (PATTERN INTERRUPT):
+The FIRST shot MUST be the most visually striking, dramatic, and attention-grabbing shot.
+This is where 90% of viewers decide to keep watching or scroll away.
+- Use a DYNAMIC camera angle (low angle, dutch angle, or extreme close-up)
+- Show the character in the MOST visually interesting moment of the whole video
+- It should make viewers think "what the hell is going on?" and NEED to keep watching
+- Do NOT start with a slow wide establishing shot — that's boring. Start IN THE ACTION.
 
 TIMING RULES:
 - Each shot's start_time = the start of the first word in that shot
@@ -82,15 +90,17 @@ TIMING RULES:
 - FAST CUTS are what make shorts go viral — 2-4 second shots, NOT 5-8 second shots
 
 SCENE DESCRIPTION RULES:
-- The character is the MAIN SUBJECT but can interact with OTHER FIGURES
-- For vs/comparison topics: show BOTH sides (e.g., character as a modern athlete in one shot,
-  then as an ancient warrior in the next, or facing off against a contrasting figure)
-- Describe what the character is DOING (mid-action, not beginning an action)
-- OTHER PEOPLE can appear in scenes (opponents, crowds, helpers, enemies)
-- Include specific era-appropriate props, setting details, lighting
-- Each scene should feel like the NEXT MOMENT in a continuous story
-- Vary settings but maintain narrative flow
-- Keep descriptions PG-13 — dramatic atmosphere, NOT explicit violence/gore
+- The character is a TIME-TRAVELING EXPLORER/SPECTATOR touring through history
+- They WITNESS, EXPLORE, REACT TO, and DISCOVER things — like a tourist in a new era
+- The character should be MOVING through the environment (walking, looking around, picking
+  things up, reacting with surprise/amazement/curiosity)
+- OTHER PEOPLE (historical figures, crowds, workers) should be in scenes doing era-appropriate
+  activities while the character observes or interacts
+- Include specific era-appropriate props, architecture, clothing, food, tools
+- Each scene = a different LOCATION or MOMENT in the era being explored
+- The character's REACTIONS sell the story — wide eyes, looking around in wonder, flinching,
+  laughing, pointing at things
+- Keep descriptions PG-13 — fascinating, not graphic. Focus on wonder and discovery.
 
 CAMERA ANGLE OPTIONS (NEVER use the same angle twice in a row):
 - "wide establishing shot" — full scene, character small in environment

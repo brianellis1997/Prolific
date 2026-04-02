@@ -72,12 +72,14 @@ YOUR TASK: Create a shot list where each shot:
 
 TIMING RULES:
 - Each shot's start_time = the start of the first word in that shot
-- Each shot's end_time = the end of the last word in that shot (+ up to 0.5s buffer)
-- Minimum shot duration: 3 seconds (Kling AI constraint)
-- Maximum shot duration: 10 seconds (longer clips have lower quality)
-- If a sentence is under 3 seconds, COMBINE it with the adjacent sentence
-- If a sentence is over 10 seconds, SPLIT it at a natural pause point
-- Aim for 4-7 shots total
+- Each shot's end_time = the end of the last word in that shot (+ up to 0.3s buffer)
+- Target shot duration: 3-4 seconds (this creates the fast-paced feel viral shorts need)
+- Minimum: 3 seconds (AI video constraint)
+- Maximum: 5 seconds (NEVER longer — attention drops after 4 seconds)
+- If a sentence is under 3 seconds, COMBINE it with the next sentence
+- If a sentence is over 5 seconds, SPLIT it at a natural pause/comma
+- Aim for 8-12 shots total in a 30-second short
+- FAST CUTS are what make shorts go viral — 2-4 second shots, NOT 5-8 second shots
 
 SCENE DESCRIPTION RULES:
 - The character is the MAIN SUBJECT but can interact with OTHER FIGURES
@@ -90,26 +92,41 @@ SCENE DESCRIPTION RULES:
 - Vary settings but maintain narrative flow
 - Keep descriptions PG-13 — dramatic atmosphere, NOT explicit violence/gore
 
-CAMERA ANGLE OPTIONS (use variety):
-- "wide establishing shot" — shows full scene, character in environment
-- "medium shot" — waist up, good for actions and expressions
-- "close-up" — face/hands, emotional moments
-- "extreme close-up" — specific detail (a tool, an object, eyes)
-- "bird's eye view" — looking straight down
-- "low angle" — looking up at character, makes them imposing
-- "over-the-shoulder" — from behind character, looking at what they see
-- "dutch angle" — tilted frame, creates unease
+CAMERA ANGLE OPTIONS (NEVER use the same angle twice in a row):
+- "wide establishing shot" — full scene, character small in environment
+- "medium shot" — waist up, actions and expressions
+- "close-up" — face or hands, emotional beat
+- "extreme close-up" — ONE specific detail (a tool, an eye, a wound)
+- "bird's eye view" — straight down, reveals scale
+- "low angle" — looking UP at character, imposing/powerful
+- "over-the-shoulder" — behind character, their POV
+- "dutch angle" — tilted, creates tension/unease
+- "tracking shot" — camera follows character movement
+- "push-in" — slow zoom toward subject, builds intensity
 
-EXAMPLE (for a 12-second narration about gladiators):
-Word timestamps: "Imagine(0.0-0.4) being(0.4-0.6) thrown(0.6-0.9) into(0.9-1.1) the(1.1-1.2) Colosseum(1.2-1.8) ...(pause)... Gladiators(3.5-4.0) trained(4.0-4.3) for(4.3-4.5) years(4.5-4.8)..."
+PACING PATTERN: alternate between wide and tight shots. Never do two wide
+shots in a row or two close-ups in a row. The rhythm should be:
+wide → close → medium → extreme close → wide → etc.
 
-Shot 1: start=0.0, end=3.3, narration="Imagine being thrown into the Colosseum with nothing but a wooden sword."
-  scene: "Wide establishing shot. Character grips a crude wooden sword in a dark stone tunnel, torchlight flickering on wet walls. The bright arena archway looms ahead. Dust motes in the light."
+EXAMPLE (for a 12-second narration about gladiators — notice the FAST 3-second cuts):
+
+Shot 1: start=0.0, end=3.1, narration="Imagine being thrown into the Colosseum with nothing but a wooden sword."
+  scene: "Wide shot. Character grips wooden sword in dark tunnel, torchlight on wet walls, arena archway glowing ahead."
   camera: "wide establishing shot"
 
-Shot 2: start=3.5, end=7.2, narration="Gladiators trained for years just to survive a single fight."
-  scene: "Medium shot. Character swings a heavy practice sword at a wooden post in a sandy training yard. Other fighters spar in the background. Harsh midday sun, sweat on marble skin."
-  camera: "medium shot"
+Shot 2: start=3.2, end=6.0, narration="Gladiators trained for years just to survive."
+  scene: "Extreme close-up. Character's stone hands white-knuckle grip the sword handle, knuckles cracking."
+  camera: "extreme close-up"
+
+Shot 3: start=6.1, end=9.0, narration="A single fight could be your last."
+  scene: "Low angle. Character charges forward across sandy arena, crowd roaring above, dust exploding with each step."
+  camera: "low angle"
+
+Shot 4: start=9.1, end=12.0, narration="And the crowd decided if you lived or died."
+  scene: "Close-up. Character's marble face, breathing hard, looking up at Emperor's box. Sweat on stone skin."
+  camera: "close-up"
+
+Notice: 4 shots in 12 seconds = 3 seconds each. FAST. DYNAMIC. Each shot is a different angle.
 
 Return ONLY the shot list. Every shot must have all fields filled."""
 
@@ -154,7 +171,7 @@ def _shots_to_visual_assets(shots: list[Shot], character: str) -> list[VisualAss
     assets = []
     for shot in shots:
         raw_duration = shot.end_time - shot.start_time
-        duration = max(3.0, min(15.0, round(raw_duration)))
+        duration = max(3.0, min(5.0, round(raw_duration)))
 
         asset = VisualAsset(
             sequence_number=shot.sequence_number,

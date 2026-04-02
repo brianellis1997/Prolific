@@ -134,7 +134,7 @@ class Settings(BaseSettings):
     kling_model_endpoint: str = "fal-ai/kling-video/v2.5-turbo/pro/text-to-video"
     kling_image_to_video_endpoint: str = "fal-ai/kling-video/v3/pro/image-to-video"
     kling_video_duration: str = "5"
-    kling_max_concurrent: int = 2
+    kling_max_concurrent: int = 3
     kling_cost_per_sec_usd: float = 0.07
     kling_cron_hours: str = "16"
     kling_character_mode: str = "auto"

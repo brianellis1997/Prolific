@@ -21,22 +21,27 @@ logger = logging.getLogger(__name__)
 
 SCENE_IMAGE_PROMPT_FIRST = (
     "This is my character reference image. Generate a NEW image of this EXACT SAME character "
-    "(same face, same texture, same outfit, same style) in this scene:\n\n"
+    "(same face, same marble texture, same curly hair, same toga, same proportions) "
+    "in this scene:\n\n"
     "{scene_description}\n\n"
-    "The character must look IDENTICAL to the reference. "
-    "Vertical 9:16 portrait composition. Cinematic lighting. Photorealistic."
+    "CRITICAL: The character's face, hair, skin texture, and build must be IDENTICAL to the "
+    "reference. Do NOT change any features. Same person, different scene. "
+    "Vertical 9:16 portrait composition. Cinematic lighting. Photorealistic. "
+    "Show the character MID-ACTION, not posing."
 )
 
 SCENE_IMAGE_PROMPT_CHAINED = (
     "I'm showing you TWO images:\n"
-    "1. The first image is my CHARACTER REFERENCE — the character must always look like this.\n"
-    "2. The second image is the PREVIOUS SCENE — maintain visual continuity with this setting, "
-    "color palette, and atmosphere.\n\n"
-    "Generate the NEXT scene in the story. The character (identical to reference) is now in:\n\n"
+    "1. FIRST IMAGE = CHARACTER REFERENCE — the character must ALWAYS look exactly like this. "
+    "Same face, same marble skin texture, same hair, same toga.\n"
+    "2. SECOND IMAGE = PREVIOUS SCENE — maintain visual continuity.\n\n"
+    "Generate the NEXT scene. The character (IDENTICAL to image 1) is now:\n\n"
     "{scene_description}\n\n"
-    "CONTINUITY: The setting should feel like a natural progression from the previous scene. "
-    "Same era, similar lighting mood, the story is moving forward. "
-    "Vertical 9:16 portrait composition. Cinematic. Photorealistic."
+    "CRITICAL RULES:\n"
+    "- Character's face and body MUST match image 1 exactly\n"
+    "- Setting should flow naturally from image 2 (similar era/atmosphere)\n"
+    "- Character should be MID-ACTION, not standing still\n"
+    "- Vertical 9:16. Cinematic. Photorealistic."
 )
 
 CONTENT_POLICY_SOFTENER = (

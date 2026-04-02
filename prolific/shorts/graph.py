@@ -23,6 +23,7 @@ from prolific.shorts.nodes import (
     youtube_upload_node,
 )
 from prolific.shorts.nodes.ai_video_sourcing import ai_video_sourcing_node
+from prolific.shorts.nodes.director_agent import director_agent_node
 from prolific.shorts.state import ShortsPipelineState
 
 logger = logging.getLogger(__name__)
@@ -63,26 +64,25 @@ def _route_after_story_review(
     return "asset_generation"
 
 
+def _route_after_script(state: ShortsPipelineState) -> str:
+    """After script writing: AI video mode skips visual planning, goes to TTS first.
+
+    AI video flow:   script → tts → director_agent → ai_video → assembly
+    Stock flow:      script → visual_planning → [sourcing] → tts → assembly
+    """
+    from prolific.shorts.nodes.topic_selection import _is_ai_video_run
+    if _is_ai_video_run():
+        return "tts_generation"
+    return "visual_planning"
+
+
 def _route_after_visual_planning(
     state: ShortsPipelineState,
 ) -> list[str]:
-    """Determine which asset generation nodes to fan out to.
-
-    For AI video mode: go to TTS first (to get exact durations), then ai_video_sourcing.
-    For stock/web mode: go to asset sourcing first, then TTS.
-    """
+    """Determine which asset generation nodes to fan out to (stock/web mode only)."""
     visual_assets = state.get("visual_assets", [])
     has_stock = any(a.asset_type == "stock_clip" and not a.file_path for a in visual_assets)
     has_web = any(a.asset_type in ("ai_image", "web_image") and not a.file_path for a in visual_assets)
-    has_ai_video = any(a.asset_type == "ai_video" and not a.file_path for a in visual_assets)
-
-    if has_ai_video:
-        targets = ["tts_generation"]
-        if has_stock:
-            targets.append("stock_clip_sourcing")
-        if has_web:
-            targets.append("image_generation")
-        return targets
 
     targets = []
     if has_stock:
@@ -95,11 +95,21 @@ def _route_after_visual_planning(
 
 
 def _route_after_tts(state: ShortsPipelineState) -> str:
-    """After TTS: if AI video assets need generating, go there. Otherwise assembly."""
+    """After TTS: route based on what triggered it.
+
+    If AI video mode (no visual_assets yet) → director_agent
+    If visual_assets with ai_video → ai_video_sourcing (legacy path)
+    Else → video_assembly (stock/web path)
+    """
     visual_assets = state.get("visual_assets", [])
     has_ai_video = any(a.asset_type == "ai_video" and not a.file_path for a in visual_assets)
+
     if has_ai_video:
         return "ai_video_sourcing"
+    if not visual_assets:
+        from prolific.shorts.nodes.topic_selection import _is_ai_video_run
+        if _is_ai_video_run():
+            return "director_agent"
     return "video_assembly"
 
 
@@ -107,6 +117,7 @@ def build_shorts_pipeline_graph(checkpointer=None):
     """Build the shorts video generation workflow with content mode routing.
 
     Pipeline routes:
+      AI video mode:    topic -> script -> tts -> director_agent -> ai_video -> assembly -> meta -> upload
       news_commentary:  topic -> script -> visual_plan -> [stock, images] -> tts -> assembly -> meta -> upload
       clip_reaction:    topic -> clip_sourcing -> clip_analysis -> story_direction -> [stock, images] -> tts -> assembly -> upload
       clip_compilation: topic -> compilation_research -> clip_sourcing -> clip_analysis -> story_direction -> ... -> upload
@@ -131,6 +142,7 @@ def build_shorts_pipeline_graph(checkpointer=None):
     graph.add_node("stock_clip_sourcing", stock_clip_sourcing_node)
     graph.add_node("image_generation", image_generation_node)
     graph.add_node("ai_video_sourcing", ai_video_sourcing_node)
+    graph.add_node("director_agent", director_agent_node)
     graph.add_node("tts_generation", tts_generation_node)
     graph.add_node("video_assembly", video_assembly_node)
     graph.add_node("metadata_generation", metadata_generation_node)
@@ -170,13 +182,19 @@ def build_shorts_pipeline_graph(checkpointer=None):
         },
     )
 
-    graph.add_edge("script_writing", "visual_planning")
+    graph.add_conditional_edges(
+        "script_writing",
+        _route_after_script,
+        {
+            "tts_generation": "tts_generation",
+            "visual_planning": "visual_planning",
+        },
+    )
 
     graph.add_conditional_edges(
         "visual_planning",
         _route_after_visual_planning,
         {
-            "ai_video_sourcing": "ai_video_sourcing",
             "stock_clip_sourcing": "stock_clip_sourcing",
             "image_generation": "image_generation",
             "tts_generation": "tts_generation",
@@ -191,10 +209,13 @@ def build_shorts_pipeline_graph(checkpointer=None):
         "tts_generation",
         _route_after_tts,
         {
+            "director_agent": "director_agent",
             "ai_video_sourcing": "ai_video_sourcing",
             "video_assembly": "video_assembly",
         },
     )
+
+    graph.add_edge("director_agent", "ai_video_sourcing")
     graph.add_edge("video_assembly", "metadata_generation")
     graph.add_edge("metadata_generation", "youtube_upload")
     graph.add_edge("youtube_upload", END)

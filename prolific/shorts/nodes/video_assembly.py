@@ -770,7 +770,11 @@ async def video_assembly_node(state: ShortsPipelineState) -> dict:
 
     caption_segments = state.get("caption_segments") or []
 
-    if story_plan:
+    director_planned = state.get("director_planned", False)
+
+    if director_planned:
+        logger.info("Director-planned: using exact shot durations (skipping alignment)")
+    elif story_plan:
         await _apply_story_plan_durations(visual_assets, story_plan, audio_segment_paths)
         logger.info(f"Using story_plan durations (skipping speech alignment)")
     else:

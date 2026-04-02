@@ -180,7 +180,14 @@ async def ai_video_sourcing_node(state: ShortsPipelineState) -> dict:
         logger.info("No ai_video assets to generate")
         return {"visual_assets": visual_assets, "current_phase": "video_assembly"}
 
-    if audio_duration > 0:
+    director_planned = state.get("director_planned", False)
+
+    if director_planned:
+        clip_durations = [max(3, min(15, round(a.duration_seconds))) for a in pending]
+        logger.info(
+            f"Director-planned durations: {clip_durations} (sum={sum(clip_durations)}s)"
+        )
+    elif audio_duration > 0:
         clip_durations = _compute_clip_durations(pending, audio_duration)
         logger.info(
             f"Audio={audio_duration:.1f}s → {len(pending)} clips: "

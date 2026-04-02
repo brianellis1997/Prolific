@@ -245,15 +245,18 @@ async def ai_video_sourcing_node(state: ShortsPipelineState) -> dict:
                         f"[{asset.sequence_number}] Kling v3 ({clip_duration}s): "
                         f"{prompt[:60]}..."
                     )
-                    result = await fal_client.run_async(
-                        kling.image_to_video_endpoint,
-                        arguments={
-                            "prompt": prompt,
-                            "start_image_url": scene_url,
-                            "duration": str(clip_duration),
-                            "aspect_ratio": "9:16",
-                            "generate_audio": False,
-                        },
+                    result = await asyncio.wait_for(
+                        fal_client.run_async(
+                            kling.image_to_video_endpoint,
+                            arguments={
+                                "prompt": prompt,
+                                "start_image_url": scene_url,
+                                "duration": str(clip_duration),
+                                "aspect_ratio": "9:16",
+                                "generate_audio": False,
+                            },
+                        ),
+                        timeout=300,
                     )
 
                     video_url = result.get("video", {}).get("url")
@@ -276,6 +279,8 @@ async def ai_video_sourcing_node(state: ShortsPipelineState) -> dict:
                         logger.info(f"[{asset.sequence_number}] Done: {output_path} (${cost:.2f})")
                         return
 
+                except asyncio.TimeoutError:
+                    logger.error(f"[{asset.sequence_number}] Kling timed out after 300s")
                 except Exception as e:
                     logger.error(f"[{asset.sequence_number}] Kling failed: {e}")
 

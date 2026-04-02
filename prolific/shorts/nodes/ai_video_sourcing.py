@@ -33,14 +33,17 @@ SCENE_IMAGE_PROMPT_FIRST = (
 SCENE_IMAGE_PROMPT_CHAINED = (
     "I'm showing you TWO images:\n"
     "1. FIRST IMAGE = CHARACTER REFERENCE — the character must ALWAYS look exactly like this. "
-    "Same face, same marble skin texture, same hair, same toga.\n"
-    "2. SECOND IMAGE = PREVIOUS SCENE — maintain visual continuity.\n\n"
-    "Generate the NEXT scene. The character (IDENTICAL to image 1) is now:\n\n"
+    "Same face, same texture, same outfit.\n"
+    "2. SECOND IMAGE = THE PREVIOUS SHOT — this is where the character was a moment ago.\n\n"
+    "Generate the NEXT MOMENT in the character's journey. They are now:\n\n"
     "{scene_description}\n\n"
     "CRITICAL RULES:\n"
-    "- Character's face and body MUST match image 1 exactly\n"
-    "- Setting should flow naturally from image 2 (similar era/atmosphere)\n"
-    "- Character should be MID-ACTION, not standing still\n"
+    "- Character MUST match image 1 (same face, body, outfit)\n"
+    "- This scene happens RIGHT AFTER image 2 — same location/era, the character has just "
+    "moved or turned or discovered something new\n"
+    "- The environment should look like the SAME PLACE as image 2, just from a different angle "
+    "or showing a different part of it\n"
+    "- Character is MID-ACTION (walking, reaching, turning, reacting)\n"
     "- Vertical 9:16. Cinematic. Photorealistic."
 )
 

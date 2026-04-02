@@ -89,18 +89,30 @@ TIMING RULES:
 - Aim for 8-12 shots total in a 30-second short
 - FAST CUTS are what make shorts go viral — 2-4 second shots, NOT 5-8 second shots
 
-SCENE DESCRIPTION RULES:
-- The character is a TIME-TRAVELING EXPLORER/SPECTATOR touring through history
-- They WITNESS, EXPLORE, REACT TO, and DISCOVER things — like a tourist in a new era
-- The character should be MOVING through the environment (walking, looking around, picking
-  things up, reacting with surprise/amazement/curiosity)
-- OTHER PEOPLE (historical figures, crowds, workers) should be in scenes doing era-appropriate
-  activities while the character observes or interacts
-- Include specific era-appropriate props, architecture, clothing, food, tools
-- Each scene = a different LOCATION or MOMENT in the era being explored
-- The character's REACTIONS sell the story — wide eyes, looking around in wonder, flinching,
-  laughing, pointing at things
-- Keep descriptions PG-13 — fascinating, not graphic. Focus on wonder and discovery.
+CONTINUOUS JOURNEY RULES (THIS IS THE MOST IMPORTANT SECTION):
+The video must feel like ONE CONTINUOUS JOURNEY, not a slideshow of random scenes.
+Think of it as a camera following the character through a location in real-time.
+
+- Shot 1: character ARRIVES (walks in, appears, portal opens — whatever fits)
+- Shot 2-8: character MOVES THROUGH the environment, discovering things along the way
+- Each shot picks up roughly where the last one left off SPATIALLY
+- The character should be in a SIMILAR environment across consecutive shots
+  (don't jump from a market to a throne room to a field — that's a slideshow)
+- If the topic covers multiple eras, spend 3-4 shots PER ERA before transitioning
+- Transitions between eras should be DELIBERATE (character walks through a door,
+  a flash of light, a time warp effect)
+- Final shot: character REACTS to everything they've seen (amazement, exhaustion, laughter)
+
+THINK OF IT LIKE A MOVIE SCENE, NOT A POWERPOINT:
+BAD (slideshow): Market shot → Kitchen shot → Castle shot → Farm shot
+GOOD (journey): Character walks INTO market → looks at merchant stalls → picks up
+  exotic spice → gets bumped by a passing cart → watches a performer → exits through
+  the gate
+
+The character should be MOVING through scenes (walking, turning, reaching, reacting).
+OTHER PEOPLE should be present — crowds, merchants, workers, nobles.
+Include era-appropriate props, architecture, clothing, food, tools.
+Keep descriptions PG-13 — focus on wonder and discovery.
 
 CAMERA ANGLE OPTIONS (NEVER use the same angle twice in a row):
 - "wide establishing shot" — full scene, character small in environment
@@ -118,25 +130,29 @@ PACING PATTERN: alternate between wide and tight shots. Never do two wide
 shots in a row or two close-ups in a row. The rhythm should be:
 wide → close → medium → extreme close → wide → etc.
 
-EXAMPLE (for a 12-second narration about gladiators — notice the FAST 3-second cuts):
+EXAMPLE (for a 15-second narration about a medieval market — notice the CONTINUOUS JOURNEY):
 
-Shot 1: start=0.0, end=3.1, narration="Imagine being thrown into the Colosseum with nothing but a wooden sword."
-  scene: "Wide shot. Character grips wooden sword in dark tunnel, torchlight on wet walls, arena archway glowing ahead."
-  camera: "wide establishing shot"
-
-Shot 2: start=3.2, end=6.0, narration="Gladiators trained for years just to survive."
-  scene: "Extreme close-up. Character's stone hands white-knuckle grip the sword handle, knuckles cracking."
-  camera: "extreme close-up"
-
-Shot 3: start=6.1, end=9.0, narration="A single fight could be your last."
-  scene: "Low angle. Character charges forward across sandy arena, crowd roaring above, dust exploding with each step."
+Shot 1: start=0.0, end=3.0, narration="You would NOT survive a day in a medieval market."
+  scene: "Low angle. Character steps through a massive stone archway into a chaotic, colorful marketplace. Crowds swarm around them. Morning light floods in."
   camera: "low angle"
 
-Shot 4: start=9.1, end=12.0, narration="And the crowd decided if you lived or died."
-  scene: "Close-up. Character's marble face, breathing hard, looking up at Emperor's box. Sweat on stone skin."
+Shot 2: start=3.1, end=5.8, narration="The smell hits you before you even see it."
+  scene: "Close-up. Character's face reacts — nose wrinkles, eyes widen — as they look at a merchant's stall piled with raw fish and hanging meats. Flies buzz around."
   camera: "close-up"
 
-Notice: 4 shots in 12 seconds = 3 seconds each. FAST. DYNAMIC. Each shot is a different angle.
+Shot 3: start=5.9, end=8.5, narration="Merchants scream prices in three different languages."
+  scene: "Medium shot. Character turns their head left and right as two bearded merchants on either side wave fabrics and spices, shouting at them. Bustling crowd behind."
+  camera: "medium shot"
+
+Shot 4: start=8.6, end=11.5, narration="A cart nearly runs you over."
+  scene: "Tracking shot. Character jumps sideways as a wooden cart pulled by a donkey barrels through the narrow market lane. Mud splashes. People scatter."
+  camera: "tracking shot"
+
+Shot 5: start=11.6, end=15.0, narration="And that's just the first five minutes."
+  scene: "Bird's eye view. Camera pulls up to reveal the ENTIRE sprawling market — thousands of people, hundreds of stalls, extending to the city walls. Character is a tiny figure in the middle."
+  camera: "bird's eye view"
+
+Notice: 5 shots, CONTINUOUS JOURNEY. Character walks in → smells food → hears merchants → dodges cart → camera reveals scale. Each shot follows from the last.
 
 Return ONLY the shot list. Every shot must have all fields filled."""
 

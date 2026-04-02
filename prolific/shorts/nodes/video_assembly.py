@@ -813,7 +813,7 @@ async def video_assembly_node(state: ShortsPipelineState) -> dict:
             logger.warning(f"[{asset.sequence_number}] Missing file, skipping")
             continue
 
-        if asset.asset_type in ("stock_clip", "source_clip"):
+        if asset.asset_type in ("stock_clip", "source_clip", "ai_video"):
             if is_compilation and asset.asset_type == "source_clip" and not story_plan:
                 numbered_path = str(output_dir / f"numbered_{asset.sequence_number:02d}.mp4")
                 item_idx = asset.sequence_number - 1

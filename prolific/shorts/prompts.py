@@ -195,6 +195,28 @@ NICHE_SEARCH_QUERIES = {
         "plants that can kill move or think",
         "records feats of human endurance extreme",
     ],
+    "curiosity_scenario": [
+        "how did ancient people do everyday things history",
+        "daily life in medieval times weird habits",
+        "history of everyday objects surprising origin",
+        "what was hygiene like in ancient civilizations",
+        "how did people eat before modern kitchen inventions",
+        "weird historical jobs that no longer exist",
+        "how ancient Romans lived daily life food hygiene",
+        "bizarre beauty standards throughout history",
+        "how did people travel before cars trains planes",
+        "history of medicine surgery before modern times",
+        "what did people do for entertainment before internet",
+        "how people slept before mattresses beds existed",
+        "ancient fitness exercise training methods history",
+        "how did people keep food fresh before refrigerators",
+        "weird things ancient civilizations believed were normal",
+        "history of fashion clothing what people wore",
+        "how children were raised in different historical eras",
+        "ancient school education what students learned",
+        "how people communicated before phones mail telegraph",
+        "surprising history of common household items",
+    ],
     "general": [
         "trending viral news today celebrity gossip drama",
         "shocking news today what everyone is talking about",
@@ -353,6 +375,107 @@ NEVER pick:
 - Topics everyone already knows
 
 The BEST topic makes someone stop scrolling and say "wait... REALLY?"
+
+Return ONLY the selected topic with all its fields."""
+
+
+# === AI VIDEO MODE: Scenario-driven topics for character-based shorts ===
+
+SCENARIO_TOPIC_BRAINSTORM_SYSTEM = """You are a viral YouTube Shorts content strategist creating
+topics for an AI character-driven channel. Your videos feature a recurring character placed into
+fascinating real-world scenarios across history, science, and daily life.
+
+THINK LIKE: "Originico" (8.5M views, 33K subs, 12 videos) — their skeleton character explores
+questions like "How did people SHAVE before razors?" and "What if you organized a music festival
+in ancient Rome?" The key is topics where you can SHOW a character DOING things in different eras.
+
+YOUR TOPIC FORMULAS (mix these up):
+1. **"How did people [everyday thing] before [modern invention]?"**
+   - "How did people brush their teeth before toothpaste?"
+   - "How did people stay cool before air conditioning?"
+   - "How did people wake up before alarm clocks?"
+   - "How did people navigate before GPS?"
+
+2. **"What if you [modern activity] in [historical period]?"**
+   - "What if you opened a restaurant in ancient Rome?"
+   - "What if you went to school in medieval Europe?"
+   - "What if you went to the gym in ancient Greece?"
+   - "What if you threw a house party in ancient Egypt?"
+
+3. **"What was [everyday activity] like in [era]?"**
+   - "What was going to the dentist like in the 1800s?"
+   - "What was fast food like in ancient Rome?"
+   - "What was a hospital visit like in medieval times?"
+   - "What was a haircut like in ancient Egypt?"
+
+4. **"The weird history of [common thing]"**
+   - "The disgusting history of deodorant"
+   - "The bizarre origin of high heels"
+   - "The terrifying history of anesthesia"
+   - "The shocking way ancient Romans did laundry"
+
+5. **"What would happen if [scenario]?"**
+   - "What would happen if you time-traveled to ancient Rome with a smartphone?"
+   - "What if a modern chef cooked in a medieval kitchen?"
+   - "What if you tried to explain the internet to someone in 1800?"
+
+KEY RULES FOR GOOD TOPICS:
+- The topic MUST naturally create 4-6 distinct visual scenes (different eras, different methods)
+- A character should be DOING something in each scene (not just standing there)
+- Topics should be RELATABLE — viewers do these things daily (eating, sleeping, hygiene, cooking)
+- The answer should be surprising and entertaining, not just educational
+- Progression through time works great (stone age → ancient → medieval → modern)
+
+RESEARCH CONTEXT (optional inspiration only):
+{trending_context}
+
+CHANNEL PERFORMANCE DATA:
+{performance_context}
+
+VIDEOS ALREADY MADE (DO NOT REPEAT):
+{past_topics}
+
+Brainstorm {num_candidates} scenario-driven topic ideas. For each:
+- topic: The question or scenario in 5-12 words (phrased as a question or "what if")
+- topic_type: "mind_blowing_fact" (always)
+- content_mode: "news_commentary" (always)
+- hook_angle: The opening line that stops the scroll — must create an open loop
+- virality_reason: Why someone would share this or comment
+- visual_keywords: 3-5 keywords for the overall theme
+- scene_ideas: 4-6 brief scene descriptions showing what the character does in each era/scenario
+  (e.g., "Character uses a rough stone to scrape beard in a cave", "Character applies olive oil
+  and uses a bronze strigil in ancient Rome")
+- trending_tie_in: Leave empty unless genuinely relevant
+
+Prioritize topics where:
+1. Each scene is visually DISTINCT (different setting, different tools, different actions)
+2. The progression tells a story (primitive → sophisticated, or gross → modern)
+3. Viewers will be genuinely surprised by at least 2-3 of the historical methods
+4. The topic is broadly relatable — EVERYONE brushes teeth, everyone sleeps, everyone eats
+
+AVOID:
+- Pure fact topics ("sharks are older than Saturn") — these don't create character scenes
+- Topics that only work in ONE setting (no progression possible)
+- Anything too niche or academic
+- Topics you've already covered"""
+
+SCENARIO_TOPIC_SELECT_SYSTEM = """Select the single best scenario topic for a 25-30 second
+AI character-driven YouTube Short. The character will be placed INTO these scenes, so visual
+variety is critical.
+
+Pick the topic that:
+1. Has the strongest "I never thought about that" hook — universally relatable
+2. Has 4-6 visually DISTINCT scenes (different eras, settings, tools, actions)
+3. Has the best progression — the journey through time/methods should feel satisfying
+4. Has at least 2-3 genuinely surprising historical facts that most people don't know
+5. Would make someone comment "I had no idea people used to do THAT"
+6. The character would look entertaining/funny/interesting DOING things in each scene
+
+NEVER pick:
+- Topics with only 1-2 possible scenes (not enough visual variety)
+- Topics that are just facts without character action potential
+- Topics everyone already knows the answer to
+- Topics that are too gross or disturbing to visualize
 
 Return ONLY the selected topic with all its fields."""
 

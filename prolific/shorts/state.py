@@ -30,6 +30,8 @@ class ShortsPipelineState(TypedDict):
     source_urls: list[str]
     past_short_topics: list[str]
     compilation_items: list[str]
+    scene_ideas: list[str]
+    selected_character: str
     attribution_texts: Annotated[list[str], operator.add]
 
     clip_content_understanding: Annotated[list[ClipContentUnderstanding] | None, replace_value]
@@ -79,6 +81,8 @@ def create_initial_shorts_state(thread_id: str | None = None, niche: str | None 
         source_urls=[],
         past_short_topics=[],
         compilation_items=[],
+        scene_ideas=[],
+        selected_character="",
         attribution_texts=[],
         clip_content_understanding=None,
         story_plan=None,

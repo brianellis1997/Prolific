@@ -23,6 +23,7 @@ class ShortTopicCandidate(BaseModel):
     visual_keywords: list[str] = Field(default_factory=list)
     trending_tie_in: str = ""
     clip_search_queries: list[str] = Field(default_factory=list)
+    scene_ideas: list[str] = Field(default_factory=list)
 
 
 class ShortTopicBrainstorm(BaseModel):
@@ -158,6 +159,20 @@ async def _verify_clips_available(candidate: ShortTopicCandidate) -> list[str]:
         return []
 
 
+def _is_ai_video_run() -> bool:
+    """Check if this run should use AI video generation (Kling) based on config and time."""
+    if not settings.kling_enabled or not settings.fal_api_key:
+        return False
+    try:
+        from datetime import datetime
+        from zoneinfo import ZoneInfo
+        current_hour = datetime.now(ZoneInfo("America/New_York")).hour
+        allowed_hours = [int(h.strip()) for h in settings.kling_cron_hours.split(",") if h.strip()]
+        return current_hour in allowed_hours
+    except Exception:
+        return False
+
+
 async def topic_selection_node(state: ShortsPipelineState) -> dict:
     """Select a topic with niche awareness and content mode determination."""
     logger.info("=== SHORTS: TOPIC SELECTION ===")
@@ -183,7 +198,39 @@ async def topic_selection_node(state: ShortsPipelineState) -> dict:
     trending_context, source_urls = await _get_trending_context(niche)
     performance_context = await _get_shorts_performance_context()
 
-    if niche == "curiosity":
+    ai_video_mode = _is_ai_video_run()
+    if ai_video_mode:
+        logger.info("AI video mode ACTIVE — using scenario-driven topic prompts")
+
+    if niche == "curiosity" and ai_video_mode:
+        from prolific.shorts.prompts import (
+            SCENARIO_TOPIC_BRAINSTORM_SYSTEM,
+            SCENARIO_TOPIC_SELECT_SYSTEM,
+            NICHE_SEARCH_QUERIES,
+        )
+        import random
+        scenario_queries = NICHE_SEARCH_QUERIES.get("curiosity_scenario", [])
+        extra_trending = ""
+        if scenario_queries:
+            from prolific.services.web_search import get_web_search_service
+            search_service = get_web_search_service()
+            sampled = random.sample(scenario_queries, min(3, len(scenario_queries)))
+            for q in sampled:
+                try:
+                    results = await search_service.search(query=q, max_results=3, search_depth="basic")
+                    for r in results or []:
+                        extra_trending += f"- {r.title}: {r.snippet[:120]}\n"
+                except Exception:
+                    pass
+        combined_trending = (trending_context + "\n" + extra_trending).strip() if trending_context else extra_trending.strip()
+        brainstorm_prompt = SCENARIO_TOPIC_BRAINSTORM_SYSTEM.format(
+            num_candidates=8,
+            trending_context=combined_trending if combined_trending else "(no trending data available)",
+            past_topics=past_topics_str,
+            performance_context=performance_context if performance_context else "(no performance data yet — channel is new)",
+        )
+        select_prompt = SCENARIO_TOPIC_SELECT_SYSTEM
+    elif niche == "curiosity":
         from prolific.shorts.prompts import (
             CURIOSITY_TOPIC_BRAINSTORM_SYSTEM,
             CURIOSITY_TOPIC_SELECT_SYSTEM,
@@ -270,6 +317,10 @@ async def topic_selection_node(state: ShortsPipelineState) -> dict:
     logger.info(f"Type: {chosen.topic_type}")
     logger.info(f"Content mode: {content_mode}")
     logger.info(f"Hook: {chosen.hook_angle}")
+    if chosen.scene_ideas:
+        logger.info(f"Scene ideas: {len(chosen.scene_ideas)} scenes planned")
+        for i, scene in enumerate(chosen.scene_ideas, 1):
+            logger.info(f"  Scene {i}: {scene[:80]}")
 
     return {
         "topic": chosen.topic,
@@ -278,6 +329,7 @@ async def topic_selection_node(state: ShortsPipelineState) -> dict:
         "niche": niche,
         "source_urls": all_urls,
         "past_short_topics": past_topics,
+        "scene_ideas": chosen.scene_ideas or [],
         "current_phase": "script_writing",
         "messages": [AIMessage(
             content=f"Selected: {chosen.topic} | Mode: {content_mode} | Hook: {chosen.hook_angle}"

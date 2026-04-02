@@ -93,6 +93,11 @@ The character is ALREADY doing things, not walking up to things.
 
 Use asset_type "ai_video" for all character scenes.
 Aim for {num_segments} scenes, each about {per_scene_duration}s.
+
+CONTENT POLICY: The AI video generator will REJECT prompts with explicit violence, gore, or graphic
+descriptions. Keep prompts DRAMATIC but PG-13. Show TENSION and ATMOSPHERE, not blood/wounds.
+BAD: "Blood sprays everywhere as a rusty saw cuts into flesh"
+GOOD: "Close-up of the character's terrified expression as the shadow of a saw falls across their face"
 """
 
 MARBLE_DESCRIPTION = (

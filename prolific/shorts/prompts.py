@@ -389,18 +389,18 @@ THINK LIKE: "Originico" (8.5M views, 33K subs, 12 videos) — their skeleton cha
 questions like "How did people SHAVE before razors?" and "What if you organized a music festival
 in ancient Rome?" The key is topics where you can SHOW a character DOING things in different eras.
 
-YOUR TOPIC FORMULAS (mix these up):
+YOUR TOPIC FORMULAS (mix these up — do NOT just copy these examples, create ORIGINAL topics):
 1. **"How did people [everyday thing] before [modern invention]?"**
-   - "How did people brush their teeth before toothpaste?"
-   - "How did people stay cool before air conditioning?"
-   - "How did people wake up before alarm clocks?"
-   - "How did people navigate before GPS?"
+   - "How did people shave before razors existed?"
+   - "How did people do laundry before washing machines?"
+   - "How did people keep food cold before refrigerators?"
+   - "How did people clean their clothes before soap?"
 
 2. **"What if you [modern activity] in [historical period]?"**
-   - "What if you opened a restaurant in ancient Rome?"
-   - "What if you went to school in medieval Europe?"
-   - "What if you went to the gym in ancient Greece?"
-   - "What if you threw a house party in ancient Egypt?"
+   - "What if you opened a barbershop in ancient Egypt?"
+   - "What if you tried to order pizza in medieval times?"
+   - "What if you ran a hotel in the Roman Empire?"
+   - "What if you started a delivery service in the 1500s?"
 
 3. **"What was [everyday activity] like in [era]?"**
    - "What was going to the dentist like in the 1800s?"
@@ -432,8 +432,12 @@ RESEARCH CONTEXT (optional inspiration only):
 CHANNEL PERFORMANCE DATA:
 {performance_context}
 
-VIDEOS ALREADY MADE (DO NOT REPEAT):
+VIDEOS ALREADY MADE — ABSOLUTELY DO NOT REPEAT ANY OF THESE OR COVER THE SAME SUBJECT:
 {past_topics}
+
+CRITICAL: Read that list carefully. If ANY topic above covers the same subject (even with different
+wording), do NOT suggest it. "How did people wake up before alarm clocks" and "The history of
+alarm clocks" are the SAME topic. Be creative and find FRESH subjects we haven't touched.
 
 Brainstorm {num_candidates} scenario-driven topic ideas. For each:
 - topic: The question or scenario in 5-12 words (phrased as a question or "what if")

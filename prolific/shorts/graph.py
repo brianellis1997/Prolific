@@ -66,15 +66,25 @@ def _route_after_story_review(
 def _route_after_visual_planning(
     state: ShortsPipelineState,
 ) -> list[str]:
-    """Determine which asset generation nodes to fan out to."""
+    """Determine which asset generation nodes to fan out to.
+
+    For AI video mode: go to TTS first (to get exact durations), then ai_video_sourcing.
+    For stock/web mode: go to asset sourcing first, then TTS.
+    """
     visual_assets = state.get("visual_assets", [])
     has_stock = any(a.asset_type == "stock_clip" and not a.file_path for a in visual_assets)
     has_web = any(a.asset_type in ("ai_image", "web_image") and not a.file_path for a in visual_assets)
     has_ai_video = any(a.asset_type == "ai_video" and not a.file_path for a in visual_assets)
 
-    targets = []
     if has_ai_video:
-        targets.append("ai_video_sourcing")
+        targets = ["tts_generation"]
+        if has_stock:
+            targets.append("stock_clip_sourcing")
+        if has_web:
+            targets.append("image_generation")
+        return targets
+
+    targets = []
     if has_stock:
         targets.append("stock_clip_sourcing")
     if has_web:
@@ -82,6 +92,15 @@ def _route_after_visual_planning(
     if not targets:
         targets.append("tts_generation")
     return targets
+
+
+def _route_after_tts(state: ShortsPipelineState) -> str:
+    """After TTS: if AI video assets need generating, go there. Otherwise assembly."""
+    visual_assets = state.get("visual_assets", [])
+    has_ai_video = any(a.asset_type == "ai_video" and not a.file_path for a in visual_assets)
+    if has_ai_video:
+        return "ai_video_sourcing"
+    return "video_assembly"
 
 
 def build_shorts_pipeline_graph(checkpointer=None):
@@ -166,8 +185,16 @@ def build_shorts_pipeline_graph(checkpointer=None):
 
     graph.add_edge("stock_clip_sourcing", "tts_generation")
     graph.add_edge("image_generation", "tts_generation")
-    graph.add_edge("ai_video_sourcing", "tts_generation")
-    graph.add_edge("tts_generation", "video_assembly")
+    graph.add_edge("ai_video_sourcing", "video_assembly")
+
+    graph.add_conditional_edges(
+        "tts_generation",
+        _route_after_tts,
+        {
+            "ai_video_sourcing": "ai_video_sourcing",
+            "video_assembly": "video_assembly",
+        },
+    )
     graph.add_edge("video_assembly", "metadata_generation")
     graph.add_edge("metadata_generation", "youtube_upload")
     graph.add_edge("youtube_upload", END)

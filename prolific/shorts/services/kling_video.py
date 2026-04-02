@@ -23,15 +23,17 @@ class KlingVideoService:
         self.cost_per_sec = settings.kling_cost_per_sec_usd
         self.ffmpeg = shutil.which("ffmpeg")
 
-        self._character_ref_urls: dict[str, str | None] = {
-            "marble": None,
-            "worm": None,
-        }
-        self._ref_local_paths: dict[str, str] = {}
+        self._ref_local_paths: dict[str, list[str]] = {}
         if settings.kling_marble_ref_urls:
-            self._ref_local_paths["marble"] = settings.kling_marble_ref_urls.split(",")[0].strip()
+            self._ref_local_paths["marble"] = [
+                p.strip() for p in settings.kling_marble_ref_urls.split(",") if p.strip()
+            ]
         if settings.kling_worm_ref_urls:
-            self._ref_local_paths["worm"] = settings.kling_worm_ref_urls.split(",")[0].strip()
+            self._ref_local_paths["worm"] = [
+                p.strip() for p in settings.kling_worm_ref_urls.split(",") if p.strip()
+            ]
+
+        self._uploaded_refs: dict[str, dict] = {}
 
         logger.info(
             f"KlingVideoService initialized: "
@@ -39,20 +41,33 @@ class KlingVideoService:
             f"endpoint={self.image_to_video_endpoint}"
         )
 
-    async def _get_ref_url(self, character: str) -> str | None:
-        """Get (or upload) the reference image URL for a character."""
-        if self._character_ref_urls.get(character):
-            return self._character_ref_urls[character]
+    async def _get_uploaded_refs(self, character: str) -> dict | None:
+        """Upload reference images for a character and cache the URLs."""
+        if character in self._uploaded_refs:
+            return self._uploaded_refs[character]
 
-        local_path = self._ref_local_paths.get(character)
-        if not local_path or not Path(local_path).exists():
+        paths = self._ref_local_paths.get(character, [])
+        if not paths:
+            return None
+
+        existing = [p for p in paths if Path(p).exists()]
+        if not existing:
             return None
 
         import fal_client
-        url = await fal_client.upload_file_async(local_path)
-        self._character_ref_urls[character] = url
-        logger.info(f"Uploaded {character} reference: {url[:80]}...")
-        return url
+        urls = []
+        for p in existing:
+            url = await fal_client.upload_file_async(p)
+            urls.append(url)
+            logger.info(f"Uploaded {character} ref: {Path(p).name} -> {url[:60]}...")
+
+        refs = {
+            "frontal_url": urls[0],
+            "reference_urls": urls[1:] if len(urls) > 1 else [],
+            "start_url": urls[0],
+        }
+        self._uploaded_refs[character] = refs
+        return refs
 
     async def generate_video(
         self,
@@ -61,29 +76,40 @@ class KlingVideoService:
         character: str = "marble",
         duration: str | None = None,
     ) -> str | None:
-        """Generate a video clip via FAL.ai/Kling v3 image-to-video.
+        """Generate a video clip via Kling v3 image-to-video with Elements for character consistency.
 
-        Uses the character reference image as start_image_url for consistency.
-        Falls back to text-to-video if no reference image available.
+        Uses Elements (frontal + reference images) to lock character appearance,
+        plus start_image_url as the scene starting frame.
+        Falls back to text-to-video if no references available.
         """
         import fal_client
 
         duration = duration or self.default_duration
+        dur_int = max(3, min(15, int(float(duration))))
+        duration = str(dur_int)
+
         Path(output_path).parent.mkdir(parents=True, exist_ok=True)
 
-        ref_url = await self._get_ref_url(character)
+        refs = await self._get_uploaded_refs(character)
 
         try:
-            if ref_url:
+            if refs:
+                elements = [{
+                    "type": "image_set",
+                    "frontal_image_url": refs["frontal_url"],
+                    "reference_image_urls": refs["reference_urls"] or [refs["frontal_url"]],
+                }]
+
                 logger.info(
-                    f"Kling v3 image-to-video: character={character}, "
-                    f"prompt={prompt[:80]}..."
+                    f"Kling v3 Elements: character={character}, "
+                    f"duration={duration}s, prompt={prompt[:80]}..."
                 )
                 result = await fal_client.run_async(
                     self.image_to_video_endpoint,
                     arguments={
-                        "prompt": prompt,
-                        "start_image_url": ref_url,
+                        "prompt": f"@Element1 {prompt}",
+                        "start_image_url": refs["start_url"],
+                        "elements": elements,
                         "duration": duration,
                         "aspect_ratio": "9:16",
                         "generate_audio": False,
@@ -91,8 +117,8 @@ class KlingVideoService:
                 )
             else:
                 logger.info(
-                    f"Kling text-to-video (no ref): character={character}, "
-                    f"prompt={prompt[:80]}..."
+                    f"Kling text-to-video (no refs): character={character}, "
+                    f"duration={duration}s, prompt={prompt[:80]}..."
                 )
                 result = await fal_client.run_async(
                     self.text_to_video_endpoint,
@@ -105,7 +131,7 @@ class KlingVideoService:
 
             video_url = result.get("video", {}).get("url")
             if not video_url:
-                logger.warning(f"Kling returned no video URL. Response keys: {list(result.keys())}")
+                logger.warning(f"Kling returned no video URL. Keys: {list(result.keys())}")
                 return None
 
             raw_path = str(Path(output_path).with_suffix(".raw.mp4"))
@@ -119,7 +145,7 @@ class KlingVideoService:
             await self._normalize_video(raw_path, output_path)
 
             cost = float(duration) * self.cost_per_sec
-            logger.info(f"Kling generation complete: {output_path} (${cost:.3f})")
+            logger.info(f"Kling generation complete: {output_path} ({duration}s, ${cost:.3f})")
 
             Path(raw_path).unlink(missing_ok=True)
             return output_path

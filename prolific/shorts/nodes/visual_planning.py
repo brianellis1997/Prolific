@@ -54,24 +54,45 @@ CHARACTER: {character_description}
 SCENE IDEAS FROM TOPIC SELECTION:
 {scene_ideas}
 
-For each scene, create a detailed video_prompt that describes:
-1. What the character is DOING (specific actions — reaching, looking, holding, etc.)
-2. The SETTING in vivid detail (era, location, lighting, objects)
-3. Camera direction (dolly forward, slow pan, static wide shot, etc.)
-4. The MOOD and lighting (warm torchlight, cold moonlight, golden hour, etc.)
+You are creating a SEQUENTIAL VISUAL STORY. Each scene MUST flow naturally from the previous one.
+Think of this as a short film — the character goes on a journey through different eras or scenarios,
+and each scene picks up where the last one left off narratively.
 
-RULES:
-- Every scene MUST feature the character as the main subject
-- Each scene should be visually DISTINCT (different era, setting, or activity)
-- Describe physical actions the character performs — NOT just standing there
-- Include cinematic details: camera movement, lighting, depth of field
-- Keep prompts to 2-3 sentences each — specific but concise
-- Use asset_type "ai_video" for character scenes
-- Use asset_type "web_image" ONLY for real-world reference images (diagrams, photos)
-- Aim for {num_segments} scenes, each about {per_scene_duration}s
+CRITICAL RULES:
+1. Each scene shows the character in a COMPLETELY DIFFERENT pose, setting, and action
+2. Scenes must PROGRESS — scene 2 builds on scene 1, scene 3 builds on scene 2
+3. Do NOT describe the character starting from a static pose — drop them MID-ACTION
+4. Each video_prompt must describe the character ALREADY in the middle of doing something
+5. Vary the camera angles: wide establishing shot, close-up hands, over-shoulder, bird's eye
+6. Each scene MUST have a different color palette / lighting / era
 
-EXAMPLE video_prompt:
-"The marble statue figure carefully scrapes his jaw with a rough flint stone inside a dimly lit prehistoric cave. Flickering firelight casts dramatic shadows on the cave walls. Slow dolly forward, shallow depth of field."
+For each scene video_prompt, describe:
+- The character MID-ACTION (not starting an action — already doing it)
+- A unique setting with specific era-appropriate details
+- Camera angle and movement (NOT always "dolly forward" — mix it up)
+- Lighting and mood that's distinct from other scenes
+
+BAD EXAMPLE (static, repetitive):
+"The marble figure stands in a room and looks at something. Cinematic dolly forward."
+
+GOOD EXAMPLE (dynamic, mid-action, specific):
+"Close-up of weathered marble hands vigorously scrubbing teeth with a frayed twig, dark soot
+and ash visible on the bristles. A clay bowl of crushed charcoal sits on a rough wooden table.
+Candlelit medieval kitchen, warm amber tones, handheld camera with slight movement."
+
+STORY FLOW EXAMPLE for "How did people brush their teeth?":
+- Scene 1: WIDE SHOT — Character kneels by a river in prehistoric wilderness, scooping sand to rub on teeth
+- Scene 2: CLOSE-UP — Character's marble hands crushing herbs into a paste in an ancient Egyptian workshop
+- Scene 3: MEDIUM — Character grimaces while a Roman barber scrapes his teeth with an iron pick
+- Scene 4: OVER-SHOULDER — Character reads a medieval recipe scroll for tooth powder by candlelight
+- Scene 5: WIDE — Character stands before a 1700s apothecary shelf lined with glass jars of tooth preparations
+- Scene 6: CLOSE-UP — Character squeezes a tube of toothpaste onto a modern brush, looking satisfied
+
+Notice: each scene is a different era, different action, different camera angle, different lighting.
+The character is ALREADY doing things, not walking up to things.
+
+Use asset_type "ai_video" for all character scenes.
+Aim for {num_segments} scenes, each about {per_scene_duration}s.
 """
 
 MARBLE_DESCRIPTION = (

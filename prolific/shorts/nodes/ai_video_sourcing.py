@@ -1,8 +1,9 @@
 """AI video sourcing node — generates video clips via Kling AI (FAL.ai).
 
-Two-step process:
-1. Generate scene-specific starting images with Gemini (using character reference)
-2. Animate each starting image with Kling v3 image-to-video + Elements
+Two-step process with scene chaining:
+1. Generate scene images SEQUENTIALLY with Gemini — each scene receives the previous
+   scene's image as context for visual continuity
+2. Animate each scene image with Kling v3 image-to-video + Elements
 
 Runs AFTER TTS so it knows exact audio durations per segment.
 """
@@ -18,20 +19,47 @@ from prolific.shorts.state import ShortsPipelineState
 
 logger = logging.getLogger(__name__)
 
-SCENE_IMAGE_PROMPT = (
-    "This is my character reference. Generate a NEW image of this EXACT SAME character "
-    "(same face, same marble texture, same toga, same hair) but in this scene:\n\n"
+SCENE_IMAGE_PROMPT_FIRST = (
+    "This is my character reference image. Generate a NEW image of this EXACT SAME character "
+    "(same face, same texture, same outfit, same style) in this scene:\n\n"
     "{scene_description}\n\n"
-    "The character must look IDENTICAL to the reference — same marble skin, same curly hair, "
-    "same toga draping. Place them in the described scene, already in the middle of the action. "
+    "The character must look IDENTICAL to the reference. "
     "Vertical 9:16 portrait composition. Cinematic lighting. Photorealistic."
 )
 
-CONTENT_POLICY_SOFTENER = (
-    "NOTE: Depict the scene in a dramatic but tasteful way. Show tension and atmosphere "
-    "rather than explicit gore. Focus on expressions, shadows, and implied danger rather "
-    "than graphic violence. Think PG-13 movie poster, not horror film."
+SCENE_IMAGE_PROMPT_CHAINED = (
+    "I'm showing you TWO images:\n"
+    "1. The first image is my CHARACTER REFERENCE — the character must always look like this.\n"
+    "2. The second image is the PREVIOUS SCENE — maintain visual continuity with this setting, "
+    "color palette, and atmosphere.\n\n"
+    "Generate the NEXT scene in the story. The character (identical to reference) is now in:\n\n"
+    "{scene_description}\n\n"
+    "CONTINUITY: The setting should feel like a natural progression from the previous scene. "
+    "Same era, similar lighting mood, the story is moving forward. "
+    "Vertical 9:16 portrait composition. Cinematic. Photorealistic."
 )
+
+CONTENT_POLICY_SOFTENER = (
+    " NOTE: Depict the scene dramatically but tastefully. Show tension and atmosphere "
+    "rather than explicit gore. Focus on expressions, shadows, and implied danger. PG-13."
+)
+
+CHARACTER_REF_PATHS = {
+    "marble": lambda: settings.kling_marble_ref_urls,
+    "worm": lambda: settings.kling_worm_ref_urls,
+}
+
+
+def _get_character_ref_path(character: str) -> str | None:
+    """Get the first local reference image path for a character."""
+    getter = CHARACTER_REF_PATHS.get(character)
+    if not getter:
+        return None
+    urls = getter()
+    if not urls:
+        return None
+    path = urls.split(",")[0].strip()
+    return path if Path(path).exists() else None
 
 
 def _compute_clip_durations(assets: list, total_audio_duration: float) -> list[int]:
@@ -70,42 +98,76 @@ def _compute_clip_durations(assets: list, total_audio_duration: float) -> list[i
     return durations
 
 
-async def _generate_scene_image(
-    asset, character: str, output_dir: Path, semaphore: asyncio.Semaphore
+async def _generate_scene_image_with_retry(
+    image_gen, prompt: str, output_path: str, style_prefix: str,
+    reference_image_paths: list[str] | None = None, max_retries: int = 3,
 ) -> str | None:
-    """Generate a scene-specific starting image using Gemini with character reference."""
-    async with semaphore:
-        from prolific.services.image_gen import get_image_gen_service
-        image_gen = get_image_gen_service()
-
-        ref_paths = settings.kling_marble_ref_urls if character == "marble" else settings.kling_worm_ref_urls
-        ref_path = ref_paths.split(",")[0].strip() if ref_paths else None
-
-        if not ref_path or not Path(ref_path).exists():
-            logger.warning(f"No reference image for {character}")
-            return None
-
-        scene_desc = asset.video_prompt or asset.search_query or "standing in a neutral pose"
-        prompt = SCENE_IMAGE_PROMPT.format(scene_description=scene_desc)
-
-        output_path = str(output_dir / f"scene_{asset.sequence_number:02d}.png")
-
+    """Generate a scene image with retry logic for transient errors (502, 503, etc.)."""
+    for attempt in range(max_retries):
         try:
-            result = await image_gen.generate_image(
+            return await image_gen.generate_image(
                 prompt=prompt,
                 output_path=output_path,
-                style_prefix="",
-                reference_image_path=ref_path,
+                style_prefix=style_prefix,
+                reference_image_paths=reference_image_paths,
             )
-            logger.info(f"[{asset.sequence_number}] Scene image generated: {output_path}")
-            return result
         except Exception as e:
-            logger.error(f"[{asset.sequence_number}] Scene image generation failed: {e}")
-            return None
+            err = str(e)
+            if attempt < max_retries - 1 and ("502" in err or "503" in err or "timeout" in err.lower()):
+                wait = (attempt + 1) * 5
+                logger.warning(f"Scene image generation attempt {attempt+1} failed ({err[:80]}), retrying in {wait}s...")
+                await asyncio.sleep(wait)
+            else:
+                raise
+
+
+async def _generate_scene_images_chained(
+    pending: list, character: str, scene_img_dir: Path
+) -> list[str | None]:
+    """Generate scene images SEQUENTIALLY — each scene sees the previous scene for continuity."""
+    from prolific.services.image_gen import get_image_gen_service
+    image_gen = get_image_gen_service()
+
+    char_ref_path = _get_character_ref_path(character)
+    if not char_ref_path:
+        logger.warning(f"No reference image found for character '{character}'")
+        return [None] * len(pending)
+
+    scene_images: list[str | None] = []
+    prev_scene_path: str | None = None
+
+    for i, asset in enumerate(pending):
+        scene_desc = asset.video_prompt or asset.search_query or "standing in a neutral pose"
+        output_path = str(scene_img_dir / f"scene_{asset.sequence_number:02d}.png")
+
+        if prev_scene_path and Path(prev_scene_path).exists():
+            prompt = SCENE_IMAGE_PROMPT_CHAINED.format(scene_description=scene_desc)
+            ref_paths = [char_ref_path, prev_scene_path]
+        else:
+            prompt = SCENE_IMAGE_PROMPT_FIRST.format(scene_description=scene_desc)
+            ref_paths = [char_ref_path]
+
+        try:
+            result = await _generate_scene_image_with_retry(
+                image_gen, prompt=prompt, output_path=output_path,
+                style_prefix="", reference_image_paths=ref_paths,
+            )
+            if result:
+                logger.info(f"[{asset.sequence_number}] Scene image: {output_path}")
+                scene_images.append(result)
+                prev_scene_path = result
+            else:
+                logger.warning(f"[{asset.sequence_number}] Scene image returned None")
+                scene_images.append(None)
+        except Exception as e:
+            logger.error(f"[{asset.sequence_number}] Scene image failed after retries: {e}")
+            scene_images.append(None)
+
+    return scene_images
 
 
 async def ai_video_sourcing_node(state: ShortsPipelineState) -> dict:
-    """Generate AI video clips: Gemini scene images → Kling animation."""
+    """Generate AI video clips: chained Gemini scene images → Kling animation."""
     logger.info("=== SHORTS: AI VIDEO SOURCING (Gemini + Kling) ===")
 
     visual_assets = state.get("visual_assets", [])
@@ -133,19 +195,14 @@ async def ai_video_sourcing_node(state: ShortsPipelineState) -> dict:
     scene_img_dir.mkdir(parents=True, exist_ok=True)
     clip_dir.mkdir(parents=True, exist_ok=True)
 
-    # Step 1: Generate scene-specific starting images with Gemini
-    logger.info(f"Step 1: Generating {len(pending)} scene images with Gemini...")
-    img_semaphore = asyncio.Semaphore(3)
-    scene_image_tasks = [
-        _generate_scene_image(a, selected_character, scene_img_dir, img_semaphore)
-        for a in pending
-    ]
-    scene_images = await asyncio.gather(*scene_image_tasks)
+    # Step 1: Generate scene images SEQUENTIALLY (chained for continuity)
+    logger.info(f"Step 1: Generating {len(pending)} chained scene images with Gemini...")
+    scene_images = await _generate_scene_images_chained(pending, selected_character, scene_img_dir)
 
     generated_images = sum(1 for s in scene_images if s)
     logger.info(f"Scene images: {generated_images}/{len(pending)} generated")
 
-    # Step 2: Animate each scene image with Kling
+    # Step 2: Animate each scene image with Kling (parallel)
     logger.info(f"Step 2: Animating {len(pending)} clips with Kling...")
     from prolific.shorts.services.kling_video import get_kling_service
     kling = get_kling_service()
@@ -162,7 +219,7 @@ async def ai_video_sourcing_node(state: ShortsPipelineState) -> dict:
             if not prompt:
                 prompt = f"A scene related to: {asset.script_text[:100]}"
 
-            prompt = f"{prompt} {CONTENT_POLICY_SOFTENER}"
+            prompt = f"{prompt}{CONTENT_POLICY_SOFTENER}"
 
             character = asset.character or selected_character
             output_path = str(clip_dir / f"ai_clip_{asset.sequence_number:02d}.mp4")

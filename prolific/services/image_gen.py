@@ -23,23 +23,31 @@ class ImageGenService:
         output_path: str,
         style_prefix: str | None = None,
         reference_image_path: str | None = None,
+        reference_image_paths: list[str] | None = None,
     ) -> str:
         """Generate an image and save to disk. Returns the output path.
 
-        If reference_image_path is provided, sends it as multimodal input
-        so the model can see and match the reference character/style.
+        If reference_image_path (single) or reference_image_paths (multiple) are provided,
+        sends them as multimodal input so the model can see and match the references.
+        Multiple images are useful for scene chaining (character ref + previous scene).
         """
         if style_prefix is None:
             style_prefix = settings.youtube_image_style + ". "
 
         full_prompt = style_prefix + prompt
 
-        if reference_image_path and Path(reference_image_path).exists():
-            ref_b64 = base64.b64encode(Path(reference_image_path).read_bytes()).decode()
-            content = [
-                {"type": "image_url", "image_url": {"url": f"data:image/png;base64,{ref_b64}"}},
-                {"type": "text", "text": full_prompt},
-            ]
+        all_refs = []
+        if reference_image_paths:
+            all_refs = [p for p in reference_image_paths if Path(p).exists()]
+        elif reference_image_path and Path(reference_image_path).exists():
+            all_refs = [reference_image_path]
+
+        if all_refs:
+            content = []
+            for ref_p in all_refs:
+                ref_b64 = base64.b64encode(Path(ref_p).read_bytes()).decode()
+                content.append({"type": "image_url", "image_url": {"url": f"data:image/png;base64,{ref_b64}"}})
+            content.append({"type": "text", "text": full_prompt})
         else:
             content = full_prompt
 

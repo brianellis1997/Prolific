@@ -235,26 +235,16 @@ async def ai_video_sourcing_node(state: ShortsPipelineState) -> dict:
                 import fal_client
                 scene_url = await fal_client.upload_file_async(scene_image_path)
 
-                refs = await kling._get_uploaded_refs(character)
                 try:
                     logger.info(
                         f"[{asset.sequence_number}] Kling v3 ({clip_duration}s): "
                         f"{prompt[:60]}..."
                     )
-                    elements = None
-                    if refs:
-                        elements = [{
-                            "type": "image_set",
-                            "frontal_image_url": refs["frontal_url"],
-                            "reference_image_urls": refs.get("reference_urls") or [refs["frontal_url"]],
-                        }]
-
                     result = await fal_client.run_async(
                         kling.image_to_video_endpoint,
                         arguments={
-                            "prompt": f"@Element1 {prompt}" if elements else prompt,
+                            "prompt": prompt,
                             "start_image_url": scene_url,
-                            **({"elements": elements} if elements else {}),
                             "duration": str(clip_duration),
                             "aspect_ratio": "9:16",
                             "generate_audio": False,

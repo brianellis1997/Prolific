@@ -80,11 +80,14 @@ TIMING RULES:
 - Aim for 4-7 shots total
 
 SCENE DESCRIPTION RULES:
-- The character must be the MAIN SUBJECT of every shot
+- The character is the MAIN SUBJECT but can interact with OTHER FIGURES
+- For vs/comparison topics: show BOTH sides (e.g., character as a modern athlete in one shot,
+  then as an ancient warrior in the next, or facing off against a contrasting figure)
 - Describe what the character is DOING (mid-action, not beginning an action)
+- OTHER PEOPLE can appear in scenes (opponents, crowds, helpers, enemies)
 - Include specific era-appropriate props, setting details, lighting
 - Each scene should feel like the NEXT MOMENT in a continuous story
-- Vary settings but maintain narrative flow (don't jump randomly between eras)
+- Vary settings but maintain narrative flow
 - Keep descriptions PG-13 — dramatic atmosphere, NOT explicit violence/gore
 
 CAMERA ANGLE OPTIONS (use variety):

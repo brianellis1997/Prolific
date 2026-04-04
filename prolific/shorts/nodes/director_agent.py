@@ -212,7 +212,8 @@ def _shots_to_visual_assets(shots: list[Shot], character: str) -> list[VisualAss
                 f"Shot {shot.sequence_number} is only {raw_duration:.1f}s — "
                 f"Director should have combined this with an adjacent shot"
             )
-        kling_duration = max(3.0, min(10.0, round(raw_duration)))
+        import math
+        kling_duration = max(3, min(15, math.ceil(raw_duration)))
 
         asset = VisualAsset(
             sequence_number=shot.sequence_number,

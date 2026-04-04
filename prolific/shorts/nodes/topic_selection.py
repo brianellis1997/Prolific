@@ -160,15 +160,25 @@ async def _verify_clips_available(candidate: ShortTopicCandidate) -> list[str]:
 
 
 def _is_ai_video_run() -> bool:
-    """Check if this run should use AI video generation (Kling) based on config and time."""
+    """Check if this run should use AI video generation (Kling) based on config, time, and day.
+
+    AI video runs on specific hours AND specific days of the week.
+    Default: Mon/Wed/Fri at the configured hours.
+    """
     if not settings.kling_enabled or not settings.fal_api_key:
         return False
     try:
         from datetime import datetime
         from zoneinfo import ZoneInfo
-        current_hour = datetime.now(ZoneInfo("America/New_York")).hour
+        now = datetime.now(ZoneInfo("America/New_York"))
+        current_hour = now.hour
+        current_day = now.weekday()  # 0=Monday, 6=Sunday
+
         allowed_hours = [int(h.strip()) for h in settings.kling_cron_hours.split(",") if h.strip()]
-        return current_hour in allowed_hours
+        kling_days_str = getattr(settings, "kling_cron_days", "0,2,4")  # Mon, Wed, Fri
+        allowed_days = [int(d.strip()) for d in kling_days_str.split(",") if d.strip()]
+
+        return current_hour in allowed_hours and current_day in allowed_days
     except Exception:
         return False
 

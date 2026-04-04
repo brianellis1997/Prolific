@@ -137,6 +137,7 @@ class Settings(BaseSettings):
     kling_max_concurrent: int = 3
     kling_cost_per_sec_usd: float = 0.07
     kling_cron_hours: str = "16"
+    kling_cron_days: str = "0,2,4"  # 0=Mon, 2=Wed, 4=Fri
     kling_character_mode: str = "auto"
 
     # Pexels Video API

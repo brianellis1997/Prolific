@@ -82,18 +82,18 @@ TIMING RULES:
 - Each shot's start_time = the start of the first word in that shot
 - Each shot's end_time = the end of the last word in that shot (+ up to 0.3s buffer)
 - HARD MINIMUM: 3.0 seconds per shot (the AI video generator CANNOT make clips shorter)
-- HARD MAXIMUM: 5.0 seconds per shot
+- SOFT MAXIMUM: 7.0 seconds per shot (longer is fine but shorter is punchier)
 - If a narration segment is under 3 seconds, you MUST combine it with the adjacent segment
   to create a longer shot. NEVER plan a shot under 3.0 seconds.
-- If a narration segment is over 5 seconds, split it at a natural pause
+- If a narration segment is over 7 seconds, split it at a natural pause
 - Let the NARRATION TIMING decide how many shots you need — do NOT target a specific count
-- EVERY shot must be between 3.0 and 5.0 seconds. NO EXCEPTIONS.
+- EVERY shot must be at least 3.0 seconds. NO EXCEPTIONS.
 
 DYNAMIC SHOT LENGTH — vary based on the narrative moment:
-- Quick action cuts: 3.0 seconds
-- Movement/exploration: 3.5-4.0 seconds
-- Emotional beats, reveals, or key moments: 4.0-5.0 seconds (let them breathe)
-- The FINAL shot: 4.0-5.0 seconds (give the closer weight)
+- Quick action cuts: 3.0-4.0 seconds
+- Movement/exploration: 4.0-5.0 seconds
+- Emotional beats, reveals, or key moments: 5.0-7.0 seconds (let them breathe)
+- The FINAL shot: 4.0-6.0 seconds (give the closer weight)
 
 IMPORTANT: Use the character name from the CHARACTER section above in your scene descriptions.
 If the character is "Worm", write "Worm does X." If it's "Marble Man", write "Marble Man does X."
@@ -212,7 +212,7 @@ def _shots_to_visual_assets(shots: list[Shot], character: str) -> list[VisualAss
                 f"Shot {shot.sequence_number} is only {raw_duration:.1f}s — "
                 f"Director should have combined this with an adjacent shot"
             )
-        kling_duration = max(3.0, min(5.0, round(raw_duration)))
+        kling_duration = max(3.0, min(10.0, round(raw_duration)))
 
         asset = VisualAsset(
             sequence_number=shot.sequence_number,

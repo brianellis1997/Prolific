@@ -594,6 +594,92 @@ async def _overlay_narration(
     return output_path
 
 
+async def _concat_clips_with_crossfade(
+    clip_paths: list[str], audio_path: str, output_path: str, crossfade_duration: float = 0.15
+) -> str:
+    """Concatenate clips with short crossfade transitions + audio overlay."""
+    ffmpeg = shutil.which("ffmpeg")
+    if not ffmpeg or len(clip_paths) < 2:
+        return await _concat_clips(clip_paths, audio_path, output_path)
+
+    output_dir = Path(output_path).parent
+    audio_duration = await _get_audio_duration(audio_path)
+
+    n = len(clip_paths)
+    inputs = []
+    for p in clip_paths:
+        inputs.extend(["-i", str(Path(p).resolve())])
+
+    filter_parts = []
+    cf = crossfade_duration
+    prev = "[0:v]"
+    offset = 0.0
+
+    clip_durations = []
+    for p in clip_paths:
+        d = await _get_audio_duration(p)
+        if d <= 0:
+            proc = await asyncio.create_subprocess_exec(
+                "ffprobe", "-v", "error", "-show_entries", "format=duration",
+                "-of", "default=noprint_wrappers=1:nokey=1", str(Path(p).resolve()),
+                stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE,
+            )
+            stdout, _ = await proc.communicate()
+            try:
+                d = float(stdout.decode().strip())
+            except (ValueError, AttributeError):
+                d = 3.0
+        clip_durations.append(d)
+
+    for i in range(1, n):
+        offset += clip_durations[i-1] - cf
+        next_label = f"[{i}:v]"
+        out_label = f"[v{i}]"
+        filter_parts.append(
+            f"{prev}{next_label}xfade=transition=fade:duration={cf}:offset={offset:.3f}{out_label}"
+        )
+        prev = out_label
+
+    filter_complex = ";".join(filter_parts)
+    final_label = prev
+
+    concat_video = str(output_dir / "crossfade_only.mp4")
+    cmd = [
+        ffmpeg, *inputs,
+        "-filter_complex", filter_complex,
+        "-map", final_label,
+        "-c:v", "libx264", "-preset", "medium", "-crf", "23",
+        "-pix_fmt", "yuv420p", "-an", "-y", concat_video,
+    ]
+    proc = await asyncio.create_subprocess_exec(
+        *cmd, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE,
+    )
+    _, stderr = await proc.communicate()
+    if proc.returncode != 0:
+        logger.warning(f"Crossfade failed, falling back to hard cuts: {stderr.decode()[-200:]}")
+        return await _concat_clips(clip_paths, audio_path, output_path)
+
+    trim_args = ["-t", str(audio_duration + 0.5)] if audio_duration > 0 else []
+    cmd2 = [
+        ffmpeg, "-i", concat_video, "-i", audio_path,
+        *trim_args,
+        "-map", "0:v", "-map", "1:a",
+        "-c:v", "copy", "-c:a", "aac", "-b:a", "192k",
+        "-y", output_path,
+    ]
+    proc2 = await asyncio.create_subprocess_exec(
+        *cmd2, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE,
+    )
+    _, stderr2 = await proc2.communicate()
+    if proc2.returncode != 0:
+        raise RuntimeError(f"audio mux failed: {stderr2.decode()[-300:]}")
+
+    Path(concat_video).unlink(missing_ok=True)
+    size_mb = Path(output_path).stat().st_size / (1024 * 1024)
+    logger.info(f"Assembled video with crossfades: {output_path} ({size_mb:.1f}MB, {len(clip_paths)} clips)")
+    return output_path
+
+
 async def _concat_clips(clip_paths: list[str], audio_path: str, output_path: str) -> str:
     """Concatenate clips using ffmpeg concat demuxer + audio overlay, trimmed to audio length."""
     ffmpeg = shutil.which("ffmpeg")
@@ -770,7 +856,11 @@ async def video_assembly_node(state: ShortsPipelineState) -> dict:
 
     caption_segments = state.get("caption_segments") or []
 
-    if story_plan:
+    director_planned = state.get("director_planned", False)
+
+    if director_planned:
+        logger.info("Director-planned: using exact shot durations (skipping alignment)")
+    elif story_plan:
         await _apply_story_plan_durations(visual_assets, story_plan, audio_segment_paths)
         logger.info(f"Using story_plan durations (skipping speech alignment)")
     else:
@@ -813,7 +903,7 @@ async def video_assembly_node(state: ShortsPipelineState) -> dict:
             logger.warning(f"[{asset.sequence_number}] Missing file, skipping")
             continue
 
-        if asset.asset_type in ("stock_clip", "source_clip"):
+        if asset.asset_type in ("stock_clip", "source_clip", "ai_video"):
             if is_compilation and asset.asset_type == "source_clip" and not story_plan:
                 numbered_path = str(output_dir / f"numbered_{asset.sequence_number:02d}.mp4")
                 item_idx = asset.sequence_number - 1
@@ -846,7 +936,33 @@ async def video_assembly_node(state: ShortsPipelineState) -> dict:
                 else:
                     clip_paths.append(asset.file_path)
             else:
-                clip_paths.append(asset.file_path)
+                if director_planned and asset.asset_type == "ai_video" and asset.narration_end > 0:
+                    exact_dur = asset.narration_end - asset.narration_start
+                    clip_dur = asset.duration_seconds
+                    if exact_dur > 0 and exact_dur < clip_dur and (clip_dur - exact_dur) > 0.3 and exact_dur >= 2.5:
+                        trimmed = str(output_dir / f"trimmed_{asset.sequence_number:02d}.mp4")
+                        ffmpeg_bin = shutil.which("ffmpeg")
+                        if ffmpeg_bin:
+                            cmd = [
+                                ffmpeg_bin, "-i", asset.file_path,
+                                "-t", f"{exact_dur:.2f}",
+                                "-c:v", "libx264", "-preset", "fast", "-crf", "23",
+                                "-pix_fmt", "yuv420p", "-an", "-y", trimmed,
+                            ]
+                            proc = await asyncio.create_subprocess_exec(
+                                *cmd, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE,
+                            )
+                            await proc.communicate()
+                            if proc.returncode == 0:
+                                clip_paths.append(trimmed)
+                                logger.info(
+                                    f"  [{asset.sequence_number}] Trimmed ai_video: "
+                                    f"{asset.duration_seconds:.1f}s -> {exact_dur:.1f}s"
+                                )
+                                continue
+                    clip_paths.append(asset.file_path)
+                else:
+                    clip_paths.append(asset.file_path)
         else:
             kb_path = str(output_dir / f"kb_{asset.sequence_number:02d}.mp4")
             await video_service.create_ken_burns_clip(
@@ -877,7 +993,10 @@ async def video_assembly_node(state: ShortsPipelineState) -> dict:
     else:
         effective_audio = audio_path
         raw_video = str(output_dir / "raw_assembled.mp4")
-        await _concat_clips(clip_paths, effective_audio, raw_video)
+        if director_planned and len(clip_paths) >= 2:
+            await _concat_clips_with_crossfade(clip_paths, effective_audio, raw_video)
+        else:
+            await _concat_clips(clip_paths, effective_audio, raw_video)
 
     caption_audio = effective_audio
     if not effective_audio.endswith(".mp3"):

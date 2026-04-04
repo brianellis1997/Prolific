@@ -121,11 +121,19 @@ def _build_prompt(state: dict, content_mode: str, hook_angle: str) -> str:
         from prolific.shorts.prompts import SCRIPT_WRITING_SYSTEM
         return SCRIPT_WRITING_SYSTEM.format(topic=topic, hook_angle=hook_angle or topic)
 
-    from prolific.shorts.prompts import SCRIPT_WRITING_SYSTEM
-    base_prompt = SCRIPT_WRITING_SYSTEM.format(
-        topic=topic,
-        hook_angle=hook_angle or topic,
-    )
+    from prolific.shorts.nodes.topic_selection import _is_ai_video_run
+    if _is_ai_video_run():
+        from prolific.shorts.prompts import AI_VIDEO_SCRIPT_SYSTEM
+        base_prompt = AI_VIDEO_SCRIPT_SYSTEM.format(
+            topic=topic,
+            hook_angle=hook_angle or topic,
+        )
+    else:
+        from prolific.shorts.prompts import SCRIPT_WRITING_SYSTEM
+        base_prompt = SCRIPT_WRITING_SYSTEM.format(
+            topic=topic,
+            hook_angle=hook_angle or topic,
+        )
 
     if content_mode == "niche_drama":
         understandings = state.get("clip_content_understanding") or []

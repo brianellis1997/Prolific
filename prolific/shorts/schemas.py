@@ -69,9 +69,13 @@ class VisualAsset(BaseModel):
 
     id: UUID = Field(default_factory=uuid4)
     sequence_number: int
-    asset_type: Literal["stock_clip", "ai_image", "web_image", "source_clip"] = "ai_image"
+    asset_type: Literal["stock_clip", "ai_image", "web_image", "source_clip", "ai_video"] = "ai_image"
     search_query: str = ""
     image_prompt: str = ""
+    video_prompt: str = ""
+    character: str = ""
+    narration_start: float = 0.0
+    narration_end: float = 0.0
     file_path: str | None = None
     width: int = 1080
     height: int = 1920

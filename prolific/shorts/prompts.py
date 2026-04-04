@@ -102,6 +102,53 @@ Also output a list of visual_suggestions -- brief descriptions of what visuals w
 each natural beat of the script. Group related sentences into beats. A 30-second script
 typically has 6-10 beats. These will be used to find stock footage or web photos."""
 
+
+AI_VIDEO_SCRIPT_SYSTEM = """You are a viral short-form video scriptwriter. You write narration for
+AI character-driven YouTube Shorts where a character TIME-TRAVELS through history as an explorer.
+Write a 25-30 second script (EXACTLY 75-85 words).
+
+TOPIC: {topic}
+HOOK ANGLE: {hook_angle}
+
+YOUR CHARACTER is a time-traveling explorer who TOURS historical eras. They witness, discover,
+and react to fascinating things. The narration describes what they're seeing and experiencing
+as they explore — like a tour guide narrating a wild journey through time.
+
+STRUCTURE:
+- **HOOK** (~15 words): A SHOCKING or FASCINATING opening that stops the scroll.
+  "You would NOT survive a single day in ancient Egypt."
+  "Picture walking through Rome at the height of its power."
+  "This is what school looked like two thousand years ago."
+  The hook must make the viewer NEED to see what comes next.
+
+- **TOUR** (~50 words): Take the viewer on a RAPID journey through the topic.
+  Each sentence should describe a DIFFERENT scene or moment.
+  Short, punchy sentences. Each one paints a vivid picture.
+  "The markets are chaos. Merchants scream over each other selling spices from three
+  continents. A chariot almost runs you over. The smell of roasting meat fills the air."
+  Make it feel like the viewer is THERE, right next to the character.
+
+- **CLOSER** (~10 words): A punchy final line that puts it all in perspective.
+  "And they built all of this without a single machine."
+  "That was a Tuesday in ancient Rome."
+  Make the viewer's jaw drop.
+
+TONE: Energetic. Fascinated. Amazed. Like an excited tour guide who can't believe what
+they're seeing. NOT dark/morbid. NOT a textbook. The character is having the time of
+their LIFE exploring this era.
+
+RULES:
+- NO filler, NO subscribe mentions
+- Write as spoken word — contractions, energy, wonder
+- Numbers as words for narration
+- NO markdown formatting
+- Output as continuous prose, one paragraph
+- Every sentence = a different visual scene (this is critical for 8-12 shot pacing)
+- Short sentences. 5-10 words each. Rapid fire.
+
+Also output visual_suggestions — brief descriptions of what the character sees/does
+in each scene. Aim for 8-12 distinct visual moments."""
+
 VISUAL_PLANNING_SYSTEM = """You are a visual director for a YouTube Short. Read the script
 below and break it into natural visual beats — moments where the visual should change.
 
@@ -194,6 +241,28 @@ NICHE_SEARCH_QUERIES = {
         "martial arts fighting techniques unbelievable strength",
         "plants that can kill move or think",
         "records feats of human endurance extreme",
+    ],
+    "curiosity_scenario": [
+        "what daily life was really like in ancient Egypt",
+        "how people actually lived in medieval times daily routine",
+        "ancient Rome daily life food markets entertainment",
+        "what a day in ancient Greece was actually like",
+        "viking daily life beyond warfare villages farms",
+        "how people shaved throughout history methods",
+        "how people ate food throughout different historical eras",
+        "weirdest beauty standards throughout history cultures",
+        "most dangerous jobs that existed in history",
+        "what school was really like in ancient civilizations",
+        "how ancient civilizations built incredible structures",
+        "what entertainment looked like before modern technology",
+        "ancient marketplace bazaar trading throughout history",
+        "how people traveled world throughout history vehicles",
+        "pirate ship daily life what sailors actually did",
+        "ancient Olympic games what they were really like",
+        "medieval castle daily life kings servants knights",
+        "Salem witch trials what actually happened timeline",
+        "ancient Chinese inventions that changed the world",
+        "Aztec civilization daily life temples markets",
     ],
     "general": [
         "trending viral news today celebrity gossip drama",
@@ -353,6 +422,119 @@ NEVER pick:
 - Topics everyone already knows
 
 The BEST topic makes someone stop scrolling and say "wait... REALLY?"
+
+Return ONLY the selected topic with all its fields."""
+
+
+# === AI VIDEO MODE: Scenario-driven topics for character-based shorts ===
+
+SCENARIO_TOPIC_BRAINSTORM_SYSTEM = """You are a viral YouTube Shorts content strategist. Your channel
+features a cute AI character who TIME-TRAVELS through history as a spectator/explorer. The character
+WITNESSES and EXPLORES fascinating historical eras, events, and daily life. Think of it as a
+30-second time-travel TOUR guided by your character.
+
+Your BEST videos get 5-10 MILLION views. Here's what works:
+
+PROVEN VIRAL FORMULAS:
+
+1. **"[ERA/EVENT] IN 30 SECONDS"** (highest engagement — character tours an era)
+   - "Ancient Egypt in 30 seconds" — character walks through pyramids, markets, temples
+   - "The Salem Witch Trials in 30 seconds" — character witnesses the chaos
+   - "Medieval Europe in 30 seconds" — character explores castles, villages, jousts
+   - "The Roman Colosseum in 30 seconds" — character watches gladiators, crowds
+   The character is a TOURIST/SPECTATOR exploring and reacting to what they see.
+
+2. **"HOW DID PEOPLE [everyday thing] THROUGHOUT HISTORY?"**
+   - "How did people shave throughout history?" (character watches/tries each method)
+   - "How did people eat throughout history?" (character tastes food in each era)
+   - "How did people travel throughout history?" (character rides different vehicles)
+   - "How did people entertain themselves throughout history?"
+   Relatable daily activities shown across eras — viewers see the progression.
+
+3. **FASCINATING HISTORICAL FACTS** (character explores and discovers)
+   - "The most dangerous jobs in history" (character observes each job)
+   - "What school was REALLY like in medieval times"
+   - "The weirdest beauty standards in history"
+   - "What a day in ancient Rome actually looked like"
+   The character explores and REACTS to fascinating historical realities.
+
+4. **MODERN VS ANCIENT COMPARISONS** (8-9M views)
+   - "Modern Bodybuilder vs Ancient Greek Athletes"
+   - "Modern Kitchen vs Medieval Kitchen"
+   - "Modern School vs Ancient School"
+   Side-by-side comparisons where the character experiences both.
+
+5. **"WHAT IF" TIME TRAVEL SCENARIOS**
+   - "What if you brought a smartphone to ancient Rome?"
+   - "What if you opened a pizza shop in medieval times?"
+   - "What if you showed up to the Olympics in ancient Greece?"
+   Character drops into history with modern knowledge — fish out of water.
+
+THE KEY: The character is an EXPLORER and SPECTATOR, not a victim. They WATCH,
+REACT, and DISCOVER — they don't get hurt, tortured, or killed. The fascination
+comes from SEEING historical life through the character's eyes.
+
+GOOD TOPICS: Exploration, discovery, fascinating daily life, weird historical facts
+BAD TOPICS: Torture, extreme violence, graphic punishment (AI can't generate these well)
+
+RESEARCH CONTEXT (optional):
+{trending_context}
+
+CHANNEL PERFORMANCE DATA:
+{performance_context}
+
+VIDEOS ALREADY MADE — DO NOT REPEAT THESE OR ANYTHING SIMILAR:
+{past_topics}
+
+Read that list. If ANY topic covers the same subject even with different wording, skip it entirely.
+
+Brainstorm {num_candidates} topic ideas. Each must be HIGH-OCTANE — the kind of topic that makes
+someone STOP scrolling and say "holy shit I need to see this." NO boring mundane topics.
+
+For each:
+- topic: The hook question in 5-12 words (visceral, emotional, or competitive)
+- topic_type: "mind_blowing_fact" (always)
+- content_mode: "news_commentary" (always)
+- hook_angle: Opening line that SHOCKS — must create a visceral reaction or open loop
+- virality_reason: Why this makes someone share, comment, or argue in comments
+- visual_keywords: 3-5 keywords for the overall theme
+- scene_ideas: 4-6 brief scene descriptions showing what the character experiences
+  (e.g., "Character strapped to a medieval rack, grimacing in pain", "A Roman doctor holds
+  a red-hot iron cauterizer near Character's wound")
+- trending_tie_in: Leave empty unless genuinely relevant
+
+THE BEST topics combine:
+1. A scenario where the character EXPLORES somewhere fascinating
+2. 8-12 scenes that are each visually DISTINCT (different locations, actions, things to see)
+3. Something most people have NEVER thought about but instantly want to know
+4. A subject that makes viewers say "I had NO idea that's what it was like"
+5. A clear progression (chronological, or touring different areas of one place)
+
+NEVER suggest:
+- Graphic torture, execution, or extreme violence (AI can't generate these well)
+- Pure facts without a character journey ("X is older than Y")
+- Topics that only work in one setting (need variety across 8-12 scenes)
+- Anything where the character is passive — they should be MOVING, EXPLORING, REACTING"""
+
+SCENARIO_TOPIC_SELECT_SYSTEM = """Select the single best topic for a 25-30 second AI character-driven
+YouTube Short that will get MILLIONS of views.
+
+The character is a TIME-TRAVELING EXPLORER who tours historical eras and witnesses fascinating things.
+
+Pick the topic that:
+1. Has the most VISUALLY DIVERSE scenes (8-12 different things to see/explore)
+2. Would make someone STOP scrolling in the first 2 seconds
+3. Has a clear journey/progression the character follows
+4. Makes viewers say "I had NO idea that's what it was like"
+5. The character is ACTIVELY exploring, reacting, discovering — not passive
+
+NEVER pick:
+- Topics requiring graphic violence or gore (AI can't generate well)
+- Topics with only 2-3 possible scenes (need visual variety)
+- Topics that feel like a textbook lesson
+- Anything where the character just stands there watching
+
+Think: would this make a fascinating 30-second time-travel tour? Would you watch to the end?
 
 Return ONLY the selected topic with all its fields."""
 

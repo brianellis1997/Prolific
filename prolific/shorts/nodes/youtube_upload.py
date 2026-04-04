@@ -30,6 +30,14 @@ async def youtube_upload_node(state: ShortsPipelineState) -> dict:
     """Upload the short to YouTube."""
     logger.info("=== SHORTS: YOUTUBE UPLOAD ===")
 
+    import os
+    if os.environ.get("SKIP_YOUTUBE_UPLOAD", "").lower() in ("true", "1", "yes"):
+        logger.info("SKIP_YOUTUBE_UPLOAD is set — skipping upload (test mode)")
+        return {
+            "current_phase": "complete",
+            "messages": [AIMessage(content="Upload skipped (test mode)")],
+        }
+
     video_path = state.get("final_video_path", "")
     metadata = state.get("video_metadata")
 

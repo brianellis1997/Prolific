@@ -126,6 +126,20 @@ class Settings(BaseSettings):
     comment_reply_enabled: bool = False
     comment_reply_interval_hours: int = 2
 
+    # Kling AI Video (via FAL.ai)
+    fal_api_key: str = ""
+    kling_enabled: bool = False
+    kling_marble_ref_urls: str = ""
+    kling_worm_ref_urls: str = ""
+    kling_model_endpoint: str = "fal-ai/kling-video/v2.5-turbo/pro/text-to-video"
+    kling_image_to_video_endpoint: str = "fal-ai/kling-video/v3/pro/image-to-video"
+    kling_video_duration: str = "5"
+    kling_max_concurrent: int = 3
+    kling_cost_per_sec_usd: float = 0.07
+    kling_cron_hours: str = "16"
+    kling_cron_days: str = "0,2,4"  # 0=Mon, 2=Wed, 4=Fri
+    kling_character_mode: str = "auto"
+
     # Pexels Video API
     pexels_api_key: str = ""
 

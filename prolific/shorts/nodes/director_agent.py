@@ -292,8 +292,18 @@ async def director_agent_node(state: ShortsPipelineState) -> dict:
         if shot.end_time <= shot.start_time:
             shot.end_time = shot.start_time + 3.0
 
-    # Ensure last shot extends to cover full audio duration (no frozen frame at end)
+    # Fix gaps between shots: each clip should run from its start to the NEXT shot's start.
+    # This fills the entire audio duration with video (no silent gaps that cause drift).
     if shots:
+        for i in range(len(shots) - 1):
+            next_start = shots[i + 1].start_time
+            if next_start > shots[i].end_time:
+                gap = next_start - shots[i].end_time
+                shots[i].end_time = next_start
+                if gap > 0.5:
+                    logger.info(f"  Shot {shots[i].sequence_number}: extended by {gap:.1f}s to fill gap before next shot")
+
+        # Last shot extends to cover full audio
         last = shots[-1]
         if last.end_time < audio_duration:
             last.end_time = audio_duration + 0.3

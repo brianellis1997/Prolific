@@ -936,7 +936,32 @@ async def video_assembly_node(state: ShortsPipelineState) -> dict:
                 else:
                     clip_paths.append(asset.file_path)
             else:
-                clip_paths.append(asset.file_path)
+                if director_planned and asset.asset_type == "ai_video" and asset.narration_end > 0:
+                    exact_dur = asset.narration_end - asset.narration_start
+                    if exact_dur > 0 and abs(exact_dur - asset.duration_seconds) > 0.3:
+                        trimmed = str(output_dir / f"trimmed_{asset.sequence_number:02d}.mp4")
+                        ffmpeg_bin = shutil.which("ffmpeg")
+                        if ffmpeg_bin:
+                            cmd = [
+                                ffmpeg_bin, "-i", asset.file_path,
+                                "-t", f"{exact_dur:.2f}",
+                                "-c:v", "libx264", "-preset", "fast", "-crf", "23",
+                                "-pix_fmt", "yuv420p", "-an", "-y", trimmed,
+                            ]
+                            proc = await asyncio.create_subprocess_exec(
+                                *cmd, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE,
+                            )
+                            await proc.communicate()
+                            if proc.returncode == 0:
+                                clip_paths.append(trimmed)
+                                logger.info(
+                                    f"  [{asset.sequence_number}] Trimmed ai_video: "
+                                    f"{asset.duration_seconds:.1f}s -> {exact_dur:.1f}s"
+                                )
+                                continue
+                    clip_paths.append(asset.file_path)
+                else:
+                    clip_paths.append(asset.file_path)
         else:
             kb_path = str(output_dir / f"kb_{asset.sequence_number:02d}.mp4")
             await video_service.create_ken_burns_clip(

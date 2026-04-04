@@ -74,6 +74,8 @@ class VisualAsset(BaseModel):
     image_prompt: str = ""
     video_prompt: str = ""
     character: str = ""
+    narration_start: float = 0.0
+    narration_end: float = 0.0
     file_path: str | None = None
     width: int = 1080
     height: int = 1920

@@ -197,7 +197,7 @@ def _shots_to_visual_assets(shots: list[Shot], character: str) -> list[VisualAss
     assets = []
     for shot in shots:
         raw_duration = shot.end_time - shot.start_time
-        duration = max(3.0, min(5.0, round(raw_duration)))
+        kling_duration = max(3.0, min(5.0, round(raw_duration)))
 
         asset = VisualAsset(
             sequence_number=shot.sequence_number,
@@ -205,7 +205,9 @@ def _shots_to_visual_assets(shots: list[Shot], character: str) -> list[VisualAss
             video_prompt=shot.scene_description,
             search_query=shot.scene_description[:80],
             character=character,
-            duration_seconds=float(duration),
+            narration_start=shot.start_time,
+            narration_end=shot.end_time,
+            duration_seconds=float(kling_duration),
             script_text=shot.narration_text,
             ken_burns_direction="zoom_in",
         )
@@ -274,6 +276,13 @@ async def director_agent_node(state: ShortsPipelineState) -> dict:
         shot.end_time = min(audio_duration + 0.5, shot.end_time)
         if shot.end_time <= shot.start_time:
             shot.end_time = shot.start_time + 3.0
+
+    # Ensure last shot extends to cover full audio duration (no frozen frame at end)
+    if shots:
+        last = shots[-1]
+        if last.end_time < audio_duration:
+            last.end_time = audio_duration + 0.3
+            logger.info(f"Extended last shot to {last.end_time:.1f}s to cover full audio")
 
     # Log the shot list
     logger.info(f"Director planned {len(shots)} shots:")

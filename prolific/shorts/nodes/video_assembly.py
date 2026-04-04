@@ -938,7 +938,8 @@ async def video_assembly_node(state: ShortsPipelineState) -> dict:
             else:
                 if director_planned and asset.asset_type == "ai_video" and asset.narration_end > 0:
                     exact_dur = asset.narration_end - asset.narration_start
-                    if exact_dur > 0 and abs(exact_dur - asset.duration_seconds) > 0.3:
+                    clip_dur = asset.duration_seconds
+                    if exact_dur > 0 and exact_dur < clip_dur and (clip_dur - exact_dur) > 0.3 and exact_dur >= 2.5:
                         trimmed = str(output_dir / f"trimmed_{asset.sequence_number:02d}.mp4")
                         ffmpeg_bin = shutil.which("ffmpeg")
                         if ffmpeg_bin:

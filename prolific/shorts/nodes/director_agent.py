@@ -81,13 +81,21 @@ This is where 90% of viewers decide to keep watching or scroll away.
 TIMING RULES:
 - Each shot's start_time = the start of the first word in that shot
 - Each shot's end_time = the end of the last word in that shot (+ up to 0.3s buffer)
-- Target shot duration: 3-4 seconds (this creates the fast-paced feel viral shorts need)
-- Minimum: 3 seconds (AI video constraint)
-- Maximum: 5 seconds (NEVER longer — attention drops after 4 seconds)
-- If a sentence is under 3 seconds, COMBINE it with the next sentence
-- If a sentence is over 5 seconds, SPLIT it at a natural pause/comma
-- Aim for 8-12 shots total in a 30-second short
-- FAST CUTS are what make shorts go viral — 2-4 second shots, NOT 5-8 second shots
+- HARD MINIMUM: 3 seconds per shot (the AI video generator CANNOT make clips shorter than 3s)
+- HARD MAXIMUM: 5 seconds per shot
+- If a narration segment is under 3 seconds, you MUST combine it with the adjacent segment
+- If a narration segment is over 5 seconds, split it at a natural pause
+- Do NOT plan a fixed number of shots — let the NARRATION TIMING decide how many you need
+- For a 30-second short, you'll typically end up with 7-10 shots
+- EVERY shot must be between 3.0 and 5.0 seconds. NO EXCEPTIONS. If you plan a 2.1s shot,
+  the system will generate a 3s clip and trim it, which causes sync issues.
+
+DYNAMIC SHOT LENGTH:
+- NOT every shot should be the same length. Vary them based on the content:
+  - Quick establishing shots: 3 seconds
+  - Action/movement moments: 3-4 seconds
+  - Emotional beats or reveals: 4-5 seconds (let them breathe)
+  - The FINAL shot should be longer (4-5s) to give the closer weight
 
 CONTINUOUS JOURNEY RULES (THIS IS THE MOST IMPORTANT SECTION):
 The video must feel like ONE CONTINUOUS JOURNEY, not a slideshow of random scenes.
@@ -197,6 +205,11 @@ def _shots_to_visual_assets(shots: list[Shot], character: str) -> list[VisualAss
     assets = []
     for shot in shots:
         raw_duration = shot.end_time - shot.start_time
+        if raw_duration < 2.5:
+            logger.warning(
+                f"Shot {shot.sequence_number} is only {raw_duration:.1f}s — "
+                f"Director should have combined this with an adjacent shot"
+            )
         kling_duration = max(3.0, min(5.0, round(raw_duration)))
 
         asset = VisualAsset(

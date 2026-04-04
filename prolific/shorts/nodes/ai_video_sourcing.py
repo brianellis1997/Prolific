@@ -20,29 +20,28 @@ from prolific.shorts.state import ShortsPipelineState
 logger = logging.getLogger(__name__)
 
 SCENE_IMAGE_PROMPT_FIRST = (
-    "This is my character reference image. Generate a NEW image of this EXACT SAME character "
-    "(same face, same marble texture, same curly hair, same toga, same proportions) "
-    "in this scene:\n\n"
+    "This is my character reference image. The character is: {character_name}\n\n"
+    "Generate a NEW image of this EXACT SAME character in this scene:\n\n"
     "{scene_description}\n\n"
-    "CRITICAL: The character's face, hair, skin texture, and build must be IDENTICAL to the "
-    "reference. Do NOT change any features. Same person, different scene. "
+    "CRITICAL: The character must look IDENTICAL to the reference image. "
+    "Same face, same body, same texture, same outfit, same proportions. "
+    "Do NOT change the character into something else. Do NOT make it a marble statue "
+    "if the reference shows a worm, and vice versa. "
     "Vertical 9:16 portrait composition. Cinematic lighting. Photorealistic. "
     "Show the character MID-ACTION, not posing."
 )
 
 SCENE_IMAGE_PROMPT_CHAINED = (
-    "I'm showing you TWO images:\n"
-    "1. FIRST IMAGE = CHARACTER REFERENCE — the character must ALWAYS look exactly like this. "
-    "Same face, same texture, same outfit.\n"
+    "I'm showing you TWO images. The character is: {character_name}\n\n"
+    "1. FIRST IMAGE = CHARACTER REFERENCE — the character must ALWAYS look exactly like this.\n"
     "2. SECOND IMAGE = THE PREVIOUS SHOT — this is where the character was a moment ago.\n\n"
     "Generate the NEXT MOMENT in the character's journey. They are now:\n\n"
     "{scene_description}\n\n"
     "CRITICAL RULES:\n"
     "- Character MUST match image 1 (same face, body, outfit)\n"
-    "- This scene happens RIGHT AFTER image 2 — same location/era, the character has just "
-    "moved or turned or discovered something new\n"
-    "- The environment should look like the SAME PLACE as image 2, just from a different angle "
-    "or showing a different part of it\n"
+    "- Do NOT turn the character into a marble statue or any other form — keep it as shown\n"
+    "- This scene happens RIGHT AFTER image 2 — same location/era\n"
+    "- The environment should look like the SAME PLACE as image 2\n"
     "- Character is MID-ACTION (walking, reaching, turning, reacting)\n"
     "- Vertical 9:16. Cinematic. Photorealistic."
 )
@@ -148,11 +147,13 @@ async def _generate_scene_images_chained(
         scene_desc = asset.video_prompt or asset.search_query or "standing in a neutral pose"
         output_path = str(scene_img_dir / f"scene_{asset.sequence_number:02d}.png")
 
+        char_name = "Worm (cute cartoon worm with explorer hat)" if character == "worm" else "Marble Man (white marble statue figure)"
+
         if prev_scene_path and Path(prev_scene_path).exists():
-            prompt = SCENE_IMAGE_PROMPT_CHAINED.format(scene_description=scene_desc)
+            prompt = SCENE_IMAGE_PROMPT_CHAINED.format(character_name=char_name, scene_description=scene_desc)
             ref_paths = [char_ref_path, prev_scene_path]
         else:
-            prompt = SCENE_IMAGE_PROMPT_FIRST.format(scene_description=scene_desc)
+            prompt = SCENE_IMAGE_PROMPT_FIRST.format(character_name=char_name, scene_description=scene_desc)
             ref_paths = [char_ref_path]
 
         try:

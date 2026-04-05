@@ -269,6 +269,18 @@ NICHE_SEARCH_QUERIES = {
         "shocking news today what everyone is talking about",
         "viral social media moment today controversy",
     ],
+    "tech_tools": [
+        "AI tools that feel like cheating but are legal",
+        "invisible AI interview assistant screen share safe",
+        "AI cheating on job interviews controversy debate",
+        "secret productivity tools most people don't know about",
+        "AI tools that are changing how people get hired",
+        "companies banning AI in interviews candidates using AI",
+        "job interview tips AI tools secret weapons",
+        "coding interview AI assistant invisible overlay",
+        "remote work tools that give you an unfair advantage",
+        "AI tools that companies don't want you to know about",
+    ],
 }
 
 NICHE_TOPIC_BRAINSTORM_SYSTEM = """You are a viral content strategist for a YouTube Shorts channel
@@ -329,6 +341,7 @@ NICHE_DESCRIPTIONS = {
     "celebrity": "Celebrity gossip, scandals, exposures, relationship drama, and viral celebrity moments",
     "curiosity": "Mind-blowing animal superpowers, dark history secrets, body science, psychology tricks, geography surprises, satisfying machines, human extremes, and 'did you know' content that makes viewers say 'wait REALLY?'",
     "general": "trending drama, viral moments, shocking revelations, and content that BLOWS UP across all niches",
+    "tech_tools": "AI tools, invisible interview assistants, productivity hacks, secret tech tools that give unfair advantages, AI cheating controversy, remote work tools, and 'this tool is INVISIBLE on Zoom' type content",
 }
 
 CURIOSITY_TOPIC_BRAINSTORM_SYSTEM = """You are a viral facts and curiosity content strategist for a

@@ -6,12 +6,12 @@ frontend/
 blog/
 .venv/
 node_modules/
-shorts_output/**/*.mp4
-youtube_output/**/*.mp4
+*.mp4
 *.mp3
 *.aac
 *.wav
-character_concepts/test_*.mp4
-character_concepts/model_comparison/
+*.png
+*.jpg
+!character_concepts/*.png
 youtube_credentials*.json
 client_secrets.json

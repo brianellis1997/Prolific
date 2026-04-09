@@ -199,6 +199,26 @@ class VideoAssemblyService:
             )
             return output_path
 
+        if crossfade_duration == 0:
+            concat_list = "\n".join(f"file '{p}'" for p in clip_paths)
+            concat_file = str(Path(output_path).parent / "concat_list.txt")
+            Path(concat_file).write_text(concat_list)
+            await self._run_ffmpeg(
+                [
+                    "-f", "concat", "-safe", "0", "-i", concat_file,
+                    "-i", audio_path,
+                    "-c:v", "copy",
+                    "-c:a", "aac", "-b:a", "192k",
+                    "-shortest",
+                    "-y", output_path,
+                ],
+                description=f"concat {len(clip_paths)} clips + audio",
+            )
+            Path(concat_file).unlink(missing_ok=True)
+            file_size_mb = Path(output_path).stat().st_size / (1024 * 1024)
+            logger.info(f"Final video: {output_path} ({file_size_mb:.0f} MB)")
+            return output_path
+
         concat_video = str(Path(output_path).parent / "concat_video.mp4")
         await self._crossfade_clips(clip_paths, concat_video, crossfade_duration)
 

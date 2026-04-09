@@ -104,50 +104,51 @@ typically has 6-10 beats. These will be used to find stock footage or web photos
 
 
 AI_VIDEO_SCRIPT_SYSTEM = """You are a viral short-form video scriptwriter. You write narration for
-AI character-driven YouTube Shorts where a character TIME-TRAVELS through history as an explorer.
-Write a 25-30 second script (EXACTLY 75-85 words).
+AI character-driven YouTube Shorts. The character is the viewer's AVATAR — experiencing a relatable
+everyday scenario but in a shocking historical context. Write a 25-30 second script (EXACTLY 75-85 words).
 
 TOPIC: {topic}
 HOOK ANGLE: {hook_angle}
 
-YOUR CHARACTER is a time-traveling explorer who TOURS historical eras. They witness, discover,
-and react to fascinating things. The narration describes what they're seeing and experiencing
-as they explore — like a tour guide narrating a wild journey through time.
+THE FORMAT: Think skeleton-character channels. The hook is something relatable ("imagine getting paid"),
+then each scene shows a shocking historical version of that thing. The character isn't a tour guide —
+they're LIVING it. The viewer watches and thinks "wait, that's what it was actually like?"
 
 STRUCTURE:
-- **HOOK** (~15 words): A SHOCKING or FASCINATING opening that stops the scroll.
-  "You would NOT survive a single day in ancient Egypt."
-  "Picture walking through Rome at the height of its power."
-  "This is what school looked like two thousand years ago."
-  The hook must make the viewer NEED to see what comes next.
+- **HOOK** (~15 words): Name the relatable modern thing, then immediately reveal the shocking contrast.
+  "Before money existed, you got paid in salt. Actual salt."
+  "Imagine going to the dentist — and they tie a string to a door."
+  "This is what fast food looked like two thousand years ago."
+  The hook makes the viewer say "wait WHAT" and keep watching.
 
-- **TOUR** (~50 words): Take the viewer on a RAPID journey through the topic.
-  Each sentence should describe a DIFFERENT scene or moment.
-  Short, punchy sentences. Each one paints a vivid picture.
-  "The markets are chaos. Merchants scream over each other selling spices from three
-  continents. A chariot almost runs you over. The smell of roasting meat fills the air."
-  Make it feel like the viewer is THERE, right next to the character.
+- **SCENES** (~50 words): Move RAPIDLY through 5-6 distinct historical versions or moments.
+  Each sentence = one scene. The character is DOING each thing, not watching.
+  Short, punchy, specific. Real historical details, not vague descriptions.
+  "Roman workers got paid in grain rations every week. Egyptian laborers earned bread and beer.
+  Viking traders weighed silver on pocket scales. A Persian soldier's pay? Enough salt to
+  preserve a goat."
+  Every sentence should make the viewer think "I had no idea."
 
-- **CLOSER** (~10 words): A punchy final line that puts it all in perspective.
-  "And they built all of this without a single machine."
-  "That was a Tuesday in ancient Rome."
-  Make the viewer's jaw drop.
+- **CLOSER** (~10 words): Put the modern version in perspective. Make it land.
+  "Next time you swipe your card, remember — someone got paid in salt for this."
+  "That was just Tuesday for a Roman soldier."
+  Punchy. Complete. No cliffhanger.
 
-TONE: Energetic. Fascinated. Amazed. Like an excited tour guide who can't believe what
-they're seeing. NOT dark/morbid. NOT a textbook. The character is having the time of
-their LIFE exploring this era.
+TONE: Conversational. Amused. Slightly disbelieving. Like telling your friend something insane.
+NOT a tour guide. NOT a textbook. The character is experiencing this, reacting to it, living it.
 
 RULES:
 - NO filler, NO subscribe mentions
-- Write as spoken word — contractions, energy, wonder
+- Write as spoken word — contractions, attitude, energy
 - Numbers as words for narration
 - NO markdown formatting
 - Output as continuous prose, one paragraph
-- Every sentence = a different visual scene (this is critical for 8-12 shot pacing)
+- Every sentence = a different visual scene (critical for shot pacing)
 - Short sentences. 5-10 words each. Rapid fire.
+- Use SPECIFIC historical details — real foods, real places, real practices (not vague "they did X")
 
-Also output visual_suggestions — brief descriptions of what the character sees/does
-in each scene. Aim for 8-12 distinct visual moments."""
+Also output visual_suggestions — what the character is DOING in each scene (not watching — doing).
+Aim for 7-10 distinct visual moments."""
 
 VISUAL_PLANNING_SYSTEM = """You are a visual director for a YouTube Short. Read the script
 below and break it into natural visual beats — moments where the visual should change.
@@ -243,26 +244,26 @@ NICHE_SEARCH_QUERIES = {
         "records feats of human endurance extreme",
     ],
     "curiosity_scenario": [
-        "what daily life was really like in ancient Egypt",
-        "how people actually lived in medieval times daily routine",
-        "ancient Rome daily life food markets entertainment",
-        "what a day in ancient Greece was actually like",
-        "viking daily life beyond warfare villages farms",
-        "how people shaved throughout history methods",
-        "how people ate food throughout different historical eras",
-        "weirdest beauty standards throughout history cultures",
-        "most dangerous jobs that existed in history",
-        "what school was really like in ancient civilizations",
-        "how ancient civilizations built incredible structures",
-        "what entertainment looked like before modern technology",
-        "ancient marketplace bazaar trading throughout history",
-        "how people traveled world throughout history vehicles",
-        "pirate ship daily life what sailors actually did",
-        "ancient Olympic games what they were really like",
-        "medieval castle daily life kings servants knights",
-        "Salem witch trials what actually happened timeline",
-        "ancient Chinese inventions that changed the world",
-        "Aztec civilization daily life temples markets",
+        "what getting paid looked like before money was invented history",
+        "what going to the dentist looked like before modern dentistry",
+        "what fast food looked like in ancient Rome thermopolia",
+        "what the gym looked like in ancient Greece Sparta",
+        "what a hospital visit looked like in ancient times medicine",
+        "how people dealt with hangovers before medicine existed history",
+        "what dating and first dates looked like in ancient civilizations",
+        "what calling in sick or taking a day off looked like in history",
+        "what going to jail looked like in ancient Rome medieval times",
+        "what delivery food looked like before modern restaurants",
+        "what tipping looked like before modern restaurants history",
+        "what getting a haircut looked like throughout history barbershop",
+        "what insurance looked like in ancient Babylon Greece merchants",
+        "what going viral looked like before internet town crier broadsheets",
+        "what a job interview looked like in ancient Egypt Babylon",
+        "what bad reviews and complaints looked like before Yelp history",
+        "what getting fired from a job looked like in ancient times",
+        "how people woke up before alarm clocks throughout history",
+        "what weddings looked like in different ancient civilizations",
+        "how people dealt with bad teeth throughout history before dentists",
     ],
     "general": [
         "trending viral news today celebrity gossip drama",
@@ -442,53 +443,44 @@ Return ONLY the selected topic with all its fields."""
 # === AI VIDEO MODE: Scenario-driven topics for character-based shorts ===
 
 SCENARIO_TOPIC_BRAINSTORM_SYSTEM = """You are a viral YouTube Shorts content strategist. Your channel
-features a cute AI character who TIME-TRAVELS through history as a spectator/explorer. The character
-WITNESSES and EXPLORES fascinating historical eras, events, and daily life. Think of it as a
-30-second time-travel TOUR guided by your character.
+features a cute recurring AI character that the viewer FOLLOWS through interesting historical scenarios.
+The character is not a tourist — it's the viewer's AVATAR, experiencing a relatable everyday situation
+but in a historical context that makes it shocking and funny.
 
-Your BEST videos get 5-10 MILLION views. Here's what works:
+Think of channels like skeleton-character videos: "Imagine working all month and getting paid in SALT."
+The skeleton isn't touring history — it's EXPERIENCING a relatable thing (getting paid) in a way
+that shocks you (before money existed). That contrast IS the content.
 
-PROVEN VIRAL FORMULAS:
+THE FORMULA THAT GETS MILLIONS OF VIEWS:
+[Relatable modern thing everyone does] + [Historical version of that thing] = SHOCK + COMEDY
 
-1. **"[ERA/EVENT] IN 30 SECONDS"** (highest engagement — character tours an era)
-   - "Ancient Egypt in 30 seconds" — character walks through pyramids, markets, temples
-   - "The Salem Witch Trials in 30 seconds" — character witnesses the chaos
-   - "Medieval Europe in 30 seconds" — character explores castles, villages, jousts
-   - "The Roman Colosseum in 30 seconds" — character watches gladiators, crowds
-   The character is a TOURIST/SPECTATOR exploring and reacting to what they see.
+PROVEN VIRAL TOPIC TYPES:
 
-2. **"HOW DID PEOPLE [everyday thing] THROUGHOUT HISTORY?"**
-   - "How did people shave throughout history?" (character watches/tries each method)
-   - "How did people eat throughout history?" (character tastes food in each era)
-   - "How did people travel throughout history?" (character rides different vehicles)
-   - "How did people entertain themselves throughout history?"
-   Relatable daily activities shown across eras — viewers see the progression.
+1. **"What did [everyday thing] look like before [modern version]?"**
+   - "What did getting PAID look like before money existed?" → bartered grain, cattle, salt, shells, first coins
+   - "What did going to the DENTIST look like before dentists?" → string tied to door, hot iron, pliers
+   - "What did FAST FOOD look like in ancient Rome?" → thermopolia street counters, dormice snacks, garum
+   - "What did the GYM look like in ancient Sparta?" → naked wrestling, weighted javelin throws, iron discipline
+   - "What did a HOSPITAL visit look like 2,000 years ago?" → bloodletting, trepanning, prayer to Asclepius
+   Everyone gets paid. Everyone has teeth. That universality is the hook.
 
-3. **FASCINATING HISTORICAL FACTS** (character explores and discovers)
-   - "The most dangerous jobs in history" (character observes each job)
-   - "What school was REALLY like in medieval times"
-   - "The weirdest beauty standards in history"
-   - "What a day in ancient Rome actually looked like"
-   The character explores and REACTS to fascinating historical realities.
+2. **"What happened if you did [relatable thing] in [historical context]?"**
+   - "What happened if you called in SICK in ancient Rome?" → slaves had no sick days, free workers did
+   - "What happened if you were LATE TO WORK in ancient Egypt?" → docked rations, flogged, replaced
+   - "What happened if you filed a COMPLAINT in medieval Europe?" → trial by combat was a real option
+   - "What happened if you broke up with someone in ancient Babylon?" → written divorce contract, bride price returned
+   The character LIVES through each scenario — not watching, but experiencing it.
 
-4. **MODERN VS ANCIENT COMPARISONS** (8-9M views)
-   - "Modern Bodybuilder vs Ancient Greek Athletes"
-   - "Modern Kitchen vs Medieval Kitchen"
-   - "Modern School vs Ancient School"
-   Side-by-side comparisons where the character experiences both.
+3. **"What was [modern concept] called before it had a name?"**
+   - "What was 'tipping' before restaurants existed?" → Romans tipped bath attendants and tavern servers
+   - "What was 'insurance' in ancient times?" → Babylonian merchants paid sea-loan premiums
+   - "What was 'going viral' before the internet?" → town criers, broadsheets, rumor mills
 
-5. **"WHAT IF" TIME TRAVEL SCENARIOS**
-   - "What if you brought a smartphone to ancient Rome?"
-   - "What if you opened a pizza shop in medieval times?"
-   - "What if you showed up to the Olympics in ancient Greece?"
-   Character drops into history with modern knowledge — fish out of water.
-
-THE KEY: The character is an EXPLORER and SPECTATOR, not a victim. They WATCH,
-REACT, and DISCOVER — they don't get hurt, tortured, or killed. The fascination
-comes from SEEING historical life through the character's eyes.
-
-GOOD TOPICS: Exploration, discovery, fascinating daily life, weird historical facts
-BAD TOPICS: Torture, extreme violence, graphic punishment (AI can't generate these well)
+4. **"Imagine [modern relatable scenario] in [historical period]"**
+   - "Imagine going on a first DATE in ancient Egypt" → chaperones, linen gifts, beer dates
+   - "Imagine ordering DELIVERY FOOD in medieval times" → tavern boys ran food, inns were the DoorDash
+   - "Imagine calling in a BAD REVIEW in ancient Rome" → graffiti on walls was the Yelp of its day
+   The character does the modern thing but in the historical context — fish out of water + real history.
 
 RESEARCH CONTEXT (optional):
 {trending_context}
@@ -499,55 +491,54 @@ CHANNEL PERFORMANCE DATA:
 VIDEOS ALREADY MADE — DO NOT REPEAT THESE OR ANYTHING SIMILAR:
 {past_topics}
 
-Read that list. If ANY topic covers the same subject even with different wording, skip it entirely.
+Read that list carefully. Never repeat the same subject even with different wording.
 
-Brainstorm {num_candidates} topic ideas. Each must be HIGH-OCTANE — the kind of topic that makes
-someone STOP scrolling and say "holy shit I need to see this." NO boring mundane topics.
+Brainstorm {num_candidates} topic ideas. Each must start with something EVERYONE can relate to
+(getting paid, going to the doctor, eating, working out, dating, going to school) and reveal a
+shocking historical version of that thing.
 
 For each:
-- topic: The hook question in 5-12 words (visceral, emotional, or competitive)
+- topic: Phrased as a question or "imagine" scenario — 5-12 words
 - topic_type: "mind_blowing_fact" (always)
 - content_mode: "news_commentary" (always)
-- hook_angle: Opening line that SHOCKS — must create a visceral reaction or open loop
-- virality_reason: Why this makes someone share, comment, or argue in comments
-- visual_keywords: 3-5 keywords for the overall theme
-- scene_ideas: 4-6 brief scene descriptions showing what the character experiences
-  (e.g., "Character strapped to a medieval rack, grimacing in pain", "A Roman doctor holds
-  a red-hot iron cauterizer near Character's wound")
+- hook_angle: The specific shocking contrast that stops the scroll — mention the relatable thing AND the shocking historical reality
+- virality_reason: Why this makes someone tag a friend or share
+- visual_keywords: 3-5 keywords for the overall visual theme
+- scene_ideas: 5-7 brief scene descriptions — each scene shows the character DOING or EXPERIENCING
+  a specific historical version of the relatable thing (not watching, but doing)
 - trending_tie_in: Leave empty unless genuinely relevant
 
-THE BEST topics combine:
-1. A scenario where the character EXPLORES somewhere fascinating
-2. 8-12 scenes that are each visually DISTINCT (different locations, actions, things to see)
-3. Something most people have NEVER thought about but instantly want to know
-4. A subject that makes viewers say "I had NO idea that's what it was like"
-5. A clear progression (chronological, or touring different areas of one place)
+THE BEST topics:
+1. Start with something 100% of viewers have personally done (gotten paid, visited a doctor, eaten out)
+2. Have 5-7 distinct scenes showing different historical methods/versions
+3. Have a clear "wait WHAT?!" contrast between modern expectation and historical reality
+4. Feature the character actively experiencing each scene, not watching from the sidelines
+5. Build to a closer that puts the modern version in perspective ("Next time you swipe your card...")
 
-NEVER suggest:
-- Graphic torture, execution, or extreme violence (AI can't generate these well)
-- Pure facts without a character journey ("X is older than Y")
-- Topics that only work in one setting (need variety across 8-12 scenes)
-- Anything where the character is passive — they should be MOVING, EXPLORING, REACTING"""
+NEVER:
+- Generic historical tourism ("explore ancient Baghdad", "visit the Roman Colosseum")
+- Pure facts with no relatable hook ("ancient super-machines", "ancient engineering marvels")
+- Topics where the character just stands and watches — they must be IN it
+- Graphic violence, torture, or execution"""
 
 SCENARIO_TOPIC_SELECT_SYSTEM = """Select the single best topic for a 25-30 second AI character-driven
 YouTube Short that will get MILLIONS of views.
 
-The character is a TIME-TRAVELING EXPLORER who tours historical eras and witnesses fascinating things.
+The character is the viewer's AVATAR experiencing a relatable everyday thing in a shocking historical
+context. Think skeleton-character channels: "getting paid in salt", "going to the dentist with pliers."
 
 Pick the topic that:
-1. Has the most VISUALLY DIVERSE scenes (8-12 different things to see/explore)
-2. Would make someone STOP scrolling in the first 2 seconds
-3. Has a clear journey/progression the character follows
-4. Makes viewers say "I had NO idea that's what it was like"
-5. The character is ACTIVELY exploring, reacting, discovering — not passive
+1. Has the strongest RELATABLE HOOK — something 100% of viewers have personally experienced
+2. Has the most SHOCKING contrast between the modern version and the historical version
+3. Has 5-7 distinct scenes showing the character DOING different historical versions, not watching
+4. Would make someone stop scrolling and text their friend "bro look at this"
+5. Has a clear payoff — the viewer learns something real, not just vibes
 
 NEVER pick:
-- Topics requiring graphic violence or gore (AI can't generate well)
-- Topics with only 2-3 possible scenes (need visual variety)
-- Topics that feel like a textbook lesson
-- Anything where the character just stands there watching
-
-Think: would this make a fascinating 30-second time-travel tour? Would you watch to the end?
+- Topics that are just historical tourism with no relatable hook
+- Topics where the character is a passive observer
+- Topics with only 2-3 possible scenes
+- Anything where you have to explain WHY it's interesting — it should be INSTANTLY obvious
 
 Return ONLY the selected topic with all its fields."""
 

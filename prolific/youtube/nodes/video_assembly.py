@@ -44,13 +44,16 @@ async def video_assembly_node(state: YouTubePipelineState) -> dict:
         duration = chunk.duration_seconds if chunk else asset.duration_seconds
 
         clip_path = str(output_dir / f"clip_{asset.section_number:02d}.mp4")
-        await video_service.create_ken_burns_clip(
-            image_path=asset.file_path,
-            duration=duration,
-            output_path=clip_path,
-            direction=asset.ken_burns_direction,
-            fade_in=3.0 if idx == 0 else 0.0,
-        )
+        if Path(clip_path).exists():
+            logger.info(f"Skipping Ken Burns (already exists): {clip_path}")
+        else:
+            await video_service.create_ken_burns_clip(
+                image_path=asset.file_path,
+                duration=duration,
+                output_path=clip_path,
+                direction=asset.ken_burns_direction,
+                fade_in=3.0 if idx == 0 else 0.0,
+            )
         clip_paths.append(clip_path)
 
     final_video_path = str(
@@ -61,6 +64,7 @@ async def video_assembly_node(state: YouTubePipelineState) -> dict:
         clip_paths=clip_paths,
         audio_path=final_audio_path,
         output_path=final_video_path,
+        crossfade_duration=0,
     )
 
     logger.info(f"Video assembled: {final_video_path}")

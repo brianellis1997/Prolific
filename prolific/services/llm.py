@@ -9,15 +9,39 @@ import logging
 from datetime import datetime
 from typing import Any, Literal
 
+import openai
 from langchain_core.language_models import BaseChatModel
 from langchain_core.messages import BaseMessage, SystemMessage
 from langchain_openai import ChatOpenAI
+from tenacity import retry, retry_if_exception, stop_after_attempt, wait_exponential
 
 from prolific.core.config import settings
 
 logger = logging.getLogger(__name__)
 
 ModelTier = Literal["research", "extraction", "writing", "verification", "vision"]
+
+
+def _is_retryable(exc: BaseException) -> bool:
+    """Return True for transient OpenRouter/model errors worth retrying."""
+    if isinstance(exc, (openai.APITimeoutError, openai.APIConnectionError)):
+        return True
+    if isinstance(exc, openai.RateLimitError):
+        return True
+    if isinstance(exc, openai.InternalServerError):
+        return True
+    if isinstance(exc, openai.BadRequestError):
+        msg = str(exc).lower()
+        return "timeout" in msg or "overloaded" in msg or "capacity" in msg
+    return False
+
+
+_llm_retry = retry(
+    retry=retry_if_exception(_is_retryable),
+    wait=wait_exponential(multiplier=2, min=4, max=30),
+    stop=stop_after_attempt(3),
+    reraise=True,
+)
 
 
 class LLMService:
@@ -123,7 +147,12 @@ class LLMService:
             AI response message
         """
         llm = self.get_llm(tier, temperature, max_tokens)
-        response = await llm.ainvoke(self._inject_date_context(messages))
+
+        @_llm_retry
+        async def _call():
+            return await llm.ainvoke(self._inject_date_context(messages))
+
+        response = await _call()
         self._record_usage(response, tier)
         return response
 
@@ -164,7 +193,12 @@ class LLMService:
         from prolific.services.usage_tracker import LLMUsageCallbackHandler
         handler = LLMUsageCallbackHandler(model_name=self.get_model_name(tier))
         structured_llm = llm.with_structured_output(output_schema)
-        return await structured_llm.ainvoke(self._inject_date_context(messages), config={"callbacks": [handler]})
+
+        @_llm_retry
+        async def _call():
+            return await structured_llm.ainvoke(self._inject_date_context(messages), config={"callbacks": [handler]})
+
+        return await _call()
 
     async def invoke_with_image(
         self,

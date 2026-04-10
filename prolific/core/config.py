@@ -79,7 +79,7 @@ class Settings(BaseSettings):
     youtube_max_images: int = 8
     youtube_image_style: str = "oil painting, historical illustration, warm muted tones, cinematic lighting"
     youtube_output_dir: str = "./youtube_output"
-    youtube_history_db_path: str = "./youtube_history.sqlite"
+    youtube_history_db_path: str = "/app/data/youtube_history.sqlite"
     youtube_biography_ratio: float = 0.7
 
     # 11Labs TTS
@@ -107,7 +107,7 @@ class Settings(BaseSettings):
     shorts_num_visuals: int = 10
     shorts_image_style: str = "bold digital art, dramatic lighting, vibrant colors, 9:16 portrait composition"
     shorts_output_dir: str = "./shorts_output"
-    shorts_history_db_path: str = "./shorts_history.sqlite"
+    shorts_history_db_path: str = "/app/data/shorts_history.sqlite"
     shorts_crossfade_duration: float = 0.3
     shorts_caption_font_size: int = 48
     shorts_caption_words_per_group: int = 4

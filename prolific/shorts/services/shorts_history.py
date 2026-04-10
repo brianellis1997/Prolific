@@ -30,9 +30,14 @@ class ShortsHistoryService:
                 status TEXT DEFAULT 'planned',
                 cost_usd REAL DEFAULT 0,
                 created_at TEXT NOT NULL,
-                published_at TEXT
+                published_at TEXT,
+                selection_rationale TEXT DEFAULT ''
             )
         """)
+        try:
+            await db.execute("ALTER TABLE shorts ADD COLUMN selection_rationale TEXT DEFAULT ''")
+        except Exception:
+            pass
         await db.commit()
 
     async def get_past_topics(self, hours: int = 48) -> list[str]:
@@ -103,6 +108,7 @@ class ShortsHistoryService:
         video_path: str | None = None,
         status: str = "published",
         cost_usd: float = 0.0,
+        selection_rationale: str = "",
     ) -> None:
         """Record a generated short in the history database."""
         async with aiosqlite.connect(self.db_path) as db:
@@ -111,13 +117,14 @@ class ShortsHistoryService:
                 """INSERT OR REPLACE INTO shorts
                    (id, topic, hook, script_text, word_count, duration_seconds,
                     youtube_video_id, youtube_url, video_path, status, cost_usd,
-                    created_at, published_at)
-                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                    created_at, published_at, selection_rationale)
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
                 (
                     short_id, topic, hook, script_text, word_count, duration_seconds,
                     youtube_video_id, youtube_url, video_path, status, cost_usd,
                     datetime.utcnow().isoformat(),
                     datetime.utcnow().isoformat() if youtube_url else None,
+                    selection_rationale,
                 ),
             )
             await db.commit()

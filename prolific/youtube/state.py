@@ -26,6 +26,7 @@ class YouTubePipelineState(TypedDict):
     region_tags: list[str]
     is_biography: bool
     past_video_topics: list[str]
+    selection_rationale: str
 
     # Script
     script_sections: Annotated[list[ScriptSection], merge_artifacts_by_id]
@@ -68,6 +69,7 @@ def create_initial_youtube_state(thread_id: str | None = None) -> YouTubePipelin
         region_tags=[],
         is_biography=False,
         past_video_topics=[],
+        selection_rationale="",
         script_sections=[],
         total_script_word_count=0,
         image_assets=[],

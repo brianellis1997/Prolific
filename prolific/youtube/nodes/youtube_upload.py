@@ -80,6 +80,7 @@ async def youtube_upload_node(state: YouTubePipelineState) -> dict:
         era_tags=state.get("era_tags", []),
         region_tags=state.get("region_tags", []),
         is_biography=state.get("is_biography", False),
+        selection_rationale=state.get("selection_rationale", ""),
     )
     await history_service.record_video(record)
 

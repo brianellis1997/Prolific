@@ -78,6 +78,43 @@ class TopicSelectionResult(BaseModel):
     rationale: str
 
 
+async def _get_diversity_context(history_service) -> str:
+    """Build a soft diversity constraint from the last 10 videos' era/region tags."""
+    try:
+        recent = await history_service.get_past_videos(limit=10)
+        if not recent:
+            return ""
+
+        from collections import Counter
+        era_counts: Counter = Counter()
+        region_counts: Counter = Counter()
+        for v in recent:
+            for tag in v.era_tags:
+                era_counts[tag.lower()] += 1
+            for tag in v.region_tags:
+                region_counts[tag.lower()] += 1
+
+        saturated_eras = [era for era, count in era_counts.items() if count >= 3]
+        saturated_regions = [region for region, count in region_counts.items() if count >= 2]
+
+        if not saturated_eras and not saturated_regions:
+            return ""
+
+        lines = ["DIVERSITY CONSTRAINT (soft — deprioritize these, don't ban them):"]
+        if saturated_eras:
+            lines.append(f"- Over-represented eras in last 10 videos: {', '.join(saturated_eras)}")
+            lines.append("  -> Avoid these eras unless the topic is truly exceptional.")
+        if saturated_regions:
+            lines.append(f"- Over-represented regions in last 10 videos: {', '.join(saturated_regions)}")
+            lines.append("  -> Strongly prefer different civilizations/regions this time.")
+        lines.append("These are soft constraints — if an over-represented topic is clearly the best choice, pick it. But actively look for fresh eras and regions first.")
+
+        return "\n".join(lines)
+    except Exception as e:
+        logger.warning(f"Diversity context failed (non-fatal): {e}")
+        return ""
+
+
 async def _get_performance_context() -> str:
     """Pull channel analytics to identify what topics/eras/regions perform best."""
     try:
@@ -157,15 +194,20 @@ async def topic_selection_node(state: YouTubePipelineState) -> dict:
 
     trending_context = await _get_trending_context()
     performance_context = await _get_performance_context()
+    diversity_context = await _get_diversity_context(history_service)
 
     from prolific.youtube.prompts import TOPIC_BRAINSTORM_SYSTEM
+
+    perf_block = performance_context if performance_context else "(no performance data yet - channel is new)"
+    if diversity_context:
+        perf_block = perf_block + "\n\n" + diversity_context
 
     brainstorm_prompt = TOPIC_BRAINSTORM_SYSTEM.format(
         num_candidates=10,
         content_type_instruction=content_type_instruction,
         past_topics=past_topics_str,
         trending_context=trending_context if trending_context else "(no trending data available)",
-        performance_context=performance_context if performance_context else "(no performance data yet - channel is new)",
+        performance_context=perf_block,
     )
 
     brainstorm_result = await llm_service.invoke_with_structured_output(
@@ -214,11 +256,22 @@ async def topic_selection_node(state: YouTubePipelineState) -> dict:
     if chosen.trending_tie_in:
         logger.info(f"Trending tie-in: {chosen.trending_tie_in}")
 
+    rationale = (
+        f"Topic: {chosen.topic}\n"
+        f"Is biography: {chosen.is_biography}\n"
+        f"LLM rationale: {selection_result.rationale}\n"
+        f"Performance context used: {bool(performance_context)}\n"
+        f"Diversity constraint used: {bool(diversity_context)}\n"
+        f"Candidates considered: {[c.topic for c in candidates]}"
+    )
+    logger.info(f"Selection rationale saved to DB: {selection_result.rationale}")
+
     return {
         "topic": chosen.topic,
         "is_biography": chosen.is_biography,
         "era_tags": chosen.era_tags,
         "region_tags": chosen.region_tags,
+        "selection_rationale": rationale,
         "past_video_topics": past_topics,
         "current_phase": "script_planning",
         "messages": [AIMessage(content=f"Selected topic: {chosen.topic}")],

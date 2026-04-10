@@ -332,6 +332,17 @@ async def topic_selection_node(state: ShortsPipelineState) -> dict:
         for i, scene in enumerate(chosen.scene_ideas, 1):
             logger.info(f"  Scene {i}: {scene[:80]}")
 
+    selection_rationale = (
+        f"Topic: {chosen.topic}\n"
+        f"Hook: {chosen.hook_angle}\n"
+        f"LLM rationale: {selection_result.rationale}\n"
+        f"Virality reason: {chosen.virality_reason}\n"
+        f"Performance context used: {bool(performance_context)}\n"
+        f"AI video mode: {ai_video_mode}\n"
+        f"Candidates considered: {[c.topic for c in candidates]}"
+    )
+    logger.info(f"Selection rationale: {selection_result.rationale}")
+
     return {
         "topic": chosen.topic,
         "topic_type": chosen.topic_type,
@@ -340,6 +351,7 @@ async def topic_selection_node(state: ShortsPipelineState) -> dict:
         "source_urls": all_urls,
         "past_short_topics": past_topics,
         "scene_ideas": chosen.scene_ideas or [],
+        "selection_rationale": selection_rationale,
         "current_phase": "script_writing",
         "messages": [AIMessage(
             content=f"Selected: {chosen.topic} | Mode: {content_mode} | Hook: {chosen.hook_angle}"

@@ -34,9 +34,14 @@ class ChannelHistoryService:
                     published_at TEXT,
                     era_tags TEXT NOT NULL DEFAULT '[]',
                     region_tags TEXT NOT NULL DEFAULT '[]',
-                    is_biography INTEGER DEFAULT 0
+                    is_biography INTEGER DEFAULT 0,
+                    selection_rationale TEXT DEFAULT ''
                 )
             """)
+            try:
+                await db.execute("ALTER TABLE videos ADD COLUMN selection_rationale TEXT DEFAULT ''")
+            except Exception:
+                pass
             await db.commit()
 
     async def record_video(self, record: VideoRecord) -> None:
@@ -46,8 +51,8 @@ class ChannelHistoryService:
                    (id, topic, title, description, tags, youtube_video_id,
                     youtube_url, thumbnail_path, video_path, script_word_count,
                     estimated_duration_minutes, status, created_at, published_at,
-                    era_tags, region_tags, is_biography)
-                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                    era_tags, region_tags, is_biography, selection_rationale)
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
                 (
                     str(record.id),
                     record.topic,
@@ -66,6 +71,7 @@ class ChannelHistoryService:
                     json.dumps(record.era_tags),
                     json.dumps(record.region_tags),
                     1 if record.is_biography else 0,
+                    record.selection_rationale,
                 ),
             )
             await db.commit()

@@ -86,6 +86,7 @@ async def youtube_upload_node(state: ShortsPipelineState) -> dict:
             youtube_url=video_url,
             video_path=video_path,
             status="published",
+            selection_rationale=state.get("selection_rationale", ""),
         )
 
         return {

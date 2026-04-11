@@ -23,7 +23,7 @@ Thank them for listening when appropriate. If they mention falling asleep, take 
 If they share historical knowledge, acknowledge it graciously.
 Keep the same calm, wise tone as the narration. No emojis. No hashtags."""
 
-MIN_COMMENT_WORDS = 3
+MIN_COMMENT_WORDS = 1
 MAX_REPLIES_PER_RUN = 20
 
 

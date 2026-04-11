@@ -122,7 +122,7 @@ class VideoAssemblyService:
             cf = 0.0
 
         if cf == 0.0:
-            concat_list = "\n".join(f"file '{p}'" for p in clip_paths)
+            concat_list = "\n".join(f"file '{Path(p).resolve()}'" for p in clip_paths)
             concat_file = str(Path(output_path).parent / "concat_list.txt")
             Path(concat_file).write_text(concat_list)
             await self._run_ffmpeg(
@@ -200,7 +200,7 @@ class VideoAssemblyService:
             return output_path
 
         if crossfade_duration == 0:
-            concat_list = "\n".join(f"file '{p}'" for p in clip_paths)
+            concat_list = "\n".join(f"file '{Path(p).resolve()}'" for p in clip_paths)
             concat_file = str(Path(output_path).parent / "concat_list.txt")
             Path(concat_file).write_text(concat_list)
             await self._run_ffmpeg(

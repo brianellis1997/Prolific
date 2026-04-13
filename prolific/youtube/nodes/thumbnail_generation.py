@@ -6,9 +6,15 @@ from pathlib import Path
 from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
 from PIL import Image
 
+from pydantic import BaseModel, Field
+
 from prolific.core.config import settings
 from prolific.services.llm import get_llm_service
-from prolific.youtube.prompts import THUMBNAIL_HOOK_SYSTEM, THUMBNAIL_PROMPT_TEMPLATE
+from prolific.youtube.prompts import (
+    THUMBNAIL_HOOK_EVAL_SYSTEM,
+    THUMBNAIL_HOOK_SYSTEM,
+    THUMBNAIL_PROMPT_TEMPLATE,
+)
 from prolific.youtube.schemas import ThumbnailAsset
 from prolific.youtube.services.image_gen import get_image_gen_service
 from prolific.youtube.state import YouTubePipelineState
@@ -62,16 +68,40 @@ async def thumbnail_generation_node(state: YouTubePipelineState) -> dict:
         hook_response = await llm_service.invoke(
             messages=[
                 SystemMessage(content=hook_prompt),
-                HumanMessage(content="Generate the thumbnail hook text."),
+                HumanMessage(content="Generate 5 thumbnail hook options."),
             ],
             tier="research",
-            temperature=0.7,
+            temperature=0.9,
         )
-        hook_text = hook_response.content.strip().strip('"').strip("'")
-        if len(hook_text.split()) > 6:
-            hook_text = " ".join(hook_text.split()[:5])
-        hook_text = hook_text.upper()
-        logger.info(f"Thumbnail hook text: '{hook_text}'")
+        raw_hooks = hook_response.content.strip()
+        candidates = []
+        for line in raw_hooks.split("\n"):
+            line = line.strip().lstrip("0123456789.)-: ")
+            if line and len(line.split()) <= 6:
+                candidates.append(line.strip('"').strip("'").upper())
+        if not candidates:
+            candidates = [raw_hooks.split("\n")[0].strip().upper()]
+
+        logger.info(f"Thumbnail hook candidates: {candidates}")
+
+        class HookEvaluation(BaseModel):
+            chosen_index: int = Field(description="0-based index of the best hook")
+            rationale: str = Field(description="Why this hook wins")
+
+        candidates_str = "\n".join(f"[{i}] {c}" for i, c in enumerate(candidates))
+        eval_result = await llm_service.invoke_with_structured_output(
+            messages=[
+                SystemMessage(content=THUMBNAIL_HOOK_EVAL_SYSTEM),
+                HumanMessage(content=f"Topic: {topic}\n\nHook candidates:\n{candidates_str}\n\nPick the best one."),
+            ],
+            output_schema=HookEvaluation,
+            tier="research",
+            temperature=0.3,
+        )
+
+        chosen_idx = max(0, min(eval_result.chosen_index, len(candidates) - 1))
+        hook_text = candidates[chosen_idx]
+        logger.info(f"Thumbnail hook selected: '{hook_text}' (reason: {eval_result.rationale})")
     except Exception as e:
         logger.warning(f"Hook text generation failed, using fallback: {e}")
         hook_text = topic.split(":")[0][:30].upper() if ":" in topic else topic[:30].upper()

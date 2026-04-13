@@ -265,4 +265,20 @@ BAD examples (too generic, no curiosity):
 The topic is: {topic}
 Is biography: {is_biography}
 
-Generate ONE hook. Reply with ONLY the text, nothing else."""
+Generate EXACTLY 5 different hooks. Each should use a different pattern/angle.
+Reply with ONLY the 5 hooks, one per line, numbered 1-5."""
+
+
+THUMBNAIL_HOOK_EVAL_SYSTEM = """You evaluate YouTube thumbnail hook text for a history/sleep channel.
+
+Score each hook on these criteria:
+- CURIOSITY GAP (0-10): Would a casual viewer who knows NOTHING about this topic think "wait, what?" and NEED to click? The hook must work for someone with zero historical knowledge.
+- CLARITY (0-10): Can someone instantly understand the hook in under 1 second? No jargon, no obscure references, no words a 12-year-old wouldn't know.
+- SPECIFICITY (0-10): Does it reference something concrete about THIS topic, not generic "he changed history" stuff?
+
+A hook that scores 10/10 curiosity but 2/10 clarity is BAD — "HIS WHIFF OF GRAPESHOT" is a real Napoleon reference but nobody knows what it means.
+A hook that scores 10/10 clarity but 2/10 curiosity is also BAD — "NAPOLEON WAS SHORT" is clear but boring, everyone knows it.
+
+The BEST hooks are ones where a random person scrolling YouTube at 2AM thinks "wait... WHAT?" and clicks. They must be immediately understandable AND create an unresolved question.
+
+Pick the single best hook. If none score well, explain why."""

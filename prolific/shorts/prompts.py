@@ -184,9 +184,14 @@ For each segment choose one of two asset types:
 - **stock_clip** (STRONGLY PREFERRED — use for 70-80% of segments): Real video footage.
   Video is always more engaging than static images. Use for: animals, nature, machines,
   people, environments, action shots, anything that moves.
-  Provide a 2-4 word search_query for Pexels. The query MUST include the actual subject
-  (e.g., "mantis shrimp striking", "gorilla close up", "Swiss army bunker").
-  Do NOT use generic/metaphorical queries like "high speed camera" or "fighter jet."
+  Provide a 3-6 word search_query for stock video search. The query MUST include the
+  specific subject name (species, person, place, object). Each segment's query should be
+  DIFFERENT — vary angles, actions, and details to get diverse clips.
+  GOOD queries: "mantis shrimp striking prey underwater", "gorilla silverback close up face",
+    "Swiss army bunker entrance mountain", "deep sea anglerfish bioluminescent"
+  BAD queries: "ocean underwater", "animal nature", "military bunker", "deep sea creature"
+  The more specific the query, the more relevant the clip. Always include the EXACT subject
+  name — if the video is about axolotls, write "axolotl" not "amphibian" or "underwater animal."
 - **web_image** (use sparingly — max 1-2 per short): Real photos. Only use for very
   specific things that won't have video footage: diagrams, infographics, close-up details,
   historical paintings, maps, microscope images.
@@ -197,7 +202,7 @@ Alternate ken_burns_direction: zoom_in, zoom_out, pan_left, pan_right.
 For each segment output:
 - sequence_number: sequential from 1
 - asset_type: "stock_clip" or "web_image"
-- search_query: search terms (MUST include the actual subject, not metaphors)
+- search_query: 3-6 word search terms (MUST include the specific subject name, not metaphors or generic words)
 - script_text: the EXACT words from the script that will be spoken during this visual.
   Copy the words verbatim from the script. Every word in the script must appear in exactly
   one segment's script_text. The segments must cover the ENTIRE script in order.

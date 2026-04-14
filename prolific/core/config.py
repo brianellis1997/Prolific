@@ -143,6 +143,9 @@ class Settings(BaseSettings):
     # Pexels Video API
     pexels_api_key: str = ""
 
+    # Pixabay Video API
+    pixabay_api_key: str = ""
+
     # Twitch API
     twitch_client_id: str = ""
     twitch_client_secret: str = ""

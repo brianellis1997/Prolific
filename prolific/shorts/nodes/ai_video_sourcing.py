@@ -326,7 +326,7 @@ async def _fallback_to_pexels(asset, thread_id: str):
         Path(output_path).parent.mkdir(parents=True, exist_ok=True)
 
         query = asset.search_query or asset.video_prompt or "nature scenery"
-        result = await pexels.fetch_clip(
+        result, _ = await pexels.fetch_clip(
             query=query,
             output_path=output_path,
             duration=asset.duration_seconds,

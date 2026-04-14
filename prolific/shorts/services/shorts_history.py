@@ -38,6 +38,16 @@ class ShortsHistoryService:
             await db.execute("ALTER TABLE shorts ADD COLUMN selection_rationale TEXT DEFAULT ''")
         except Exception:
             pass
+        await db.execute("""
+            CREATE TABLE IF NOT EXISTS used_stock_clips (
+                video_id TEXT NOT NULL,
+                source TEXT NOT NULL DEFAULT 'pexels',
+                search_query TEXT NOT NULL,
+                short_id TEXT,
+                used_at TEXT NOT NULL,
+                PRIMARY KEY (video_id, source)
+            )
+        """)
         await db.commit()
 
     async def get_past_topics(self, hours: int = 48) -> list[str]:
@@ -94,6 +104,34 @@ class ShortsHistoryService:
         lines.append(", ".join(sorted(all_subjects)))
 
         return "\n".join(lines)
+
+    async def get_used_clip_ids(self, source: str = "pexels", hours: int = 720) -> set[str]:
+        cutoff = (datetime.utcnow() - timedelta(hours=hours)).isoformat()
+        async with aiosqlite.connect(self.db_path) as db:
+            await self._ensure_table(db)
+            cursor = await db.execute(
+                "SELECT video_id FROM used_stock_clips WHERE source = ? AND used_at > ?",
+                (source, cutoff),
+            )
+            rows = await cursor.fetchall()
+            return {str(row[0]) for row in rows}
+
+    async def record_clip_usage(
+        self,
+        video_id: str | int,
+        source: str = "pexels",
+        search_query: str = "",
+        short_id: str | None = None,
+    ) -> None:
+        async with aiosqlite.connect(self.db_path) as db:
+            await self._ensure_table(db)
+            await db.execute(
+                """INSERT OR IGNORE INTO used_stock_clips
+                   (video_id, source, search_query, short_id, used_at)
+                   VALUES (?, ?, ?, ?, ?)""",
+                (str(video_id), source, search_query, short_id, datetime.utcnow().isoformat()),
+            )
+            await db.commit()
 
     async def record_short(
         self,

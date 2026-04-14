@@ -20,7 +20,11 @@ def _align_visuals_to_speech(
     caption_segments: list,
     audio_duration: float,
 ) -> None:
-    """Align visual segment durations to speech timestamps using script_text matching."""
+    """Align visual segment durations to speech timestamps using script_text matching.
+
+    Sets precise narration_start/narration_end on each asset and applies gap-fill
+    to ensure continuous video coverage with no drift.
+    """
     if not caption_segments or not visual_assets:
         return
 
@@ -59,6 +63,8 @@ def _align_visuals_to_speech(
             end_time = words_with_times[end_idx][2]
             word_idx = end_idx + 1
 
+            asset.narration_start = start_time
+            asset.narration_end = end_time
             duration = max(2.0, round(end_time - start_time + 0.3, 1))
             asset.duration_seconds = duration
             logger.info(
@@ -70,6 +76,8 @@ def _align_visuals_to_speech(
                 f"  [{asset.sequence_number}] Could not align: '{asset.script_text[:40]}...'"
             )
 
+    _apply_gap_fill(assets_with_text, audio_duration)
+
     total_visual = sum(a.duration_seconds for a in visual_assets if a.file_path)
     if audio_duration > 0 and total_visual > 0:
         scale = audio_duration / total_visual
@@ -78,6 +86,31 @@ def _align_visuals_to_speech(
                 if a.file_path:
                     a.duration_seconds = max(2.0, round(a.duration_seconds * scale, 1))
             logger.info(f"  Scaled durations by {scale:.2f}x to match {audio_duration:.1f}s audio")
+
+
+def _apply_gap_fill(assets: list, audio_duration: float) -> None:
+    """Fill timing gaps between assets so video covers the full audio duration.
+
+    Extends each asset's end to meet the next asset's start, and extends the
+    last asset to cover the full audio. This prevents silent gaps that cause drift.
+    """
+    if not assets or audio_duration <= 0:
+        return
+
+    for i in range(len(assets) - 1):
+        next_start = assets[i + 1].narration_start
+        if next_start > 0 and next_start > assets[i].narration_end:
+            gap = next_start - assets[i].narration_end
+            assets[i].narration_end = next_start
+            assets[i].duration_seconds = max(2.0, round(assets[i].narration_end - assets[i].narration_start + 0.3, 1))
+            if gap > 0.5:
+                logger.info(f"  [{assets[i].sequence_number}] Extended by {gap:.1f}s to fill gap")
+
+    last = assets[-1]
+    if last.narration_end > 0 and last.narration_end < audio_duration:
+        last.narration_end = audio_duration + 0.3
+        last.duration_seconds = max(2.0, round(last.narration_end - last.narration_start + 0.3, 1))
+        logger.info(f"  [{last.sequence_number}] Extended last asset to {last.narration_end:.1f}s to cover full audio")
 
 
 def _distribute_by_word_count(
@@ -104,12 +137,15 @@ def _distribute_by_word_count(
         start_time = caption_segments[word_idx].start_time
         end_time = caption_segments[end_idx].end_time
         duration = max(2.0, round(end_time - start_time + 0.3, 1))
+        asset.narration_start = start_time
+        asset.narration_end = end_time
         asset.duration_seconds = duration
 
         word_idx = end_idx + 1
         if word_idx >= total_words:
             word_idx = total_words - 1
 
+    _apply_gap_fill(assets_with_files, audio_duration)
     logger.info(f"  Distributed {total_words} words across {n} segments by equal word count")
 
 

@@ -7,6 +7,7 @@ from langgraph.graph import END, START, StateGraph
 
 from prolific.shorts.nodes import (
     clip_analysis_node,
+    clip_director_node,
     clip_sourcing_node,
     compilation_research_node,
     image_generation_node,
@@ -65,15 +66,12 @@ def _route_after_story_review(
 
 
 def _route_after_script(state: ShortsPipelineState) -> str:
-    """After script writing: AI video mode skips visual planning, goes to TTS first.
+    """After script writing: ALWAYS go to TTS first, then director plans shots with timing.
 
-    AI video flow:   script → tts → director_agent → ai_video → assembly
-    Stock flow:      script → visual_planning → [sourcing] → tts → assembly
+    AI video flow:        script → tts → director_agent → ai_video → assembly
+    news_commentary flow: script → tts → clip_director → [stock, images] → assembly
     """
-    from prolific.shorts.nodes.topic_selection import _is_ai_video_run
-    if _is_ai_video_run():
-        return "tts_generation"
-    return "visual_planning"
+    return "tts_generation"
 
 
 def _route_after_visual_planning(
@@ -90,26 +88,38 @@ def _route_after_visual_planning(
     if has_web:
         targets.append("image_generation")
     if not targets:
-        targets.append("tts_generation")
+        targets.append("video_assembly")
     return targets
 
 
-def _route_after_tts(state: ShortsPipelineState) -> str:
-    """After TTS: route based on what triggered it.
+def _route_after_image_gen(state: ShortsPipelineState) -> str:
+    """After image generation: go to assembly if audio exists (clip_director path),
+    otherwise go to TTS first (story_plan path)."""
+    if state.get("audio_path"):
+        return "video_assembly"
+    return "tts_generation"
 
-    If AI video mode (no visual_assets yet) → director_agent
-    If visual_assets with ai_video → ai_video_sourcing (legacy path)
-    Else → video_assembly (stock/web path)
+
+def _route_after_tts(state: ShortsPipelineState) -> str:
+    """After TTS: route based on content mode.
+
+    AI video mode → director_agent (plans AI-generated character scenes)
+    news_commentary → clip_director (plans stock footage shots with timing)
+    Already has visual_assets with ai_video → ai_video_sourcing (legacy)
+    Already has visual_assets sourced → video_assembly (story_plan modes)
     """
     visual_assets = state.get("visual_assets", [])
     has_ai_video = any(a.asset_type == "ai_video" and not a.file_path for a in visual_assets)
 
     if has_ai_video:
         return "ai_video_sourcing"
+
     if not visual_assets:
         from prolific.shorts.nodes.topic_selection import _is_ai_video_run
         if _is_ai_video_run():
             return "director_agent"
+        return "clip_director"
+
     return "video_assembly"
 
 
@@ -118,7 +128,7 @@ def build_shorts_pipeline_graph(checkpointer=None):
 
     Pipeline routes:
       AI video mode:    topic -> script -> tts -> director_agent -> ai_video -> assembly -> meta -> upload
-      news_commentary:  topic -> script -> visual_plan -> [stock, images] -> tts -> assembly -> meta -> upload
+      news_commentary:  topic -> script -> tts -> clip_director -> [stock, images] -> assembly -> meta -> upload
       clip_reaction:    topic -> clip_sourcing -> clip_analysis -> story_direction -> [stock, images] -> tts -> assembly -> upload
       clip_compilation: topic -> compilation_research -> clip_sourcing -> clip_analysis -> story_direction -> ... -> upload
       niche_drama:      topic -> clip_sourcing -> clip_analysis -> story_direction -> [stock, images] -> tts -> assembly -> upload
@@ -138,6 +148,7 @@ def build_shorts_pipeline_graph(checkpointer=None):
     graph.add_node("story_direction", story_direction_node)
     graph.add_node("story_review", story_review_node)
     graph.add_node("script_writing", script_writing_node)
+    graph.add_node("clip_director", clip_director_node)
     graph.add_node("visual_planning", visual_planning_node)
     graph.add_node("stock_clip_sourcing", stock_clip_sourcing_node)
     graph.add_node("image_generation", image_generation_node)
@@ -182,36 +193,38 @@ def build_shorts_pipeline_graph(checkpointer=None):
         },
     )
 
-    graph.add_conditional_edges(
-        "script_writing",
-        _route_after_script,
-        {
-            "tts_generation": "tts_generation",
-            "visual_planning": "visual_planning",
-        },
-    )
-
-    graph.add_conditional_edges(
-        "visual_planning",
-        _route_after_visual_planning,
-        {
-            "stock_clip_sourcing": "stock_clip_sourcing",
-            "image_generation": "image_generation",
-            "tts_generation": "tts_generation",
-        },
-    )
-
-    graph.add_edge("stock_clip_sourcing", "tts_generation")
-    graph.add_edge("image_generation", "tts_generation")
-    graph.add_edge("ai_video_sourcing", "video_assembly")
+    graph.add_edge("script_writing", "tts_generation")
 
     graph.add_conditional_edges(
         "tts_generation",
         _route_after_tts,
         {
             "director_agent": "director_agent",
+            "clip_director": "clip_director",
             "ai_video_sourcing": "ai_video_sourcing",
             "video_assembly": "video_assembly",
+        },
+    )
+
+    graph.add_conditional_edges(
+        "clip_director",
+        _route_after_visual_planning,
+        {
+            "stock_clip_sourcing": "stock_clip_sourcing",
+            "image_generation": "image_generation",
+            "video_assembly": "video_assembly",
+        },
+    )
+
+    graph.add_edge("stock_clip_sourcing", "video_assembly")
+    graph.add_edge("ai_video_sourcing", "video_assembly")
+
+    graph.add_conditional_edges(
+        "image_generation",
+        _route_after_image_gen,
+        {
+            "video_assembly": "video_assembly",
+            "tts_generation": "tts_generation",
         },
     )
 

@@ -163,8 +163,11 @@ def _is_ai_video_run() -> bool:
     """Check if this run should use AI video generation (Kling) based on config, time, and day.
 
     AI video runs on specific hours AND specific days of the week.
-    Default: Mon/Wed/Fri at the configured hours.
+    Default: Mon/Wed/Fri at hour 16 (4 PM ET) ONLY.
+
+    Reads env vars directly to avoid stale @lru_cache values.
     """
+    import os
     if not settings.kling_enabled or not settings.fal_api_key:
         return False
     try:
@@ -174,11 +177,18 @@ def _is_ai_video_run() -> bool:
         current_hour = now.hour
         current_day = now.weekday()  # 0=Monday, 6=Sunday
 
-        allowed_hours = [int(h.strip()) for h in settings.kling_cron_hours.split(",") if h.strip()]
-        kling_days_str = getattr(settings, "kling_cron_days", "0,2,4")  # Mon, Wed, Fri
-        allowed_days = [int(d.strip()) for d in kling_days_str.split(",") if d.strip()]
+        hours_str = os.environ.get("KLING_CRON_HOURS", settings.kling_cron_hours)
+        days_str = os.environ.get("KLING_CRON_DAYS", getattr(settings, "kling_cron_days", "0,2,4"))
 
-        return current_hour in allowed_hours and current_day in allowed_days
+        allowed_hours = [int(h.strip()) for h in hours_str.split(",") if h.strip()]
+        allowed_days = [int(d.strip()) for d in days_str.split(",") if d.strip()]
+
+        result = current_hour in allowed_hours and current_day in allowed_days
+        logger.info(
+            f"AI video check: hour={current_hour} day={current_day} "
+            f"allowed_hours={allowed_hours} allowed_days={allowed_days} -> {result}"
+        )
+        return result
     except Exception:
         return False
 

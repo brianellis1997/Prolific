@@ -29,6 +29,9 @@ class YouTubePipelineState(TypedDict):
     selection_rationale: str
     is_intentional_continuation: bool
     continues_video_id: str | None
+    # One of "BIOGRAPHY" (Mon/Wed/Fri), "LOST_CIVILIZATION" (Thu), "IMMERSIVE_DAILY_LIFE" (Sat).
+    # Injected by scheduler or /api/v1/youtube/generate; defaults to BIOGRAPHY for back-compat.
+    content_mode: str
 
     # Script
     script_sections: Annotated[list[ScriptSection], merge_artifacts_by_id]
@@ -57,8 +60,15 @@ class YouTubePipelineState(TypedDict):
     warnings: Annotated[list[str], operator.add]
 
 
-def create_initial_youtube_state(thread_id: str | None = None) -> YouTubePipelineState:
-    """Create initial state for a YouTube pipeline run."""
+def create_initial_youtube_state(
+    thread_id: str | None = None,
+    content_mode: str = "BIOGRAPHY",
+) -> YouTubePipelineState:
+    """Create initial state for a YouTube pipeline run.
+
+    `content_mode` is one of BIOGRAPHY / LOST_CIVILIZATION / IMMERSIVE_DAILY_LIFE.
+    The scheduler injects it per cron job; manual API triggers can override it.
+    """
     from uuid import uuid4
 
     if thread_id is None:
@@ -74,6 +84,7 @@ def create_initial_youtube_state(thread_id: str | None = None) -> YouTubePipelin
         selection_rationale="",
         is_intentional_continuation=False,
         continues_video_id=None,
+        content_mode=content_mode,
         script_sections=[],
         total_script_word_count=0,
         image_assets=[],

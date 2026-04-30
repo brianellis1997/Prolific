@@ -79,11 +79,17 @@ async def metadata_generation_node(state: YouTubePipelineState) -> dict:
                 "video. Title MUST include 'Part 2' so viewers know it's a continuation."
             )
 
+    from prolific.youtube.prompts import MODE_TITLE_PATTERNS
+    content_mode = state.get("content_mode") or "BIOGRAPHY"
+    title_patterns = MODE_TITLE_PATTERNS.get(content_mode, MODE_TITLE_PATTERNS["BIOGRAPHY"])
+
     prompt = METADATA_SYSTEM.format(
         topic=topic,
         is_biography=is_biography,
+        content_mode=content_mode,
         duration_hours=f"{duration_hours:.1f}",
         section_titles=section_titles_with_timestamps,
+        title_patterns=title_patterns,
     ) + continuation_instruction
 
     result = await llm_service.invoke_with_structured_output(

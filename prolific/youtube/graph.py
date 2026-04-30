@@ -57,12 +57,19 @@ def build_youtube_pipeline_graph(checkpointer=None):
     return graph.compile(checkpointer=checkpointer)
 
 
-async def run_youtube_pipeline(thread_id: str | None = None) -> dict:
-    """Run the full YouTube pipeline and return final state."""
+async def run_youtube_pipeline(
+    thread_id: str | None = None,
+    content_mode: str = "BIOGRAPHY",
+) -> dict:
+    """Run the full YouTube pipeline and return final state.
+
+    `content_mode` is one of BIOGRAPHY (Mon/Wed/Fri), LOST_CIVILIZATION (Thu),
+    IMMERSIVE_DAILY_LIFE (Sat). Defaults to BIOGRAPHY for back-compat.
+    """
     from prolific.core.pipeline_lock import acquire_pipeline, release_pipeline
     from prolific.youtube.state import create_initial_youtube_state
 
-    initial_state = create_initial_youtube_state(thread_id=thread_id)
+    initial_state = create_initial_youtube_state(thread_id=thread_id, content_mode=content_mode)
 
     run_id = acquire_pipeline("slumber_archives_youtube")
     try:
@@ -74,11 +81,14 @@ async def run_youtube_pipeline(thread_id: str | None = None) -> dict:
         release_pipeline(run_id)
 
 
-async def stream_youtube_pipeline(thread_id: str | None = None):
+async def stream_youtube_pipeline(
+    thread_id: str | None = None,
+    content_mode: str = "BIOGRAPHY",
+):
     """Stream the YouTube pipeline with progress updates."""
     from prolific.youtube.state import create_initial_youtube_state
 
-    initial_state = create_initial_youtube_state(thread_id=thread_id)
+    initial_state = create_initial_youtube_state(thread_id=thread_id, content_mode=content_mode)
     graph = build_youtube_pipeline_graph()
 
     config = {"configurable": {"thread_id": initial_state["thread_id"]}}

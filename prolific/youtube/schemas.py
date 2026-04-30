@@ -27,6 +27,7 @@ class VideoRecord(BaseModel):
     region_tags: list[str] = Field(default_factory=list)
     is_biography: bool = False
     selection_rationale: str = ""
+    content_mode: str = "BIOGRAPHY"
 
     class Config:
         frozen = False

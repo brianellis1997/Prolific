@@ -1,5 +1,110 @@
 """Centralized LLM prompts for the YouTube sleep history pipeline."""
 
+# ---------------------------------------------------------------------------
+# Content-mode instruction blocks
+# ---------------------------------------------------------------------------
+# Three content modes power the 5-day cadence:
+#   BIOGRAPHY (Mon/Wed/Fri) — famous historical figure deep dive (existing)
+#   LOST_CIVILIZATION (Thu) — prehistoric mystery / lost-civilization curiosity gap
+#   IMMERSIVE_DAILY_LIFE (Sat) — second-person daily-life / survival immersion
+# These strings are injected as `content_type_instruction` into TOPIC_BRAINSTORM_SYSTEM.
+
+CONTENT_INSTRUCTION_BIOGRAPHY_FIXED = (
+    "This video should be a BIOGRAPHY / character deep dive about a specific historical figure."
+)
+
+CONTENT_INSTRUCTION_BIOGRAPHY_FORCED = (
+    "This video MUST be a BIOGRAPHY / character deep dive. "
+    "The channel needs more biography content. Focus on a specific historical figure."
+)
+
+CONTENT_INSTRUCTION_BROAD_TOPIC = (
+    "This video should be a BROAD TOPIC exploration (civilization, era, event, cultural movement) "
+    "rather than a single person's biography."
+)
+
+CONTENT_INSTRUCTION_LOSTCIV = """This video MUST explore a prehistoric mystery, lost civilization,
+archaeological enigma, or unexplained ancient phenomenon. Lean into the curiosity gap between
+mainstream archaeology's claims and what evidence might suggest. Topics should evoke scale, deep
+time, and authority denial — Göbekli Tepe, the Younger Dryas impact hypothesis, sunken Sundaland,
+the pre-Clovis horizon, the Bronze Age collapse, megalithic enigmas, antediluvian sites.
+
+Frame topics with patterns like:
+  - "The Lost X That Y"
+  - "What Science CANNOT Explain About Z"
+  - "The Forgotten Epoch Before Civilization"
+  - "We Were NOT The First..."
+  - "Evidence They Don't Want You To See"
+
+Set is_biography=False. Era tags should skew prehistoric / antediluvian / pre-classical. Region
+tags can stay specific (Anatolia, Egypt, Mesoamerica, Indus Valley, etc.). AVOID framings centered
+on a single named historical figure — this mode is about places, periods, and unanswered questions."""
+
+CONTENT_INSTRUCTION_IMMERSIVE = """This video MUST be a second-person daily-life or survival
+immersion. The listener IS the medieval peasant / Roman legionnaire / Viking trader / Egyptian
+embalmer / Aztec chocolate maker for the next two hours. The listener experiences the period from
+inside their body — they wake, eat, work, suffer, sleep.
+
+Topic patterns:
+  - "A Day in the Life of a [role] in [era]"
+  - "Why You Wouldn't Last a Week as a [role]"
+  - "How [role]s Survived [hardship] Without [modern thing]"
+  - "What It Felt Like to Be a [role] During [event]"
+
+Lean on tactile sensory specifics — what you'd smell at dawn, the weight of wool against skin,
+the taste of stale bread, what you'd fear when the door bolted at night. Set is_biography=False.
+Topics should reference an occupation, social role, or daily challenge — NOT a famous individual.
+Era and region tags should still be filled in based on the setting."""
+
+
+# ---------------------------------------------------------------------------
+# Per-mode SCRIPT_WRITING_SYSTEM style blocks (additive — empty for BIOGRAPHY)
+# ---------------------------------------------------------------------------
+MODE_STYLE_BLOCKS = {
+    "BIOGRAPHY": "",  # Empty preserves baseline behavior — no extra style instructions.
+    "LOST_CIVILIZATION": (
+        "MODE: LOST_CIVILIZATION. Sustain a tone of patient mystery throughout. Pose unanswered "
+        "questions but don't moralize against mainstream science — let the evidence speak. Keep "
+        "technical archaeology terms (radiocarbon, stratigraphy, Younger Dryas) but gloss them once "
+        "in plain language. Frequently invoke deep time and the limits of what we know. The listener "
+        "should feel the weight of forgotten ages."
+    ),
+    "IMMERSIVE_DAILY_LIFE": (
+        "MODE: IMMERSIVE_DAILY_LIFE. Write in SECOND-PERSON throughout — 'you' are the subject. "
+        "The narrator describes the listener's own day, body, and decisions. Anchor in physical "
+        "sensation: cold stone underfoot, the weight of a wool cloak, woodsmoke in your hair, "
+        "the slow ache in your back. Keep it relaxing — stakes are real but the pace stays slow "
+        "and contemplative. Don't break the second-person frame to lecture; let history emerge "
+        "from what 'you' notice and do."
+    ),
+}
+
+
+# ---------------------------------------------------------------------------
+# Per-mode METADATA_SYSTEM title pattern hints (used by metadata_generation node)
+# ---------------------------------------------------------------------------
+MODE_TITLE_PATTERNS = {
+    "BIOGRAPHY": (
+        '- "The Untold Story of X | Sleep History"\n'
+        '- "X: The Life and Legacy | Relaxing History Narration"\n'
+        '- "[Figure]: The Architect of Y | Sleep History"'
+    ),
+    "LOST_CIVILIZATION": (
+        '- "The Lost X That Science Can\'t Explain | Sleep History"\n'
+        '- "What They Found Beneath X | Relaxing History"\n'
+        '- "The Forgotten Epoch Before Civilization | Sleep Documentary"\n'
+        '- "Evidence of X That Mainstream Archaeology Ignores | History for Sleep"'
+    ),
+    "IMMERSIVE_DAILY_LIFE": (
+        '- "A Day in the Life of a [Role] | Sleep History"\n'
+        '- "Why You Wouldn\'t Last a Day in [Setting] | Relaxing History"\n'
+        '- "How [Role]s Survived [Era] | Sleep Documentary"\n'
+        '- "Inside the Daily Life of a [Role] | History for Sleep"'
+    ),
+}
+
+
+
 TOPIC_BRAINSTORM_SYSTEM = """You are a creative director for a YouTube channel that produces
 long-form history narration videos designed to help people fall asleep. Your audience loves
 calm, detailed explorations of historical topics.
@@ -99,6 +204,8 @@ KEY POINTS TO COVER: {key_points}
 
 {previous_context}
 
+{content_mode_style}
+
 CRITICAL STYLE RULES:
 - Write in a calm, flowing, conversational tone perfect for sleep listening
 - NO headers, section markers, chapter numbers, or structural labels
@@ -186,6 +293,7 @@ METADATA_SYSTEM = """You are creating YouTube metadata for a sleep history narra
 
 TOPIC: {topic}
 IS BIOGRAPHY: {is_biography}
+CONTENT MODE: {content_mode}
 DURATION: approximately {duration_hours} hours
 SECTIONS: {section_titles}
 
@@ -194,9 +302,8 @@ Create optimized YouTube metadata following these rules:
 TITLE (under 70 characters):
 - Front-load the topic keyword
 - Include a sleep/relaxation signal
-- Patterns: "The Complete History of X | Fall Asleep to History"
-  or "The Rise and Fall of X | Relaxing History Narration"
-  or for biographies: "The Untold Story of X | Sleep History"
+- Choose from these patterns based on the CONTENT MODE above:
+{title_patterns}
 
 DESCRIPTION (500+ words):
 - First 2 lines: compelling hook

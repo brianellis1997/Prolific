@@ -84,10 +84,52 @@ class TopicSelectionResult(BaseModel):
     rationale: str
 
 
-async def _get_diversity_context(history_service) -> str:
-    """Build a soft diversity constraint from the last 10 videos' era/region tags."""
+async def _build_content_type_instruction(history_service, content_mode: str) -> str:
+    """Build the brainstorm `content_type_instruction` for the given content mode.
+
+    For BIOGRAPHY mode, computes the bio-ratio (biographies / total BIOGRAPHY-mode videos)
+    and biases toward biographies-vs-broad-topic accordingly. The denominator is the
+    BIOGRAPHY-mode count, NOT the total — otherwise LOST_CIVILIZATION/IMMERSIVE uploads
+    deflate the ratio and over-skew Mon/Wed/Fri toward forced biographies.
+
+    For LOST_CIVILIZATION and IMMERSIVE_DAILY_LIFE, returns the fixed mode-specific
+    instruction from prompts.py.
+    """
+    from prolific.youtube.prompts import (
+        CONTENT_INSTRUCTION_BIOGRAPHY_FIXED,
+        CONTENT_INSTRUCTION_BIOGRAPHY_FORCED,
+        CONTENT_INSTRUCTION_BROAD_TOPIC,
+        CONTENT_INSTRUCTION_IMMERSIVE,
+        CONTENT_INSTRUCTION_LOSTCIV,
+    )
+
+    if content_mode == "LOST_CIVILIZATION":
+        return CONTENT_INSTRUCTION_LOSTCIV
+    if content_mode == "IMMERSIVE_DAILY_LIFE":
+        return CONTENT_INSTRUCTION_IMMERSIVE
+
+    # BIOGRAPHY mode (default) — biography-vs-broad-topic biasing.
+    # Denominator filters to BIOGRAPHY-mode videos so other modes don't deflate the ratio.
+    bio_mode_count = await history_service.get_count_by_mode("BIOGRAPHY")
+    bio_count = await history_service.get_biography_count()
+    bio_ratio = bio_count / max(bio_mode_count, 1)
+    target_ratio = settings.youtube_biography_ratio
+
+    if bio_ratio < target_ratio:
+        return CONTENT_INSTRUCTION_BIOGRAPHY_FORCED
+    use_biography = random.random() < target_ratio
+    return CONTENT_INSTRUCTION_BIOGRAPHY_FIXED if use_biography else CONTENT_INSTRUCTION_BROAD_TOPIC
+
+
+async def _get_diversity_context(history_service, content_mode: str = "BIOGRAPHY") -> str:
+    """Build a soft diversity constraint from the last 10 videos' era/region tags.
+
+    Filtered by `content_mode` so a Saturday IMMERSIVE_DAILY_LIFE upload doesn't
+    suppress a Monday BIOGRAPHY about the same era — each mode keeps its own
+    diversity signal.
+    """
     try:
-        recent = await history_service.get_past_videos(limit=10)
+        recent = await history_service.get_past_videos(limit=10, content_mode=content_mode)
         if not recent:
             return ""
 
@@ -232,31 +274,19 @@ async def topic_selection_node(state: YouTubePipelineState) -> dict:
     normalized_past.update(normalize_title(t) for t in yt_topics)
     normalized_past.discard("")
 
-    total_videos = await history_service.get_total_count()
-    bio_count = await history_service.get_biography_count()
-    bio_ratio = bio_count / max(total_videos, 1)
-    target_ratio = settings.youtube_biography_ratio
+    # ---- CONTENT MODE ROUTING ----
+    # The scheduler injects content_mode per cron job (Mon/Wed/Fri=BIOGRAPHY,
+    # Thu=LOST_CIVILIZATION, Sat=IMMERSIVE_DAILY_LIFE). API-triggered runs default
+    # to BIOGRAPHY for back-compat. We do NOT read datetime.now().weekday() —
+    # the scheduling concern stays in the scheduler.
+    content_mode = state.get("content_mode") or "BIOGRAPHY"
+    logger.info(f"Content mode: {content_mode}")
 
-    if bio_ratio < target_ratio:
-        content_type_instruction = (
-            "This video MUST be a BIOGRAPHY / character deep dive. "
-            "The channel needs more biography content. Focus on a specific historical figure."
-        )
-    else:
-        use_biography = random.random() < target_ratio
-        if use_biography:
-            content_type_instruction = (
-                "This video should be a BIOGRAPHY / character deep dive about a specific historical figure."
-            )
-        else:
-            content_type_instruction = (
-                "This video should be a BROAD TOPIC exploration (civilization, era, event, cultural movement) "
-                "rather than a single person's biography."
-            )
+    content_type_instruction = await _build_content_type_instruction(history_service, content_mode)
 
     trending_context = await _get_trending_context()
     performance_context = await _get_performance_context()
-    diversity_context = await _get_diversity_context(history_service)
+    diversity_context = await _get_diversity_context(history_service, content_mode=content_mode)
 
     from prolific.youtube.prompts import TOPIC_BRAINSTORM_SYSTEM, TOPIC_SELECT_SYSTEM
 
@@ -444,6 +474,7 @@ async def topic_selection_node(state: YouTubePipelineState) -> dict:
         "past_video_topics": past_topics_simple[:50],
         "is_intentional_continuation": chosen.is_intentional_continuation,
         "continues_video_id": chosen.continues_video_id,
+        "content_mode": content_mode,
         "current_phase": "script_planning",
-        "messages": [AIMessage(content=f"Selected topic: {chosen.topic}")],
+        "messages": [AIMessage(content=f"Selected topic: {chosen.topic} [mode={content_mode}]")],
     }

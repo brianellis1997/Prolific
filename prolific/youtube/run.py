@@ -17,9 +17,9 @@ logging.basicConfig(
 logger = logging.getLogger("youtube_pipeline")
 
 
-async def main() -> int:
+async def main(content_mode: str = "BIOGRAPHY") -> int:
     start_time = datetime.now(UTC)
-    logger.info("=== YOUTUBE SLEEP HISTORY PIPELINE STARTING ===")
+    logger.info(f"=== YOUTUBE SLEEP HISTORY PIPELINE STARTING (mode={content_mode}) ===")
 
     exit_code = 0
 
@@ -34,7 +34,7 @@ async def main() -> int:
 
         from prolific.youtube.graph import run_youtube_pipeline
 
-        final_state = await run_youtube_pipeline()
+        final_state = await run_youtube_pipeline(content_mode=content_mode)
 
         cost = await snapshot_after(before)
 

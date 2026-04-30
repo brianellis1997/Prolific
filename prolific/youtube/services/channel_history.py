@@ -57,6 +57,16 @@ class ChannelHistoryService:
                 await db.execute("ALTER TABLE videos ADD COLUMN embedding_model_version TEXT")
             except Exception:
                 pass
+            try:
+                await db.execute("ALTER TABLE videos ADD COLUMN content_mode TEXT DEFAULT 'BIOGRAPHY'")
+            except Exception:
+                pass
+            # Idempotent backfill: derive content_mode from is_biography for legacy rows.
+            await db.execute(
+                """UPDATE videos
+                   SET content_mode = CASE WHEN is_biography = 1 THEN 'BIOGRAPHY' ELSE 'BROAD_TOPIC' END
+                   WHERE content_mode IS NULL OR content_mode = ''"""
+            )
             await db.commit()
 
     async def record_video(self, record: VideoRecord) -> None:
@@ -66,8 +76,8 @@ class ChannelHistoryService:
                    (id, topic, title, description, tags, youtube_video_id,
                     youtube_url, thumbnail_path, video_path, script_word_count,
                     estimated_duration_minutes, status, created_at, published_at,
-                    era_tags, region_tags, is_biography, selection_rationale)
-                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                    era_tags, region_tags, is_biography, selection_rationale, content_mode)
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
                 (
                     str(record.id),
                     record.topic,
@@ -87,6 +97,7 @@ class ChannelHistoryService:
                     json.dumps(record.region_tags),
                     1 if record.is_biography else 0,
                     record.selection_rationale,
+                    record.content_mode,
                 ),
             )
             await db.commit()
@@ -100,13 +111,25 @@ class ChannelHistoryService:
             rows = await cursor.fetchall()
             return [row[0] for row in rows]
 
-    async def get_past_videos(self, limit: int = 50) -> list[VideoRecord]:
+    async def get_past_videos(self, limit: int = 50, content_mode: str | None = None) -> list[VideoRecord]:
+        """Pull past videos, optionally filtered by content_mode.
+
+        When `content_mode` is provided, only videos matching that mode are returned —
+        used by topic_selection to avoid cross-mode era/region tag pollution in the
+        diversity context.
+        """
         async with aiosqlite.connect(self.db_path) as db:
             db.row_factory = aiosqlite.Row
-            cursor = await db.execute(
-                "SELECT * FROM videos ORDER BY created_at DESC LIMIT ?",
-                (limit,),
-            )
+            if content_mode is not None:
+                cursor = await db.execute(
+                    "SELECT * FROM videos WHERE content_mode = ? ORDER BY created_at DESC LIMIT ?",
+                    (content_mode, limit),
+                )
+            else:
+                cursor = await db.execute(
+                    "SELECT * FROM videos ORDER BY created_at DESC LIMIT ?",
+                    (limit,),
+                )
             rows = await cursor.fetchall()
             results = []
             for row in rows:
@@ -127,6 +150,7 @@ class ChannelHistoryService:
                         era_tags=json.loads(row["era_tags"]),
                         region_tags=json.loads(row["region_tags"]),
                         is_biography=bool(row["is_biography"]),
+                        content_mode=row["content_mode"] or "BIOGRAPHY",
                     )
                 )
             return results
@@ -144,6 +168,20 @@ class ChannelHistoryService:
             cursor = await db.execute("SELECT COUNT(*) FROM videos")
             row = await cursor.fetchone()
             return row[0] if row else 0
+
+    async def get_count_by_mode(self, content_mode: str) -> int:
+        """Count videos for a specific content_mode (used to compute per-mode bio_ratio)."""
+        async with aiosqlite.connect(self.db_path) as db:
+            cursor = await db.execute(
+                "SELECT COUNT(*) FROM videos WHERE content_mode = ?",
+                (content_mode,),
+            )
+            row = await cursor.fetchone()
+            return row[0] if row else 0
+
+    async def get_videos_by_mode(self, content_mode: str, limit: int = 50) -> list[VideoRecord]:
+        """Filter analytics to a single content_mode (used by /api/v1/youtube/history?content_mode=X)."""
+        return await self.get_past_videos(limit=limit, content_mode=content_mode)
 
     async def get_past_topics_with_embeddings(self, limit: int = 200) -> list[PastTopicEmbedding]:
         """Pull past videos with cached embeddings for the dedup gate.
@@ -228,6 +266,7 @@ class ChannelHistoryService:
                 era_tags=json.loads(row["era_tags"]),
                 region_tags=json.loads(row["region_tags"]),
                 is_biography=bool(row["is_biography"]),
+                content_mode=row["content_mode"] or "BIOGRAPHY",
             )
 
 

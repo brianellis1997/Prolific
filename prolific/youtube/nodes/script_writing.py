@@ -10,6 +10,7 @@ from prolific.services.llm import get_llm_service
 from prolific.youtube.prompts import (
     CHANNEL_PLUG_INSTRUCTION,
     CHANNEL_PLUG_NONE,
+    MODE_STYLE_BLOCKS,
     SCRIPT_WRITING_CONTINUATION,
     SCRIPT_WRITING_SYSTEM,
 )
@@ -30,6 +31,8 @@ async def script_writing_node(state: YouTubePipelineState) -> dict:
     target_words = settings.youtube_target_word_count
     words_per_section = target_words // max(len(sections), 1)
     total_sections = len(sections)
+    content_mode = state.get("content_mode") or "BIOGRAPHY"
+    content_mode_style = MODE_STYLE_BLOCKS.get(content_mode, "")
 
     logger.info(f"Writing {total_sections} sections, ~{words_per_section} words each")
 
@@ -60,6 +63,7 @@ async def script_writing_node(state: YouTubePipelineState) -> dict:
             total_sections=total_sections,
             key_points=key_points_str,
             previous_context=previous_context,
+            content_mode_style=content_mode_style,
             target_words=words_per_section,
             channel_plug_instruction=channel_plug_instruction,
         )

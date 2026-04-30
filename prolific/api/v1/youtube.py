@@ -15,10 +15,25 @@ router = APIRouter(prefix="/youtube", tags=["youtube"])
 
 class GenerateRequest(BaseModel):
     thread_id: str | None = None
+    # One of "BIOGRAPHY", "LOST_CIVILIZATION", "IMMERSIVE_DAILY_LIFE".
+    # Defaults to BIOGRAPHY for back-compat with existing callers.
+    content_mode: str = "BIOGRAPHY"
 
 
 class ScheduleRequest(BaseModel):
     enabled: bool
+
+
+_VALID_CONTENT_MODES = {"BIOGRAPHY", "LOST_CIVILIZATION", "IMMERSIVE_DAILY_LIFE"}
+
+
+def _validate_mode(mode: str) -> str:
+    if mode not in _VALID_CONTENT_MODES:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Invalid content_mode '{mode}'. Must be one of {sorted(_VALID_CONTENT_MODES)}",
+        )
+    return mode
 
 
 @router.post("/generate")
@@ -27,12 +42,14 @@ async def generate_video(request: GenerateRequest | None = None):
     from prolific.youtube.graph import run_youtube_pipeline
 
     thread_id = request.thread_id if request else None
+    content_mode = _validate_mode(request.content_mode if request else "BIOGRAPHY")
 
     try:
-        final_state = await run_youtube_pipeline(thread_id=thread_id)
+        final_state = await run_youtube_pipeline(thread_id=thread_id, content_mode=content_mode)
         return {
             "status": "complete",
             "topic": final_state.get("topic", ""),
+            "content_mode": final_state.get("content_mode", content_mode),
             "youtube_url": final_state.get("youtube_url", ""),
             "youtube_video_id": final_state.get("youtube_video_id", ""),
             "word_count": final_state.get("total_script_word_count", 0),
@@ -49,9 +66,10 @@ async def stream_generate_video(request: GenerateRequest | None = None):
     from prolific.youtube.graph import stream_youtube_pipeline
 
     thread_id = request.thread_id if request else None
+    content_mode = _validate_mode(request.content_mode if request else "BIOGRAPHY")
 
     async def event_stream():
-        async for update in stream_youtube_pipeline(thread_id=thread_id):
+        async for update in stream_youtube_pipeline(thread_id=thread_id, content_mode=content_mode):
             if "_final_state" in update:
                 final = update["_final_state"]
                 yield f"data: {json.dumps({'event': 'complete', 'topic': final.get('topic', ''), 'youtube_url': final.get('youtube_url', '')})}\n\n"
@@ -62,16 +80,25 @@ async def stream_generate_video(request: GenerateRequest | None = None):
 
 
 @router.get("/history")
-async def get_video_history(limit: int = 50):
-    """List past generated videos."""
+async def get_video_history(limit: int = 50, content_mode: str | None = None):
+    """List past generated videos.
+
+    Optional `?content_mode=BIOGRAPHY|LOST_CIVILIZATION|IMMERSIVE_DAILY_LIFE` filter
+    lets analytics dashboards compare per-mode performance.
+    """
     from prolific.youtube.services.channel_history import get_channel_history_service
 
     service = get_channel_history_service()
     await service.initialize()
-    videos = await service.get_past_videos(limit=limit)
+    if content_mode is not None:
+        _validate_mode(content_mode)
+        videos = await service.get_videos_by_mode(content_mode=content_mode, limit=limit)
+    else:
+        videos = await service.get_past_videos(limit=limit)
 
     return {
         "count": len(videos),
+        "content_mode_filter": content_mode,
         "videos": [v.model_dump(mode="json") for v in videos],
     }
 

@@ -109,6 +109,11 @@ class Settings(BaseSettings):
     youtube_cron_minute: int = 0
     youtube_cron_timezone: str = "America/New_York"
     youtube_cron_enabled: bool = False
+    # Variant content modes (LOST_CIVILIZATION = Thursdays, IMMERSIVE_DAILY_LIFE = Saturdays)
+    youtube_lostciv_enabled: bool = True
+    youtube_immersive_enabled: bool = True
+    youtube_lostciv_cron_day: str = "thu"
+    youtube_immersive_cron_day: str = "sat"
 
     # Shorts Pipeline
     shorts_script_model: str = "google/gemini-3-flash-preview"

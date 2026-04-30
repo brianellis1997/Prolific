@@ -86,6 +86,20 @@ async def youtube_upload_node(state: YouTubePipelineState) -> dict:
 
     logger.info(f"Recorded in channel history: {topic}")
 
+    # Persist topic embedding for the dedup gate (only on successful uploads).
+    # Failure here must NOT fail the upload — wrap in try/except.
+    if video_id:
+        try:
+            from prolific.core.config import settings
+            from prolific.services.topic_dedup import embed_candidate
+
+            vec = await embed_candidate(topic, metadata.title)
+            if vec is not None:
+                await history_service.update_embedding(video_id, vec, settings.embedding_model)
+                logger.info(f"Cached topic embedding for {video_id}")
+        except Exception as exc:
+            logger.warning(f"Failed to cache topic embedding (non-fatal): {exc}")
+
     return {
         "youtube_video_id": video_id,
         "youtube_url": video_url,

@@ -5,8 +5,14 @@ from datetime import datetime, timedelta
 from pathlib import Path
 
 import aiosqlite
+import numpy as np
 
 from prolific.core.config import settings
+from prolific.services.topic_dedup import (
+    PastTopicEmbedding,
+    blob_to_embedding,
+    embedding_to_blob,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -36,6 +42,14 @@ class ShortsHistoryService:
         """)
         try:
             await db.execute("ALTER TABLE shorts ADD COLUMN selection_rationale TEXT DEFAULT ''")
+        except Exception:
+            pass
+        try:
+            await db.execute("ALTER TABLE shorts ADD COLUMN embedding BLOB")
+        except Exception:
+            pass
+        try:
+            await db.execute("ALTER TABLE shorts ADD COLUMN embedding_model_version TEXT")
         except Exception:
             pass
         await db.execute("""
@@ -179,6 +193,75 @@ class ShortsHistoryService:
             )
             rows = await cursor.fetchall()
             return [dict(row) for row in rows]
+
+    async def get_past_topics_with_embeddings(self, limit: int = 200) -> list[PastTopicEmbedding]:
+        """Pull past published shorts with cached embeddings for the dedup gate.
+
+        Limit-based (not hours-based): the original 48h/720h windows aged topics
+        out so fast that the same topic could come back within ~1 week. We need
+        a much wider window for semantic dedup to work.
+        """
+        async with aiosqlite.connect(self.db_path) as db:
+            await self._ensure_table(db)
+            db.row_factory = aiosqlite.Row
+            cursor = await db.execute(
+                """SELECT id, youtube_video_id, topic, hook, selection_rationale,
+                          published_at, embedding, embedding_model_version
+                   FROM shorts
+                   WHERE youtube_video_id IS NOT NULL AND youtube_video_id != ''
+                   ORDER BY created_at DESC
+                   LIMIT ?""",
+                (limit,),
+            )
+            rows = await cursor.fetchall()
+            results: list[PastTopicEmbedding] = []
+            for row in rows:
+                pub_at: datetime | None = None
+                if row["published_at"]:
+                    try:
+                        pub_at = datetime.fromisoformat(row["published_at"])
+                    except Exception:
+                        pub_at = None
+                results.append(
+                    PastTopicEmbedding(
+                        video_id=row["youtube_video_id"] or row["id"],
+                        topic=row["topic"],
+                        title=row["topic"],
+                        published_at=pub_at,
+                        embedding=blob_to_embedding(row["embedding"]),
+                        embedding_model_version=row["embedding_model_version"],
+                    )
+                )
+            return results
+
+    async def update_embedding(
+        self, video_id: str, embedding: np.ndarray, model_version: str
+    ) -> None:
+        """Persist a cached embedding for a published short.
+
+        `video_id` matches `youtube_video_id` (YouTube ID, not UUID).
+        """
+        async with aiosqlite.connect(self.db_path) as db:
+            await self._ensure_table(db)
+            await db.execute(
+                """UPDATE shorts
+                   SET embedding = ?, embedding_model_version = ?
+                   WHERE youtube_video_id = ? OR id = ?""",
+                (embedding_to_blob(embedding), model_version, video_id, video_id),
+            )
+            await db.commit()
+
+    async def get_short_by_id(self, video_id: str) -> dict | None:
+        """Look up a short by `youtube_video_id` or internal UUID for Part 2 lookup."""
+        async with aiosqlite.connect(self.db_path) as db:
+            await self._ensure_table(db)
+            db.row_factory = aiosqlite.Row
+            cursor = await db.execute(
+                "SELECT * FROM shorts WHERE youtube_video_id = ? OR id = ? LIMIT 1",
+                (video_id, video_id),
+            )
+            row = await cursor.fetchone()
+            return dict(row) if row else None
 
 
 _history_service: ShortsHistoryService | None = None

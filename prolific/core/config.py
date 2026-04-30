@@ -66,6 +66,16 @@ class Settings(BaseSettings):
     cross_check_corroboration_threshold: float = 0.85  # High similarity = corroboration
     cross_check_max_llm_comparisons: int = 100  # Max LLM calls for conflict detection
 
+    # Topic Deduplication (semantic dedup gate for both pipelines)
+    # Thresholds tuned against real Slumber Archives history (Cyrus rephrasing
+    # scores 0.79, Blackbeard rephrasing 0.78, unrelated topics <0.55).
+    topic_dedup_enabled: bool = True
+    topic_dedup_threshold: float = 0.78  # Reject if cosine sim > threshold and not flagged as continuation
+    topic_dedup_warn_band_low: float = 0.70  # Log-only band (warn but don't reject) between this and threshold
+    topic_dedup_max_past_topics: int = 200  # Past topics to consider for dedup
+    topic_dedup_continuation_cooldown_days: int = 30  # Long-form: min days before sequel allowed
+    shorts_continuation_cooldown_days: int = 14  # Shorts: tighter cooldown (4-5 uploads/day)
+
     # Generation defaults
     default_depth: Literal["overview", "standard", "deep", "exhaustive"] = "standard"
     default_style_tone: Literal[

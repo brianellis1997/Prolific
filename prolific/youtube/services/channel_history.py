@@ -2,9 +2,16 @@
 
 import json
 import logging
+from datetime import datetime
 import aiosqlite
+import numpy as np
 
 from prolific.core.config import settings
+from prolific.services.topic_dedup import (
+    PastTopicEmbedding,
+    blob_to_embedding,
+    embedding_to_blob,
+)
 from prolific.youtube.schemas import VideoRecord
 
 logger = logging.getLogger(__name__)
@@ -40,6 +47,14 @@ class ChannelHistoryService:
             """)
             try:
                 await db.execute("ALTER TABLE videos ADD COLUMN selection_rationale TEXT DEFAULT ''")
+            except Exception:
+                pass
+            try:
+                await db.execute("ALTER TABLE videos ADD COLUMN embedding BLOB")
+            except Exception:
+                pass
+            try:
+                await db.execute("ALTER TABLE videos ADD COLUMN embedding_model_version TEXT")
             except Exception:
                 pass
             await db.commit()
@@ -129,6 +144,91 @@ class ChannelHistoryService:
             cursor = await db.execute("SELECT COUNT(*) FROM videos")
             row = await cursor.fetchone()
             return row[0] if row else 0
+
+    async def get_past_topics_with_embeddings(self, limit: int = 200) -> list[PastTopicEmbedding]:
+        """Pull past videos with cached embeddings for the dedup gate.
+
+        Records with null embeddings are returned as-is — the caller hydrates
+        them via topic_dedup.hydrate_embeddings.
+        """
+        async with aiosqlite.connect(self.db_path) as db:
+            db.row_factory = aiosqlite.Row
+            cursor = await db.execute(
+                """SELECT id, youtube_video_id, topic, title, selection_rationale,
+                          published_at, embedding, embedding_model_version
+                   FROM videos
+                   WHERE youtube_video_id IS NOT NULL AND youtube_video_id != ''
+                   ORDER BY created_at DESC
+                   LIMIT ?""",
+                (limit,),
+            )
+            rows = await cursor.fetchall()
+            results: list[PastTopicEmbedding] = []
+            for row in rows:
+                pub_at: datetime | None = None
+                if row["published_at"]:
+                    try:
+                        pub_at = datetime.fromisoformat(row["published_at"])
+                    except Exception:
+                        pub_at = None
+                results.append(
+                    PastTopicEmbedding(
+                        video_id=row["youtube_video_id"] or row["id"],
+                        topic=row["topic"],
+                        title=row["title"] or row["topic"],
+                        published_at=pub_at,
+                        embedding=blob_to_embedding(row["embedding"]),
+                        embedding_model_version=row["embedding_model_version"],
+                    )
+                )
+            return results
+
+    async def update_embedding(
+        self, video_id: str, embedding: np.ndarray, model_version: str
+    ) -> None:
+        """Persist a cached embedding for a published video.
+
+        `video_id` matches `youtube_video_id` (the YouTube ID, not the internal
+        UUID) — that's what topic_dedup uses as its public ID.
+        """
+        async with aiosqlite.connect(self.db_path) as db:
+            await db.execute(
+                """UPDATE videos
+                   SET embedding = ?, embedding_model_version = ?
+                   WHERE youtube_video_id = ? OR id = ?""",
+                (embedding_to_blob(embedding), model_version, video_id, video_id),
+            )
+            await db.commit()
+
+    async def get_video_by_id(self, video_id: str) -> VideoRecord | None:
+        """Look up a video by `youtube_video_id` or internal UUID. Used for
+        Part 2 parent-title lookup in metadata_generation."""
+        async with aiosqlite.connect(self.db_path) as db:
+            db.row_factory = aiosqlite.Row
+            cursor = await db.execute(
+                "SELECT * FROM videos WHERE youtube_video_id = ? OR id = ? LIMIT 1",
+                (video_id, video_id),
+            )
+            row = await cursor.fetchone()
+            if not row:
+                return None
+            return VideoRecord(
+                id=row["id"],
+                topic=row["topic"],
+                title=row["title"],
+                description=row["description"],
+                tags=json.loads(row["tags"]),
+                youtube_video_id=row["youtube_video_id"],
+                youtube_url=row["youtube_url"],
+                thumbnail_path=row["thumbnail_path"],
+                video_path=row["video_path"],
+                script_word_count=row["script_word_count"],
+                estimated_duration_minutes=row["estimated_duration_minutes"],
+                status=row["status"],
+                era_tags=json.loads(row["era_tags"]),
+                region_tags=json.loads(row["region_tags"]),
+                is_biography=bool(row["is_biography"]),
+            )
 
 
 _channel_history_service: ChannelHistoryService | None = None

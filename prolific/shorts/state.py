@@ -29,6 +29,8 @@ class ShortsPipelineState(TypedDict):
     niche: str
     source_urls: list[str]
     past_short_topics: list[str]
+    is_intentional_continuation: bool
+    continues_video_id: str | None
     compilation_items: list[str]
     scene_ideas: list[str]
     selected_character: str
@@ -81,6 +83,8 @@ def create_initial_shorts_state(thread_id: str | None = None, niche: str | None 
         niche=niche or settings.shorts_niche or "general",
         source_urls=[],
         past_short_topics=[],
+        is_intentional_continuation=False,
+        continues_video_id=None,
         compilation_items=[],
         scene_ideas=[],
         selected_character="",

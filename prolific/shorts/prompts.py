@@ -309,7 +309,7 @@ You produce FOUR types of content (pick the best type for each candidate):
 TRENDING NEWS CONTEXT:
 {trending_context}
 
-AVOID these topics (already covered recently):
+AVOID these topics (already covered recently — each line shows the YouTube video ID in brackets, then the title):
 {past_topics}
 
 Brainstorm {num_candidates} topic ideas. For each:
@@ -322,6 +322,16 @@ Brainstorm {num_candidates} topic ideas. For each:
 - trending_tie_in: If news-inspired, explain the connection (otherwise leave empty)
 - clip_search_queries: 2-3 specific YouTube/Twitch search queries to find the actual clips
   (e.g. "Larry Wheels wife argument stream", "NFL combine fastest 40 yard dash")
+
+CONTINUATION FLAG (use sparingly — almost always False):
+- is_intentional_continuation: ONLY set True if you are deliberately building a Part 2 on a past
+  video, with a structurally different angle. NEVER use this flag to bypass duplicate detection
+  by rephrasing — the system will catch it and reject.
+- continues_video_id: When True, MUST be the YouTube ID shown in brackets in the past_topics list.
+- distinct_angle: When True, write ≥1 sentence (≥20 chars) on what's structurally different. If
+  there's no new material, set False and pick a different topic.
+- continuation_rationale: Why this sequel deserves to ship now.
+Default to False/null/empty for fresh topics.
 
 Prioritize topics that:
 1. Have drama, conflict, a scandal, beef, or a shocking reveal -- NOT just "something happened"
@@ -384,7 +394,7 @@ CHANNEL PERFORMANCE DATA (use this to lean into what works):
 If certain topic categories are getting more views, generate MORE candidates in those categories.
 But always include at least 2 candidates from other categories to keep variety.
 
-VIDEOS YOU'VE ALREADY MADE (your content history):
+VIDEOS YOU'VE ALREADY MADE (your content history — each line shows the YouTube video ID in brackets, then the title):
 {past_topics}
 
 Think like a smart content creator looking at your history:
@@ -407,6 +417,17 @@ For each:
 - visual_keywords: 3-5 keywords for finding stock footage and images on Pexels/Google
   (e.g., "gorilla strength", "ancient pyramids", "human body cross section")
 - trending_tie_in: Leave empty unless there's a genuine connection to current events
+
+CONTINUATION FLAG (use sparingly — almost always False):
+- is_intentional_continuation: ONLY set True if you are deliberately building on a past video
+  with a structurally different angle (e.g., "gorilla bench press" → "gorilla squat strength":
+  same animal, different fact). NEVER use this to bypass duplicate detection by rephrasing —
+  the system will catch it and reject.
+- continues_video_id: When True, MUST be the YouTube ID shown in brackets in the history above.
+- distinct_angle: When True, write ≥1 sentence (≥20 chars) on what's genuinely different about
+  this angle. If you can't justify it, set False and pick a different topic.
+- continuation_rationale: Why this follow-up is worth shipping (cite analytics if relevant).
+Default to False/null/empty for fresh topics.
 
 Prioritize topics that:
 1. Have a SPECIFIC factual answer (not just "something cool about X")
@@ -493,7 +514,7 @@ RESEARCH CONTEXT (optional):
 CHANNEL PERFORMANCE DATA:
 {performance_context}
 
-VIDEOS ALREADY MADE — DO NOT REPEAT THESE OR ANYTHING SIMILAR:
+VIDEOS ALREADY MADE — DO NOT REPEAT THESE OR ANYTHING SIMILAR (each line shows the YouTube video ID in brackets, then the title):
 {past_topics}
 
 Read that list carefully. Never repeat the same subject even with different wording.
@@ -512,6 +533,17 @@ For each:
 - scene_ideas: 5-7 brief scene descriptions — each scene shows the character DOING or EXPERIENCING
   a specific historical version of the relatable thing (not watching, but doing)
 - trending_tie_in: Leave empty unless genuinely relevant
+
+CONTINUATION FLAG (use sparingly — almost always False):
+- is_intentional_continuation: ONLY True if you are deliberately building on a past video with
+  a different relatable scenario (e.g., past was "going on a first date in ancient Egypt", new
+  is "going on a first date in medieval Japan"). NEVER use this to bypass duplicate detection
+  by rephrasing — the system will catch it and reject.
+- continues_video_id: When True, MUST be the YouTube ID shown in brackets in the list above.
+- distinct_angle: When True, write ≥1 sentence (≥20 chars) on what's genuinely different. If
+  the angle is just rephrased, set False and pick a different topic.
+- continuation_rationale: Why this Part 2 deserves to ship now.
+Default to False/null/empty for fresh topics.
 
 THE BEST topics:
 1. Start with something 100% of viewers have personally done (gotten paid, visited a doctor, eaten out)

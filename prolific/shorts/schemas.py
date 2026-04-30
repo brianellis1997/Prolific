@@ -152,6 +152,7 @@ class ShortRecord(BaseModel):
     cost_usd: float = 0.0
     created_at: datetime = Field(default_factory=datetime.utcnow)
     published_at: datetime | None = None
+    selection_rationale: str = ""
 
     class Config:
         frozen = False

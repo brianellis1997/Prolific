@@ -32,10 +32,35 @@ async def metadata_generation_node(state: ShortsPipelineState) -> dict:
 
     from prolific.shorts.prompts import METADATA_SYSTEM
 
+    # Continuation: enforce Part 2 title marker if flagged
+    continuation_instruction = ""
+    is_continuation = state.get("is_intentional_continuation", False)
+    parent_video_id = state.get("continues_video_id")
+    if is_continuation and parent_video_id:
+        try:
+            from prolific.shorts.services.shorts_history import get_shorts_history_service
+            history_service = get_shorts_history_service()
+            parent = await history_service.get_short_by_id(parent_video_id)
+            parent_title = parent.get("topic", "") if parent else ""
+        except Exception as exc:
+            logger.warning(f"Continuation parent lookup failed (non-fatal): {exc}")
+            parent_title = ""
+
+        if parent_title:
+            continuation_instruction = (
+                f"\n\nIMPORTANT — CONTINUATION SHORT: This builds on a previous short titled "
+                f"'{parent_title}'. The title MUST include 'Part 2' or equivalent marker so "
+                f"viewers know it's a continuation."
+            )
+        else:
+            continuation_instruction = (
+                "\n\nIMPORTANT — CONTINUATION SHORT: Title MUST include 'Part 2'."
+            )
+
     prompt = METADATA_SYSTEM.format(
         topic=topic,
         script_text=script.full_text,
-    )
+    ) + continuation_instruction
 
     result = await llm_service.invoke_with_structured_output(
         messages=[
@@ -46,6 +71,16 @@ async def metadata_generation_node(state: ShortsPipelineState) -> dict:
         tier="research",
         temperature=0.5,
     )
+
+    # Belt-and-suspenders: enforce Part 2 marker on continuation shorts
+    if is_continuation:
+        title_lower = result.title.lower()
+        markers = ["part 2", "part ii", "part two", "continued", "part 3", "part iii"]
+        if not any(m in title_lower for m in markers):
+            logger.warning(
+                "Continuation flag set on short but title missing marker — appending"
+            )
+            result.title = f"{result.title} (Part 2)"
 
     description = result.description
     if "#Shorts" not in description and "#shorts" not in description:

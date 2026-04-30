@@ -89,6 +89,19 @@ async def youtube_upload_node(state: ShortsPipelineState) -> dict:
             selection_rationale=state.get("selection_rationale", ""),
         )
 
+        # Persist topic embedding for the dedup gate (only on successful uploads).
+        # Failure here must NOT fail the upload — wrap in try/except.
+        if video_id:
+            try:
+                from prolific.services.topic_dedup import embed_candidate
+                hook = script.hook if script else ""
+                vec = await embed_candidate(state.get("topic", ""), hook)
+                if vec is not None:
+                    await history_service.update_embedding(video_id, vec, settings.embedding_model)
+                    logger.info(f"Cached topic embedding for short {video_id}")
+            except Exception as exc:
+                logger.warning(f"Failed to cache short embedding (non-fatal): {exc}")
+
         return {
             "youtube_video_id": video_id,
             "youtube_url": video_url,

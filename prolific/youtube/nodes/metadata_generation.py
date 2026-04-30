@@ -49,12 +49,42 @@ async def metadata_generation_node(state: YouTubePipelineState) -> dict:
 
     llm_service = get_llm_service()
 
+    # Continuation: if this is an intentional Part 2, look up the parent video
+    # title and pass an instruction to enforce a "Part 2" / continuation marker
+    # in the new title.
+    continuation_instruction = ""
+    is_continuation = state.get("is_intentional_continuation", False)
+    parent_video_id = state.get("continues_video_id")
+    if is_continuation and parent_video_id:
+        try:
+            from prolific.youtube.services.channel_history import get_channel_history_service
+            history_service = get_channel_history_service()
+            await history_service.initialize()
+            parent = await history_service.get_video_by_id(parent_video_id)
+            parent_title = parent.title if parent else ""
+        except Exception as exc:
+            logger.warning(f"Continuation parent lookup failed (non-fatal): {exc}")
+            parent_title = ""
+
+        if parent_title:
+            continuation_instruction = (
+                f"\n\nIMPORTANT — CONTINUATION VIDEO: This video is a deliberate Part 2 of a "
+                f"previous video titled '{parent_title}'. The title MUST include 'Part 2' or "
+                f"an equivalent continuation marker (e.g., 'Continued', 'Part II') so viewers "
+                f"know it builds on the original. Otherwise structure normally."
+            )
+        else:
+            continuation_instruction = (
+                "\n\nIMPORTANT — CONTINUATION VIDEO: This is a deliberate Part 2 of a previous "
+                "video. Title MUST include 'Part 2' so viewers know it's a continuation."
+            )
+
     prompt = METADATA_SYSTEM.format(
         topic=topic,
         is_biography=is_biography,
         duration_hours=f"{duration_hours:.1f}",
         section_titles=section_titles_with_timestamps,
-    )
+    ) + continuation_instruction
 
     result = await llm_service.invoke_with_structured_output(
         messages=[
@@ -65,6 +95,17 @@ async def metadata_generation_node(state: YouTubePipelineState) -> dict:
         tier="research",
         temperature=0.5,
     )
+
+    # Belt-and-suspenders: if continuation flag is set but title doesn't include
+    # a Part 2 marker, append one.
+    if is_continuation:
+        title_lower = result.title.lower()
+        markers = ["part 2", "part ii", "part two", "continued", "part 3", "part iii"]
+        if not any(m in title_lower for m in markers):
+            logger.warning(
+                "Continuation flag set but title missing Part 2 marker — appending fallback"
+            )
+            result.title = f"{result.title} (Part 2)"
 
     from prolific.core.config import settings
 

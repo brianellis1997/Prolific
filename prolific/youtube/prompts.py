@@ -16,7 +16,8 @@ of your suggestions should come from your own knowledge of fascinating history, 
 current news. The channel covers ALL of world history — vary the regions and eras widely.
 If a topic is genuinely inspired by trending news, fill in trending_tie_in. Otherwise leave empty.
 
-AVOID these topics that have already been covered:
+AVOID these topics that have already been covered (each line shows the YouTube
+video ID in brackets, then the title):
 {past_topics}
 
 For each topic, provide:
@@ -26,6 +27,20 @@ For each topic, provide:
 - region_tags: Regions/civilizations (e.g., "rome", "china", "egypt", "americas")
 - appeal_reason: Why this would be interesting and sleep-friendly
 - trending_tie_in: If inspired by current news, briefly explain the connection (otherwise leave empty)
+
+CONTINUATION FLAG (use sparingly — almost always False):
+- is_intentional_continuation: ONLY set to True if you are deliberately building a Part 2 / sequel
+  on a past video that performed well, with a structurally different angle. NEVER use this flag
+  to bypass the duplicate check by rephrasing — the system will detect that and reject.
+- continues_video_id: When is_intentional_continuation=True, MUST be the YouTube video ID
+  shown in brackets in the past_topics list above. Hallucinated IDs will be rejected.
+- distinct_angle: When is_intentional_continuation=True, write ≥1 sentence (≥20 chars) on
+  what makes this Part 2 structurally different — e.g., "covers Blackbeard's death and
+  aftermath, where the original covered his rise to captain". If the angle is just rephrased
+  or there's no new material, set is_intentional_continuation=False and pick a different topic.
+- continuation_rationale: Why this sequel deserves to ship now (ideally cite analytics).
+
+Default these four fields to False/null/empty for fresh topics.
 
 CHANNEL PERFORMANCE DATA (use this to guide what topics to lean into or avoid):
 {performance_context}

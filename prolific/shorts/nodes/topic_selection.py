@@ -24,6 +24,12 @@ class ShortTopicCandidate(BaseModel):
     trending_tie_in: str = ""
     clip_search_queries: list[str] = Field(default_factory=list)
     scene_ideas: list[str] = Field(default_factory=list)
+    # Continuation flag: set ONLY when intentionally building on a past short
+    # (legitimate "Part 2" with a distinct angle, not a rephrased duplicate).
+    is_intentional_continuation: bool = False
+    continues_video_id: str | None = None
+    distinct_angle: str = ""
+    continuation_rationale: str = ""
 
 
 class ShortTopicBrainstorm(BaseModel):
@@ -108,7 +114,7 @@ async def _get_past_video_titles() -> list[str]:
             yt = build("youtube", "v3", credentials=creds)
             resp = yt.search().list(
                 part="snippet", forMine=True, type="video",
-                maxResults=30, order="date",
+                maxResults=50, order="date",
             ).execute()
             return [item["snippet"]["title"] for item in resp.get("items", [])]
 
@@ -193,8 +199,100 @@ def _is_ai_video_run() -> bool:
         return False
 
 
+def _format_past_topics_for_prompt(past_records: list, fallback_titles: list[str]) -> str:
+    """Format past shorts with video IDs for the brainstorm prompt.
+
+    IDs are required so the LLM can fill `continues_video_id` for intentional
+    continuations. Falls back to plain titles for YouTube-search results not in
+    our DB.
+    """
+    lines: list[str] = []
+    seen_topics: set[str] = set()
+    for record in past_records:
+        pub = record.published_at.strftime("%Y-%m-%d") if record.published_at else "?"
+        lines.append(f"- [{record.video_id}] {record.topic} (published {pub})")
+        seen_topics.add(record.topic.lower().strip())
+    for title in fallback_titles:
+        if title.lower().strip() in seen_topics:
+            continue
+        lines.append(f"- {title}")
+    return "\n".join(lines) if lines else "(none yet)"
+
+
+async def _run_dedup_gate(
+    candidates: list[ShortTopicCandidate],
+    past_records: list,
+    normalized_past: set[str],
+):
+    """Run the prefilter + semantic gate over candidates.
+
+    Returns (accepted_list, rejection_log) for the retry path.
+    """
+    from prolific.services.topic_dedup import (
+        check_dedup,
+        embed_candidates_batch,
+        normalize_title,
+        validate_continuation,
+    )
+
+    accepted: list[ShortTopicCandidate] = []
+    rejection_log: list[tuple[str, object]] = []
+
+    prefilter_keep: list[ShortTopicCandidate] = []
+    for c in candidates:
+        if normalize_title(c.topic) in normalized_past:
+            logger.info("DEDUP PREFILTER REJECTED short '%s' (exact normalized match)", c.topic[:80])
+            stub = type("Stub", (), {"most_similar_topic": c.topic, "similarity": 1.0, "top_matches": []})()
+            rejection_log.append((c.topic, stub))
+        else:
+            prefilter_keep.append(c)
+
+    if prefilter_keep and past_records:
+        cand_inputs = [(c.topic, c.hook_angle) for c in prefilter_keep]
+        cand_embeddings = await embed_candidates_batch(cand_inputs)
+
+        for c, vec in zip(prefilter_keep, cand_embeddings):
+            result = check_dedup(c.topic, c.hook_angle, vec, past_records)
+            if not result.is_dupe:
+                accepted.append(c)
+                continue
+
+            if c.is_intentional_continuation:
+                is_valid, reason = validate_continuation(
+                    continues_video_id=c.continues_video_id,
+                    distinct_angle=c.distinct_angle,
+                    dedup_result=result,
+                    cooldown_days=settings.shorts_continuation_cooldown_days,
+                )
+                if is_valid:
+                    logger.info("CONTINUATION ACCEPTED short '%s' (parent=%s)", c.topic[:80], c.continues_video_id)
+                    accepted.append(c)
+                    continue
+                logger.info("CONTINUATION REJECTED short '%s': %s", c.topic[:80], reason)
+
+            rejection_log.append((c.topic, result))
+    else:
+        accepted = prefilter_keep
+
+    return accepted, rejection_log
+
+
 async def topic_selection_node(state: ShortsPipelineState) -> dict:
-    """Select a topic with niche awareness and content mode determination."""
+    """Select a topic with niche awareness and content mode determination.
+
+    Topic selection runs through a semantic dedup gate after brainstorming —
+    rejected candidates trigger one retry round with rejection feedback. Only
+    candidates flagged as `is_intentional_continuation=True` (with valid parent
+    video_id, ≥14-day cooldown for shorts, distinct angle) are allowed to
+    bypass the gate.
+    """
+    from prolific.services.topic_dedup import (
+        build_rejection_feedback,
+        hydrate_embeddings,
+        normalize_title,
+        _composite_text,
+    )
+
     logger.info("=== SHORTS: TOPIC SELECTION ===")
 
     llm_service = get_llm_service()
@@ -212,8 +310,27 @@ async def topic_selection_node(state: ShortsPipelineState) -> dict:
             "messages": [AIMessage(content="Twitch niche: routing to Twitch drama discovery")],
         }
 
-    past_topics = await _get_past_video_titles()
-    past_topics_str = "\n".join(f"- {t}" for t in past_topics[:30]) if past_topics else "(none yet)"
+    # Past topics: DB pull (with embeddings) is authoritative, YouTube search is supplementary
+    past_records = await history_service.get_past_topics_with_embeddings(
+        limit=settings.topic_dedup_max_past_topics,
+    )
+    if settings.topic_dedup_enabled and past_records:
+        async def _persist(vid_id, vec, model_v):
+            await history_service.update_embedding(vid_id, vec, model_v)
+
+        past_records = await hydrate_embeddings(
+            records=past_records,
+            composite_text_for_record=lambda r: _composite_text(r.topic, r.title),
+            persist_callback=_persist,
+        )
+
+    yt_topics = await _get_past_video_titles()
+    past_topics_str = _format_past_topics_for_prompt(past_records, yt_topics)
+    past_topics = [r.topic for r in past_records] + yt_topics
+
+    normalized_past: set[str] = {normalize_title(r.topic) for r in past_records}
+    normalized_past.update(normalize_title(t) for t in yt_topics)
+    normalized_past.discard("")
 
     trending_context, source_urls = await _get_trending_context(niche)
     performance_context = await _get_shorts_performance_context()
@@ -222,19 +339,22 @@ async def topic_selection_node(state: ShortsPipelineState) -> dict:
     if ai_video_mode:
         logger.info("AI video mode ACTIVE — using scenario-driven topic prompts")
 
+    # Resolve which prompts to use based on niche + AI video mode
+    select_prompt: str
+    extra_trending = ""
+
     if niche == "curiosity" and ai_video_mode:
         from prolific.shorts.prompts import (
             SCENARIO_TOPIC_BRAINSTORM_SYSTEM,
             SCENARIO_TOPIC_SELECT_SYSTEM,
             NICHE_SEARCH_QUERIES,
         )
-        import random
+        import random as _random
         scenario_queries = NICHE_SEARCH_QUERIES.get("curiosity_scenario", [])
-        extra_trending = ""
         if scenario_queries:
             from prolific.services.web_search import get_web_search_service
             search_service = get_web_search_service()
-            sampled = random.sample(scenario_queries, min(3, len(scenario_queries)))
+            sampled = _random.sample(scenario_queries, min(3, len(scenario_queries)))
             for q in sampled:
                 try:
                     results = await search_service.search(query=q, max_results=3, search_depth="basic")
@@ -242,26 +362,17 @@ async def topic_selection_node(state: ShortsPipelineState) -> dict:
                         extra_trending += f"- {r.title}: {r.snippet[:120]}\n"
                 except Exception:
                     pass
-        combined_trending = (trending_context + "\n" + extra_trending).strip() if trending_context else extra_trending.strip()
-        brainstorm_prompt = SCENARIO_TOPIC_BRAINSTORM_SYSTEM.format(
-            num_candidates=8,
-            trending_context=combined_trending if combined_trending else "(no trending data available)",
-            past_topics=past_topics_str,
-            performance_context=performance_context if performance_context else "(no performance data yet — channel is new)",
-        )
+        brainstorm_template = SCENARIO_TOPIC_BRAINSTORM_SYSTEM
         select_prompt = SCENARIO_TOPIC_SELECT_SYSTEM
+        prompt_branch = "scenario"
     elif niche == "curiosity":
         from prolific.shorts.prompts import (
             CURIOSITY_TOPIC_BRAINSTORM_SYSTEM,
             CURIOSITY_TOPIC_SELECT_SYSTEM,
         )
-        brainstorm_prompt = CURIOSITY_TOPIC_BRAINSTORM_SYSTEM.format(
-            num_candidates=8,
-            trending_context=trending_context if trending_context else "(no trending data available)",
-            past_topics=past_topics_str,
-            performance_context=performance_context if performance_context else "(no performance data yet — channel is new)",
-        )
+        brainstorm_template = CURIOSITY_TOPIC_BRAINSTORM_SYSTEM
         select_prompt = CURIOSITY_TOPIC_SELECT_SYSTEM
+        prompt_branch = "curiosity"
     else:
         from prolific.shorts.prompts import (
             NICHE_DESCRIPTIONS,
@@ -269,25 +380,51 @@ async def topic_selection_node(state: ShortsPipelineState) -> dict:
             TOPIC_SELECT_SYSTEM,
         )
         niche_description = NICHE_DESCRIPTIONS.get(niche, NICHE_DESCRIPTIONS["general"])
-        brainstorm_prompt = NICHE_TOPIC_BRAINSTORM_SYSTEM.format(
-            niche_description=niche_description,
-            num_candidates=8,
-            trending_context=trending_context if trending_context else "(no trending data available)",
-            past_topics=past_topics_str,
-        )
+        brainstorm_template = NICHE_TOPIC_BRAINSTORM_SYSTEM
         select_prompt = TOPIC_SELECT_SYSTEM
+        prompt_branch = "niche"
 
-    brainstorm_result = await llm_service.invoke_with_structured_output(
-        messages=[
-            SystemMessage(content=brainstorm_prompt),
-            HumanMessage(content="Generate topic candidates now."),
-        ],
-        output_schema=ShortTopicBrainstorm,
-        tier="research",
-        temperature=0.9,
-    )
+    combined_trending = (trending_context + "\n" + extra_trending).strip() if trending_context else extra_trending.strip()
 
-    candidates = brainstorm_result.candidates
+    async def _brainstorm(extra_feedback: str = "") -> list[ShortTopicCandidate]:
+        prompt_past = past_topics_str
+        if extra_feedback:
+            prompt_past = past_topics_str + "\n\nREJECTED ON LAST ATTEMPT:\n" + extra_feedback
+
+        if prompt_branch == "scenario":
+            prompt = brainstorm_template.format(
+                num_candidates=8,
+                trending_context=combined_trending if combined_trending else "(no trending data available)",
+                past_topics=prompt_past,
+                performance_context=performance_context if performance_context else "(no performance data yet — channel is new)",
+            )
+        elif prompt_branch == "curiosity":
+            prompt = brainstorm_template.format(
+                num_candidates=8,
+                trending_context=trending_context if trending_context else "(no trending data available)",
+                past_topics=prompt_past,
+                performance_context=performance_context if performance_context else "(no performance data yet — channel is new)",
+            )
+        else:  # niche
+            prompt = brainstorm_template.format(
+                niche_description=niche_description,
+                num_candidates=8,
+                trending_context=trending_context if trending_context else "(no trending data available)",
+                past_topics=prompt_past,
+            )
+
+        result = await llm_service.invoke_with_structured_output(
+            messages=[
+                SystemMessage(content=prompt),
+                HumanMessage(content="Generate topic candidates now."),
+            ],
+            output_schema=ShortTopicBrainstorm,
+            tier="research",
+            temperature=0.9,
+        )
+        return result.candidates
+
+    candidates = await _brainstorm()
     logger.info(f"Brainstormed {len(candidates)} short topic candidates")
 
     if not candidates:
@@ -296,10 +433,47 @@ async def topic_selection_node(state: ShortsPipelineState) -> dict:
             "current_phase": "failed",
         }
 
+    # ---- DEDUP GATE ----
+    if settings.topic_dedup_enabled:
+        accepted, rejection_log = await _run_dedup_gate(candidates, past_records, normalized_past)
+
+        # Retry once if everything got rejected
+        if not accepted and rejection_log:
+            feedback_lines = build_rejection_feedback(
+                [(t, r) for t, r in rejection_log if hasattr(r, "most_similar_topic")]
+            )
+            logger.info("DEDUP retry: all %d short candidates rejected, re-brainstorming with feedback", len(rejection_log))
+            retry = await _brainstorm(extra_feedback="\n".join(feedback_lines))
+            if retry:
+                accepted, _ = await _run_dedup_gate(retry, past_records, normalized_past)
+
+        # Hard fallback — never let pipeline stall
+        if not accepted:
+            logger.warning("DEDUP fallback: picking lowest-similarity short candidate")
+            scored = []
+            for c, r in rejection_log:
+                sim = getattr(r, "similarity", 1.0)
+                # Recover the candidate object
+                for orig in candidates:
+                    if orig.topic == c:
+                        scored.append((sim, orig))
+                        break
+            scored.sort(key=lambda x: x[0])
+            accepted = [scored[0][1]] if scored else candidates[:1]
+    else:
+        accepted = candidates
+
+    if not accepted:
+        return {
+            "errors": ["All short candidates rejected and fallback failed"],
+            "current_phase": "failed",
+        }
+
     candidates_str = "\n".join(
         f"[{i}] {c.topic} ({c.topic_type}, mode={c.content_mode}) - {c.hook_angle}"
         + (f" [TRENDING: {c.trending_tie_in}]" if c.trending_tie_in else "")
-        for i, c in enumerate(candidates)
+        + (f" [PART 2 of {c.continues_video_id}: {c.distinct_angle}]" if c.is_intentional_continuation else "")
+        for i, c in enumerate(accepted)
     )
 
     selection_result = await llm_service.invoke_with_structured_output(
@@ -312,8 +486,8 @@ async def topic_selection_node(state: ShortsPipelineState) -> dict:
         temperature=0.3,
     )
 
-    chosen_idx = max(0, min(selection_result.chosen_index, len(candidates) - 1))
-    chosen = candidates[chosen_idx]
+    chosen_idx = max(0, min(selection_result.chosen_index, len(accepted) - 1))
+    chosen = accepted[chosen_idx]
 
     content_mode = chosen.content_mode
     valid_modes = {"news_commentary", "clip_reaction", "clip_compilation", "niche_drama"}
@@ -362,6 +536,8 @@ async def topic_selection_node(state: ShortsPipelineState) -> dict:
         "past_short_topics": past_topics,
         "scene_ideas": chosen.scene_ideas or [],
         "selection_rationale": selection_rationale,
+        "is_intentional_continuation": chosen.is_intentional_continuation,
+        "continues_video_id": chosen.continues_video_id,
         "current_phase": "script_writing",
         "messages": [AIMessage(
             content=f"Selected: {chosen.topic} | Mode: {content_mode} | Hook: {chosen.hook_angle}"

@@ -27,6 +27,8 @@ class YouTubePipelineState(TypedDict):
     is_biography: bool
     past_video_topics: list[str]
     selection_rationale: str
+    is_intentional_continuation: bool
+    continues_video_id: str | None
 
     # Script
     script_sections: Annotated[list[ScriptSection], merge_artifacts_by_id]
@@ -70,6 +72,8 @@ def create_initial_youtube_state(thread_id: str | None = None) -> YouTubePipelin
         is_biography=False,
         past_video_topics=[],
         selection_rationale="",
+        is_intentional_continuation=False,
+        continues_video_id=None,
         script_sections=[],
         total_script_word_count=0,
         image_assets=[],

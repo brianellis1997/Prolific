@@ -104,8 +104,10 @@ class Settings(BaseSettings):
     youtube_default_privacy: str = "public"
     youtube_category_id: str = "27"
 
-    # Scheduler
-    youtube_cron_hour: int = 16
+    # Scheduler — long-form fires daily at 18:00 ET (Mon/Wed/Fri=BIO, Thu=LOSTCIV, Sat=IMMERSIVE).
+    # The Railway env var YOUTUBE_CRON_HOUR overrides this default; the source default is kept
+    # in sync with prod intent so a fresh deploy without the env var still fires at 6 PM.
+    youtube_cron_hour: int = 18
     youtube_cron_minute: int = 0
     youtube_cron_timezone: str = "America/New_York"
     youtube_cron_enabled: bool = False

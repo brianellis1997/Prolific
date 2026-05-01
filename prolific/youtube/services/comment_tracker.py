@@ -8,7 +8,7 @@ import aiosqlite
 
 logger = logging.getLogger(__name__)
 
-DEFAULT_DB_PATH = "./comment_replies.db"
+DEFAULT_DB_PATH = "/app/data/comment_replies.db"
 
 
 class CommentTracker:

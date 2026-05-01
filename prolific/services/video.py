@@ -44,15 +44,25 @@ class VideoAssemblyService:
         width: int = 1920,
         height: int = 1080,
     ) -> str:
-        """Create a Ken Burns clip from a single image."""
+        """Create a Ken Burns clip from a single image.
+
+        Pre-scales the input image 4x before zoompan to eliminate pixel-snap
+        jitter. ffmpeg's zoompan filter snaps x/y coordinates to nearest int
+        per frame; at zoom levels close to 1.0 (early in zoom_in clips), the
+        snapped pixel coords visibly shake by ±1px between frames. Working at
+        4x source resolution makes those snaps quarter-pixel at output =
+        invisible. Standard mitigation for the zoompan-shake artifact.
+        """
         total_frames = int(duration * fps)
         resolution = f"{width}x{height}"
+        # 4x oversample for zoompan input — eliminates pixel-snap jitter.
+        prescale = "scale=iw*4:ih*4:flags=lanczos"
 
         zoom_filters = {
-            "zoom_in": f"zoompan=z='min(zoom+0.0001,1.3)':x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)':d={total_frames}:s={resolution}:fps={fps}",
-            "zoom_out": f"zoompan=z='if(eq(on,0),1.3,max(zoom-0.0001,1.0))':x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)':d={total_frames}:s={resolution}:fps={fps}",
-            "pan_left": f"zoompan=z='1.1':x='iw*0.1+on/(on+1)*iw*0.1':y='ih/2-(ih/zoom/2)':d={total_frames}:s={resolution}:fps={fps}",
-            "pan_right": f"zoompan=z='1.1':x='iw*0.3-on/(on+1)*iw*0.1':y='ih/2-(ih/zoom/2)':d={total_frames}:s={resolution}:fps={fps}",
+            "zoom_in": f"{prescale},zoompan=z='min(zoom+0.0001,1.3)':x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)':d={total_frames}:s={resolution}:fps={fps}",
+            "zoom_out": f"{prescale},zoompan=z='if(eq(on,0),1.3,max(zoom-0.0001,1.0))':x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)':d={total_frames}:s={resolution}:fps={fps}",
+            "pan_left": f"{prescale},zoompan=z='1.1':x='iw*0.1+on/(on+1)*iw*0.1':y='ih/2-(ih/zoom/2)':d={total_frames}:s={resolution}:fps={fps}",
+            "pan_right": f"{prescale},zoompan=z='1.1':x='iw*0.3-on/(on+1)*iw*0.1':y='ih/2-(ih/zoom/2)':d={total_frames}:s={resolution}:fps={fps}",
         }
 
         vf = zoom_filters.get(direction, zoom_filters["zoom_in"])

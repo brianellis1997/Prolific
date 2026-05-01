@@ -288,9 +288,12 @@ async def topic_selection_node(state: ShortsPipelineState) -> dict:
     """
     from prolific.services.topic_dedup import (
         build_rejection_feedback,
+        check_entity_overlap,
+        entity_extraction,
         hydrate_embeddings,
         normalize_title,
         _composite_text,
+        _rich_composite_text,
     )
 
     logger.info("=== SHORTS: TOPIC SELECTION ===")
@@ -318,10 +321,14 @@ async def topic_selection_node(state: ShortsPipelineState) -> dict:
         async def _persist(vid_id, vec, model_v):
             await history_service.update_embedding(vid_id, vec, model_v)
 
+        async def _persist_entities(vid_id, ents):
+            await history_service.update_entities(vid_id, ents)
+
         past_records = await hydrate_embeddings(
             records=past_records,
-            composite_text_for_record=lambda r: _composite_text(r.topic, r.title),
+            composite_text_for_record=lambda r: _rich_composite_text(r.topic, r.title, r.script_excerpt),
             persist_callback=_persist,
+            persist_entities_callback=_persist_entities,
         )
 
     yt_topics = await _get_past_video_titles()
@@ -468,6 +475,37 @@ async def topic_selection_node(state: ShortsPipelineState) -> dict:
             "errors": ["All short candidates rejected and fallback failed"],
             "current_phase": "failed",
         }
+
+    # ---- ENTITY GATE (v2) ----
+    # Hard-block any candidate whose canonical entities overlap a past short's
+    # entities within shorts_continuation_cooldown_days (default 14d). Catches
+    # LLM-rephrased entity-rename evasion that the cosine gate misses.
+    if settings.topic_dedup_enabled and settings.topic_dedup_entity_gate_enabled and past_records:
+        entity_filtered: list[ShortTopicCandidate] = []
+        for c in accepted:
+            try:
+                cand_entities = await entity_extraction(f"{c.topic} | {c.hook_angle}")
+            except Exception as exc:
+                logger.warning("Entity extraction failed for short '%s': %s — failing open", c.topic[:60], exc)
+                entity_filtered.append(c)
+                continue
+            overlap = check_entity_overlap(
+                candidate_entities=cand_entities,
+                past=past_records,
+                cooldown_days=settings.topic_dedup_entity_cooldown_days,
+            )
+            if overlap.is_dupe and not c.is_intentional_continuation:
+                logger.info(
+                    "DEDUP entity-gate REJECTED short '%s' — entities=%s, %s",
+                    c.topic[:60], cand_entities, overlap.reject_reason,
+                )
+                continue
+            entity_filtered.append(c)
+
+        if entity_filtered:
+            accepted = entity_filtered
+        else:
+            logger.warning("Entity gate rejected ALL short candidates — keeping cosine-accepted set to avoid stall")
 
     candidates_str = "\n".join(
         f"[{i}] {c.topic} ({c.topic_type}, mode={c.content_mode}) - {c.hook_angle}"

@@ -67,14 +67,25 @@ class Settings(BaseSettings):
     cross_check_max_llm_comparisons: int = 100  # Max LLM calls for conflict detection
 
     # Topic Deduplication (semantic dedup gate for both pipelines)
-    # Thresholds tuned against real Slumber Archives history (Cyrus rephrasing
-    # scores 0.79, Blackbeard rephrasing 0.78, unrelated topics <0.55).
+    # v2 (2026-04-30): tightened thresholds (0.78 → 0.75) and added entity gate
+    # after pineapple+woodpecker rephrased-entity duplicates slipped through v1.
     topic_dedup_enabled: bool = True
-    topic_dedup_threshold: float = 0.78  # Reject if cosine sim > threshold and not flagged as continuation
-    topic_dedup_warn_band_low: float = 0.70  # Log-only band (warn but don't reject) between this and threshold
+    topic_dedup_threshold: float = 0.75  # Reject if cosine sim > threshold and not flagged as continuation
+    topic_dedup_warn_band_low: float = 0.65  # Log-only band between this and threshold
     topic_dedup_max_past_topics: int = 200  # Past topics to consider for dedup
     topic_dedup_continuation_cooldown_days: int = 30  # Long-form: min days before sequel allowed
     shorts_continuation_cooldown_days: int = 14  # Shorts: tighter cooldown (4-5 uploads/day)
+    # Entity gate (catches LLM-rephrased entity-rename evasion)
+    topic_dedup_entity_gate_enabled: bool = True  # Independent kill switch
+    topic_dedup_script_excerpt_chars: int = 1500  # Truncate past scripts for richer embeddings
+    topic_dedup_max_entities_per_video: int = 3  # Cap LLM-extracted entity count
+    # Entity cooldown is INTENTIONALLY longer than continuation_cooldown — a Part 2
+    # is fine after 30d, but reusing the same entity (e.g. "pineapple") within 60d
+    # is a dupe regardless of intent. Pineapple slipped through at 15d gap because
+    # we used continuation_cooldown=14 for both.
+    topic_dedup_entity_cooldown_days: int = 60
+    # Bumping this string forces re-hydration of all cached embeddings on next run.
+    topic_dedup_composite_marker: str = "rich-v1"
 
     # Generation defaults
     default_depth: Literal["overview", "standard", "deep", "exhaustive"] = "standard"

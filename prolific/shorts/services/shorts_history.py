@@ -52,6 +52,10 @@ class ShortsHistoryService:
             await db.execute("ALTER TABLE shorts ADD COLUMN embedding_model_version TEXT")
         except Exception:
             pass
+        try:
+            await db.execute("ALTER TABLE shorts ADD COLUMN entities TEXT DEFAULT '[]'")
+        except Exception:
+            pass
         await db.execute("""
             CREATE TABLE IF NOT EXISTS used_stock_clips (
                 video_id TEXT NOT NULL,
@@ -198,15 +202,17 @@ class ShortsHistoryService:
         """Pull past published shorts with cached embeddings for the dedup gate.
 
         Limit-based (not hours-based): the original 48h/720h windows aged topics
-        out so fast that the same topic could come back within ~1 week. We need
-        a much wider window for semantic dedup to work.
+        out so fast that the same topic could come back within ~1 week. v2: also
+        pulls script_text (used as script_excerpt for rich-content embeddings)
+        and entities (for the entity gate).
         """
+        import json as _json
         async with aiosqlite.connect(self.db_path) as db:
             await self._ensure_table(db)
             db.row_factory = aiosqlite.Row
             cursor = await db.execute(
-                """SELECT id, youtube_video_id, topic, hook, selection_rationale,
-                          published_at, embedding, embedding_model_version
+                """SELECT id, youtube_video_id, topic, hook, script_text, selection_rationale,
+                          published_at, embedding, embedding_model_version, entities
                    FROM shorts
                    WHERE youtube_video_id IS NOT NULL AND youtube_video_id != ''
                    ORDER BY created_at DESC
@@ -222,6 +228,10 @@ class ShortsHistoryService:
                         pub_at = datetime.fromisoformat(row["published_at"])
                     except Exception:
                         pub_at = None
+                try:
+                    entities = _json.loads(row["entities"] or "[]")
+                except Exception:
+                    entities = []
                 results.append(
                     PastTopicEmbedding(
                         video_id=row["youtube_video_id"] or row["id"],
@@ -230,9 +240,24 @@ class ShortsHistoryService:
                         published_at=pub_at,
                         embedding=blob_to_embedding(row["embedding"]),
                         embedding_model_version=row["embedding_model_version"],
+                        script_excerpt=(row["script_text"] or "")[:5000],
+                        entities=entities,
                     )
                 )
             return results
+
+    async def update_entities(self, short_id: str, entities: list[str]) -> None:
+        """Persist extracted canonical entities for a published short."""
+        import json as _json
+        async with aiosqlite.connect(self.db_path) as db:
+            await self._ensure_table(db)
+            await db.execute(
+                """UPDATE shorts
+                   SET entities = ?
+                   WHERE youtube_video_id = ? OR id = ?""",
+                (_json.dumps(entities), short_id, short_id),
+            )
+            await db.commit()
 
     async def update_embedding(
         self, video_id: str, embedding: np.ndarray, model_version: str

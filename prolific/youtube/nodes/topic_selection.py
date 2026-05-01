@@ -235,12 +235,15 @@ async def topic_selection_node(state: YouTubePipelineState) -> dict:
     """
     from prolific.services.topic_dedup import (
         check_dedup,
+        check_entity_overlap,
         embed_candidates_batch,
+        entity_extraction,
         hydrate_embeddings,
         normalize_title,
         validate_continuation,
         build_rejection_feedback,
         _composite_text,
+        _rich_composite_text,
     )
 
     logger.info("=== TOPIC SELECTION ===")
@@ -255,14 +258,19 @@ async def topic_selection_node(state: YouTubePipelineState) -> dict:
     )
 
     # Hydrate any records missing embeddings (cheap one-time per record).
+    # v2: rich composite (topic+title+description) and entity extraction.
     if settings.topic_dedup_enabled and past_records:
         async def _persist(vid_id, vec, model_v):
             await history_service.update_embedding(vid_id, vec, model_v)
 
+        async def _persist_entities(vid_id, ents):
+            await history_service.update_entities(vid_id, ents)
+
         past_records = await hydrate_embeddings(
             records=past_records,
-            composite_text_for_record=lambda r: _composite_text(r.topic, r.title),
+            composite_text_for_record=lambda r: _rich_composite_text(r.topic, r.title, r.script_excerpt),
             persist_callback=_persist,
+            persist_entities_callback=_persist_entities,
         )
 
     yt_topics = await _get_past_youtube_titles()
@@ -422,6 +430,38 @@ async def topic_selection_node(state: YouTubePipelineState) -> dict:
             "errors": ["All candidates rejected and fallback failed"],
             "current_phase": "failed",
         }
+
+    # ---- ENTITY GATE (v2) ----
+    # Hard-block any candidate whose canonical entities overlap a past video's
+    # entities within cooldown. Catches LLM-rephrased entity-rename evasion that
+    # the cosine gate misses (e.g. "bird with deadly harpoon" vs past "woodpecker
+    # tongue" — same entity per LLM, but cosine ~0.59).
+    if settings.topic_dedup_enabled and settings.topic_dedup_entity_gate_enabled and past_records:
+        entity_filtered: list[TopicCandidate] = []
+        for c in accepted:
+            try:
+                cand_entities = await entity_extraction(f"{c.topic} | {c.appeal_reason}")
+            except Exception as exc:
+                logger.warning("Entity extraction failed for '%s': %s — failing open", c.topic[:60], exc)
+                entity_filtered.append(c)
+                continue
+            overlap = check_entity_overlap(
+                candidate_entities=cand_entities,
+                past=past_records,
+                cooldown_days=settings.topic_dedup_entity_cooldown_days,
+            )
+            if overlap.is_dupe and not c.is_intentional_continuation:
+                logger.info(
+                    "DEDUP entity-gate REJECTED '%s' — entities=%s, %s",
+                    c.topic[:60], cand_entities, overlap.reject_reason,
+                )
+                continue
+            entity_filtered.append(c)
+
+        if entity_filtered:
+            accepted = entity_filtered
+        else:
+            logger.warning("Entity gate rejected ALL candidates — keeping cosine-accepted set to avoid stall")
 
     # ---- SELECTION over accepted candidates ----
     candidates_str = "\n".join(

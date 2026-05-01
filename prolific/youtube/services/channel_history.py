@@ -61,6 +61,10 @@ class ChannelHistoryService:
                 await db.execute("ALTER TABLE videos ADD COLUMN content_mode TEXT DEFAULT 'BIOGRAPHY'")
             except Exception:
                 pass
+            try:
+                await db.execute("ALTER TABLE videos ADD COLUMN entities TEXT DEFAULT '[]'")
+            except Exception:
+                pass
             # Idempotent backfill: derive content_mode from is_biography for legacy rows.
             await db.execute(
                 """UPDATE videos
@@ -187,13 +191,14 @@ class ChannelHistoryService:
         """Pull past videos with cached embeddings for the dedup gate.
 
         Records with null embeddings are returned as-is — the caller hydrates
-        them via topic_dedup.hydrate_embeddings.
+        them via topic_dedup.hydrate_embeddings. v2: also pulls description
+        (used as script_excerpt for rich-content embeddings) and entities.
         """
         async with aiosqlite.connect(self.db_path) as db:
             db.row_factory = aiosqlite.Row
             cursor = await db.execute(
-                """SELECT id, youtube_video_id, topic, title, selection_rationale,
-                          published_at, embedding, embedding_model_version
+                """SELECT id, youtube_video_id, topic, title, description, selection_rationale,
+                          published_at, embedding, embedding_model_version, entities
                    FROM videos
                    WHERE youtube_video_id IS NOT NULL AND youtube_video_id != ''
                    ORDER BY created_at DESC
@@ -209,6 +214,10 @@ class ChannelHistoryService:
                         pub_at = datetime.fromisoformat(row["published_at"])
                     except Exception:
                         pub_at = None
+                try:
+                    entities = json.loads(row["entities"] or "[]")
+                except Exception:
+                    entities = []
                 results.append(
                     PastTopicEmbedding(
                         video_id=row["youtube_video_id"] or row["id"],
@@ -217,9 +226,22 @@ class ChannelHistoryService:
                         published_at=pub_at,
                         embedding=blob_to_embedding(row["embedding"]),
                         embedding_model_version=row["embedding_model_version"],
+                        script_excerpt=(row["description"] or "")[:5000],
+                        entities=entities,
                     )
                 )
             return results
+
+    async def update_entities(self, video_id: str, entities: list[str]) -> None:
+        """Persist extracted canonical entities for a published video."""
+        async with aiosqlite.connect(self.db_path) as db:
+            await db.execute(
+                """UPDATE videos
+                   SET entities = ?
+                   WHERE youtube_video_id = ? OR id = ?""",
+                (json.dumps(entities), video_id, video_id),
+            )
+            await db.commit()
 
     async def update_embedding(
         self, video_id: str, embedding: np.ndarray, model_version: str

@@ -360,23 +360,34 @@ async def topic_selection_node(state: YouTubePipelineState) -> dict:
                     candidate_embedding=vec,
                     past=past_records,
                 )
-                if not result.is_dupe:
-                    accepted.append(c)
-                    continue
 
-                # Dupe — but allow if intentional continuation flagged AND validated
+                # Validate the continuation flag up-front if set, even when cosine
+                # would accept the candidate. The downstream metadata node forces
+                # "(Part 2)" into the title whenever this flag is true; an LLM
+                # that flags a thematic-followup as a sequel (e.g. pirate-cooks
+                # tagged as Part 2 of a Blackbeard biography) must be demoted
+                # here or viewers see a misleading "(Part 2)" with no Part 1.
                 if c.is_intentional_continuation:
                     is_valid, reason = validate_continuation(
                         continues_video_id=c.continues_video_id,
                         distinct_angle=c.distinct_angle,
                         dedup_result=result,
                         cooldown_days=settings.topic_dedup_continuation_cooldown_days,
+                        current_content_mode=content_mode,
+                        past_records=past_records,
                     )
-                    if is_valid:
-                        logger.info("CONTINUATION ACCEPTED '%s' (parent=%s)", c.topic[:80], c.continues_video_id)
-                        accepted.append(c)
-                        continue
-                    logger.info("CONTINUATION REJECTED '%s': %s", c.topic[:80], reason)
+                    if not is_valid:
+                        logger.info("CONTINUATION FLAG DEMOTED '%s': %s", c.topic[:80], reason)
+                        c.is_intentional_continuation = False
+
+                if not result.is_dupe:
+                    accepted.append(c)
+                    continue
+
+                if c.is_intentional_continuation:
+                    logger.info("CONTINUATION ACCEPTED '%s' (parent=%s)", c.topic[:80], c.continues_video_id)
+                    accepted.append(c)
+                    continue
 
                 rejection_log.append((c.topic, result))
 
@@ -395,15 +406,22 @@ async def topic_selection_node(state: YouTubePipelineState) -> dict:
                     if normalize_title(c.topic) in normalized_past:
                         continue
                     result = check_dedup(c.topic, c.appeal_reason, vec, past_records)
+
+                    if c.is_intentional_continuation:
+                        is_valid, reason = validate_continuation(
+                            c.continues_video_id, c.distinct_angle, result,
+                            settings.topic_dedup_continuation_cooldown_days,
+                            current_content_mode=content_mode,
+                            past_records=past_records,
+                        )
+                        if not is_valid:
+                            logger.info("CONTINUATION FLAG DEMOTED '%s': %s", c.topic[:80], reason)
+                            c.is_intentional_continuation = False
+
                     if not result.is_dupe:
                         accepted.append(c)
                     elif c.is_intentional_continuation:
-                        is_valid, _ = validate_continuation(
-                            c.continues_video_id, c.distinct_angle, result,
-                            settings.topic_dedup_continuation_cooldown_days,
-                        )
-                        if is_valid:
-                            accepted.append(c)
+                        accepted.append(c)
 
         # Hard fallback — never let pipeline stall. Pick lowest-similarity from original.
         if not accepted:

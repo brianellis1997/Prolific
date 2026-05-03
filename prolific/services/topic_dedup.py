@@ -63,6 +63,7 @@ class PastTopicEmbedding:
     # v2: rich-content fields used by the entity gate and rich embeddings
     script_excerpt: str = ""  # Truncated script_text or description; richer than topic alone
     entities: list[str] = field(default_factory=list)  # Canonical entity names from LLM extraction
+    content_mode: str = ""  # e.g. BIOGRAPHY / IMMERSIVE_DAILY_LIFE / LOST_CIVILIZATION; used to block cross-mode "Part 2"s
 
 
 @dataclass
@@ -366,6 +367,8 @@ def validate_continuation(
     dedup_result: DedupResult,
     cooldown_days: int,
     now: datetime | None = None,
+    current_content_mode: str | None = None,
+    past_records: Sequence[PastTopicEmbedding] | None = None,
 ) -> tuple[bool, str]:
     """Validate an `is_intentional_continuation=True` candidate.
 
@@ -377,6 +380,10 @@ def validate_continuation(
       c) `distinct_angle` non-empty AND ≥ 20 chars (force genuine angle).
       d) Similarity to claimed parent must be ≥ threshold; if low, flag was
          unnecessary — log warn but DO NOT fail (don't fail-close on this).
+      e) If `current_content_mode` and the parent's stored content_mode are
+         both known and differ, reject. A BIOGRAPHY parent ≠ an IMMERSIVE
+         child even when both are "about pirates" — different narrative
+         formats, different protagonists, "Part 2" misleads viewers.
 
     Returns (is_valid, reason). On reject, reason is human-readable.
     """
@@ -407,6 +414,18 @@ def validate_continuation(
             return False, (
                 f"parent video published {age_days:.1f} days ago, "
                 f"cooldown is {cooldown_days} days"
+            )
+
+    if current_content_mode and past_records:
+        parent_mode = next(
+            (p.content_mode for p in past_records if p.video_id == continues_video_id),
+            "",
+        )
+        if parent_mode and parent_mode != current_content_mode:
+            return False, (
+                f"content_mode mismatch — parent={parent_mode}, current={current_content_mode}. "
+                "A 'Part 2' must share the parent's narrative format (BIOGRAPHY → BIOGRAPHY, "
+                "IMMERSIVE → IMMERSIVE). Cross-mode thematic followups are not sequels."
             )
 
     # Anti-gaming check (d): if claimed similarity to parent is low, the flag

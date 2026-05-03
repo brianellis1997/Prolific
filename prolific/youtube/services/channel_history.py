@@ -198,7 +198,7 @@ class ChannelHistoryService:
             db.row_factory = aiosqlite.Row
             cursor = await db.execute(
                 """SELECT id, youtube_video_id, topic, title, description, selection_rationale,
-                          published_at, embedding, embedding_model_version, entities
+                          published_at, embedding, embedding_model_version, entities, content_mode
                    FROM videos
                    WHERE youtube_video_id IS NOT NULL AND youtube_video_id != ''
                    ORDER BY created_at DESC
@@ -228,6 +228,7 @@ class ChannelHistoryService:
                         embedding_model_version=row["embedding_model_version"],
                         script_excerpt=(row["description"] or "")[:5000],
                         entities=entities,
+                        content_mode=row["content_mode"] or "BIOGRAPHY",
                     )
                 )
             return results

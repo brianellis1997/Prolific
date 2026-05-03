@@ -134,15 +134,22 @@ For each topic, provide:
 - trending_tie_in: If inspired by current news, briefly explain the connection (otherwise leave empty)
 
 CONTINUATION FLAG (use sparingly — almost always False):
-- is_intentional_continuation: ONLY set to True if you are deliberately building a Part 2 / sequel
-  on a past video that performed well, with a structurally different angle. NEVER use this flag
-  to bypass the duplicate check by rephrasing — the system will detect that and reject.
+- is_intentional_continuation: ONLY set to True if you are building a true Part 2 of a past video,
+  meaning the new video covers MORE MATERIAL ON THE EXACT SAME PRIMARY SUBJECT as the parent —
+  same person (Blackbeard → Blackbeard), same place (Pompeii → Pompeii), same specific event
+  (Battle of Hastings → Battle of Hastings). Broad thematic similarity is NOT a Part 2:
+    * VALID: parent="Blackbeard's rise to captain" → child="Blackbeard's final battle"
+    * INVALID: parent="Blackbeard biography" → child="What pirate cooks ate" (same theme, different subject)
+    * INVALID: parent="Cleopatra" → child="Mark Antony" (different person, even if intertwined)
+  Also: a Part 2 must use the SAME NARRATIVE FORMAT as the parent (a BIOGRAPHY parent's Part 2
+  must also be a biography — not an immersive 2nd-person experience or a lost-civilization mystery).
+  NEVER use this flag to bypass the duplicate check by rephrasing — the system will detect that.
 - continues_video_id: When is_intentional_continuation=True, MUST be the YouTube video ID
   shown in brackets in the past_topics list above. Hallucinated IDs will be rejected.
 - distinct_angle: When is_intentional_continuation=True, write ≥1 sentence (≥20 chars) on
-  what makes this Part 2 structurally different — e.g., "covers Blackbeard's death and
-  aftermath, where the original covered his rise to captain". If the angle is just rephrased
-  or there's no new material, set is_intentional_continuation=False and pick a different topic.
+  what NEW MATERIAL on the same subject this Part 2 covers — e.g., "covers Blackbeard's death
+  and aftermath, where the original covered his rise to captain". If the angle is just rephrased
+  or there's no new material on the same subject, set is_intentional_continuation=False.
 - continuation_rationale: Why this sequel deserves to ship now (ideally cite analytics).
 
 Default these four fields to False/null/empty for fresh topics.

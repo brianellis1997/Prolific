@@ -153,6 +153,47 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
         cs = int((seconds % 1) * 100)
         return f"{h}:{m:02d}:{s:02d}.{cs:02d}"
 
+    def generate_srt_subtitles(
+        self,
+        segments: list[CaptionSegment],
+        output_path: str,
+        words_per_group: int | None = None,
+    ) -> str:
+        """Generate SRT subtitle file from word segments.
+
+        Uploaded to YouTube via captions.insert after the video upload — this
+        suppresses YT's auto-generated CC (which renders in a small black box
+        at the top of the frame and visually conflicts with our burned-in ASS
+        captions at the bottom). Same word grouping as the ASS generator so
+        viewers see the same text whether they have CC on or off.
+        """
+        if words_per_group is None:
+            words_per_group = settings.shorts_caption_words_per_group
+
+        events = []
+        for i in range(0, len(segments), words_per_group):
+            group = segments[i : i + words_per_group]
+            if not group:
+                continue
+            start = self._seconds_to_srt_time(group[0].start_time)
+            end = self._seconds_to_srt_time(group[-1].end_time)
+            text = " ".join(seg.word for seg in group).strip().upper()
+            events.append(f"{i // words_per_group + 1}\n{start} --> {end}\n{text}\n")
+
+        Path(output_path).parent.mkdir(parents=True, exist_ok=True)
+        Path(output_path).write_text("\n".join(events), encoding="utf-8")
+        logger.info(f"Generated SRT subtitles: {output_path} ({len(events)} cues)")
+        return output_path
+
+    @staticmethod
+    def _seconds_to_srt_time(seconds: float) -> str:
+        """Convert seconds to SRT timestamp format (HH:MM:SS,mmm)."""
+        h = int(seconds // 3600)
+        m = int((seconds % 3600) // 60)
+        s = int(seconds % 60)
+        ms = int((seconds % 1) * 1000)
+        return f"{h:02d}:{m:02d}:{s:02d},{ms:03d}"
+
 
 _caption_service: CaptionService | None = None
 

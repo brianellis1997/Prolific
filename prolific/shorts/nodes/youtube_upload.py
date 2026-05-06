@@ -50,8 +50,6 @@ async def youtube_upload_node(state: ShortsPipelineState) -> dict:
     upload_service = YouTubeUploadService(credentials_path=settings.shorts_credentials_path)
 
     try:
-        thumbnail_path = state.get("thumbnail_path") or None
-
         result = await upload_service.upload_video(
             video_path=video_path,
             title=metadata.title,
@@ -59,12 +57,18 @@ async def youtube_upload_node(state: ShortsPipelineState) -> dict:
             tags=metadata.tags,
             category_id=metadata.category_id,
             privacy_status=metadata.privacy_status,
-            thumbnail_path=thumbnail_path,
         )
 
         video_id = result["video_id"]
         video_url = result["url"]
         logger.info(f"Uploaded to YouTube: {video_url}")
+
+        srt_path = state.get("subtitle_path")
+        if srt_path:
+            try:
+                await upload_service.upload_caption_track(video_id=video_id, srt_path=srt_path)
+            except Exception as e:
+                logger.warning(f"Caption track upload failed (non-fatal): {e}")
 
         try:
             comment = _generate_engagement_comment(state.get("topic", ""))

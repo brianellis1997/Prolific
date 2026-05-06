@@ -117,43 +117,8 @@ async def metadata_generation_node(state: ShortsPipelineState) -> dict:
     logger.info(f"Title: {metadata.title}")
     logger.info(f"Tags: {', '.join(metadata.tags[:5])}...")
 
-    thumbnail_path = _generate_thumbnail(state, script, topic)
-
     return {
         "video_metadata": metadata,
-        "thumbnail_path": thumbnail_path,
         "current_phase": "youtube_upload",
         "messages": [AIMessage(content=f"Metadata: {metadata.title}")],
     }
-
-
-def _generate_thumbnail(state, script, topic: str) -> str | None:
-    """Generate thumbnail using hook text + best available visual."""
-    try:
-        from prolific.shorts.services.thumbnail import generate_thumbnail
-        from prolific.core.config import settings
-        from pathlib import Path
-
-        thread_id = state.get("thread_id", "unknown")
-        output_dir = Path(settings.shorts_output_dir) / thread_id
-        output_dir.mkdir(parents=True, exist_ok=True)
-        thumb_path = str(output_dir / "thumbnail.jpg")
-
-        hook = script.hook if script and script.hook else topic
-
-        bg_image = None
-        visual_assets = state.get("visual_assets", [])
-        for asset in visual_assets:
-            if asset.file_path and asset.asset_type in ("web_image",) and Path(asset.file_path).exists():
-                bg_image = asset.file_path
-                break
-
-        result = generate_thumbnail(
-            output_path=thumb_path,
-            hook_text=hook,
-            background_image_path=bg_image,
-        )
-        return result
-    except Exception as e:
-        logger.warning(f"Thumbnail skipped: {e}")
-        return None

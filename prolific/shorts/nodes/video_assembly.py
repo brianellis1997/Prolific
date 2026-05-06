@@ -1048,6 +1048,7 @@ async def video_assembly_node(state: ShortsPipelineState) -> dict:
                 caption_audio = mp3_path
 
     caption_service = get_caption_service()
+    srt_path: str | None = None
     try:
         segments = caption_segments if caption_segments else await caption_service.generate_word_timestamps(caption_audio)
 
@@ -1058,6 +1059,9 @@ async def video_assembly_node(state: ShortsPipelineState) -> dict:
             video_width=1080,
             video_height=1920,
         )
+
+        srt_path = str(output_dir / "captions.srt")
+        caption_service.generate_srt_subtitles(segments=segments, output_path=srt_path)
 
         final_video = str(output_dir / "final_short.mp4")
         await caption_service.burn_captions(raw_video, subtitle_path, final_video)
@@ -1084,6 +1088,7 @@ async def video_assembly_node(state: ShortsPipelineState) -> dict:
 
     return {
         "final_video_path": final_video,
+        "subtitle_path": srt_path or "",
         "current_phase": "metadata_generation",
         "messages": [AIMessage(content=f"Video assembled and verified: {final_video}")],
     }

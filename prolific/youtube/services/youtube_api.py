@@ -111,6 +111,50 @@ class YouTubeUploadService:
 
         return {"video_id": video_id, "url": video_url}
 
+    async def upload_caption_track(
+        self,
+        video_id: str,
+        srt_path: str,
+        language: str = "en",
+        name: str = "English",
+    ) -> str | None:
+        """Upload an SRT caption track to a video.
+
+        Uploading our own caption track tells YouTube not to render
+        auto-generated CC for that language, which removes the small
+        black-box caption overlay at the top of the frame that visually
+        conflicts with our burned-in ASS captions at the bottom.
+
+        Returns caption ID or None on failure (non-fatal).
+        """
+        import asyncio
+        from googleapiclient.http import MediaFileUpload
+
+        if not Path(srt_path).exists():
+            logger.warning(f"SRT not found at {srt_path} — skipping caption upload")
+            return None
+
+        try:
+            youtube = self._get_authenticated_service()
+            body = {
+                "snippet": {
+                    "videoId": video_id,
+                    "language": language,
+                    "name": name,
+                    "isDraft": False,
+                },
+            }
+            media = MediaFileUpload(srt_path, mimetype="application/octet-stream", resumable=False)
+            request = youtube.captions().insert(part="snippet", body=body, media_body=media)
+            loop = asyncio.get_event_loop()
+            response = await loop.run_in_executor(None, request.execute)
+            caption_id = response.get("id")
+            logger.info(f"Uploaded caption track for {video_id} (id={caption_id}) — auto-CC suppressed")
+            return caption_id
+        except Exception as e:
+            logger.warning(f"Caption track upload failed for {video_id} (non-fatal): {e}")
+            return None
+
     async def post_comment(self, video_id: str, comment_text: str) -> str | None:
         """Post a comment on a video. Returns comment ID or None."""
         import asyncio

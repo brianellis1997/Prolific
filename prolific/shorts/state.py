@@ -57,7 +57,6 @@ class ShortsPipelineState(TypedDict):
 
     final_video_path: str
     video_metadata: Annotated[ShortsVideoMetadata | None, replace_value]
-    thumbnail_path: str
 
     youtube_video_id: str
     youtube_url: str
@@ -104,7 +103,6 @@ def create_initial_shorts_state(thread_id: str | None = None, niche: str | None 
         subtitle_path="",
         final_video_path="",
         video_metadata=None,
-        thumbnail_path="",
         youtube_video_id="",
         youtube_url="",
         current_phase="topic_selection",

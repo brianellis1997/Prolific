@@ -1,9 +1,9 @@
 """APScheduler cron for YouTube long-form video generation.
 
-Three independent jobs run on a 5-day weekly cadence:
-  - Mon/Wed/Fri at youtube_cron_hour ET → BIOGRAPHY mode
-  - Thursday at youtube_cron_hour ET → LOST_CIVILIZATION mode
-  - Saturday at youtube_cron_hour ET → IMMERSIVE_DAILY_LIFE mode
+Three independent jobs run on a 5-day weekly cadence (rebalanced 2026-05-05):
+  - Mon at youtube_cron_hour ET → BIOGRAPHY (channel anchor)
+  - Wed/Sat → IMMERSIVE_DAILY_LIFE
+  - Thu/Fri → LOST_CIVILIZATION
 
 Each variant mode has its own *_enabled config flag so it can be paused without
 disabling the whole pipeline. The shared `slumber_archives_youtube` pipeline_lock
@@ -62,17 +62,20 @@ def start_scheduler():
     minute = settings.youtube_cron_minute
     tz = settings.youtube_cron_timezone
 
-    # Job 1 (always on): BIOGRAPHY on Mon/Wed/Fri — channel baseline.
+    # Job 1: BIOGRAPHY anchor (Mon-only as of 2026-05-05 cadence rebalance).
     _scheduler.add_job(
         _make_scheduled_run("BIOGRAPHY"),
-        CronTrigger(day_of_week="mon,wed,fri", hour=hour, minute=minute, timezone=tz),
-        id="youtube_mwf_bio",
-        name=f"YouTube BIOGRAPHY (Mon/Wed/Fri {hour:02d}:{minute:02d} {tz})",
+        CronTrigger(
+            day_of_week=settings.youtube_bio_cron_day,
+            hour=hour, minute=minute, timezone=tz,
+        ),
+        id="youtube_bio",
+        name=f"YouTube BIOGRAPHY ({settings.youtube_bio_cron_day} {hour:02d}:{minute:02d} {tz})",
         replace_existing=True,
     )
-    active_jobs = ["youtube_mwf_bio"]
+    active_jobs = ["youtube_bio"]
 
-    # Job 2 (gated): LOST_CIVILIZATION on Thursdays.
+    # Job 2 (gated): LOST_CIVILIZATION on Thu/Fri.
     if settings.youtube_lostciv_enabled:
         _scheduler.add_job(
             _make_scheduled_run("LOST_CIVILIZATION"),
@@ -80,13 +83,13 @@ def start_scheduler():
                 day_of_week=settings.youtube_lostciv_cron_day,
                 hour=hour, minute=minute, timezone=tz,
             ),
-            id="youtube_thu_lostciv",
+            id="youtube_lostciv",
             name=f"YouTube LOST_CIVILIZATION ({settings.youtube_lostciv_cron_day} {hour:02d}:{minute:02d} {tz})",
             replace_existing=True,
         )
-        active_jobs.append("youtube_thu_lostciv")
+        active_jobs.append("youtube_lostciv")
 
-    # Job 3 (gated): IMMERSIVE_DAILY_LIFE on Saturdays.
+    # Job 3 (gated): IMMERSIVE_DAILY_LIFE on Wed/Sat.
     if settings.youtube_immersive_enabled:
         _scheduler.add_job(
             _make_scheduled_run("IMMERSIVE_DAILY_LIFE"),
@@ -94,11 +97,11 @@ def start_scheduler():
                 day_of_week=settings.youtube_immersive_cron_day,
                 hour=hour, minute=minute, timezone=tz,
             ),
-            id="youtube_sat_immersive",
+            id="youtube_immersive",
             name=f"YouTube IMMERSIVE_DAILY_LIFE ({settings.youtube_immersive_cron_day} {hour:02d}:{minute:02d} {tz})",
             replace_existing=True,
         )
-        active_jobs.append("youtube_sat_immersive")
+        active_jobs.append("youtube_immersive")
 
     _scheduler.start()
     logger.info(

@@ -122,11 +122,16 @@ class Settings(BaseSettings):
     youtube_cron_minute: int = 0
     youtube_cron_timezone: str = "America/New_York"
     youtube_cron_enabled: bool = False
-    # Variant content modes (LOST_CIVILIZATION = Thursdays, IMMERSIVE_DAILY_LIFE = Saturdays)
+    # 5-day cadence (rebalanced 2026-05-05 — small-sample data showed LOSTCIV 4×
+    # and IMMERSIVE 2× BIO's views/day, so BIO was reduced from M/W/F to Mon-only):
+    #   Mon=BIOGRAPHY anchor, Wed=IMMERSIVE, Thu=LOSTCIV, Fri=LOSTCIV, Sat=IMMERSIVE.
+    # Re-evaluate at ~4 weeks (8 samples per non-BIO format). Reversible by editing
+    # these strings; no schema or data migration required.
     youtube_lostciv_enabled: bool = True
     youtube_immersive_enabled: bool = True
-    youtube_lostciv_cron_day: str = "thu"
-    youtube_immersive_cron_day: str = "sat"
+    youtube_bio_cron_day: str = "mon"
+    youtube_lostciv_cron_day: str = "thu,fri"
+    youtube_immersive_cron_day: str = "wed,sat"
 
     # Shorts Pipeline
     shorts_script_model: str = "google/gemini-3-flash-preview"

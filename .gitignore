@@ -79,3 +79,9 @@ generated_images/
 shorts_output/
 youtube_credentials*.json
 wait_really_pfp.png
+
+# Local Claude Code per-project settings (machine-specific tool permissions)
+.claude/settings.local.json
+
+# Playwright MCP investigation artifacts (screenshots, console logs, snapshots)
+.playwright-mcp/

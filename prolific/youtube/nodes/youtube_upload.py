@@ -82,6 +82,7 @@ async def youtube_upload_node(state: YouTubePipelineState) -> dict:
         is_biography=state.get("is_biography", False),
         selection_rationale=state.get("selection_rationale", ""),
         content_mode=state.get("content_mode") or "BIOGRAPHY",
+        thumbnail_hook=(thumbnail.title_overlay_text if thumbnail else ""),
     )
     await history_service.record_video(record)
 

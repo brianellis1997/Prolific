@@ -65,6 +65,10 @@ class ChannelHistoryService:
                 await db.execute("ALTER TABLE videos ADD COLUMN entities TEXT DEFAULT '[]'")
             except Exception:
                 pass
+            try:
+                await db.execute("ALTER TABLE videos ADD COLUMN thumbnail_hook TEXT DEFAULT ''")
+            except Exception:
+                pass
             # Idempotent backfill: derive content_mode from is_biography for legacy rows.
             await db.execute(
                 """UPDATE videos
@@ -80,8 +84,9 @@ class ChannelHistoryService:
                    (id, topic, title, description, tags, youtube_video_id,
                     youtube_url, thumbnail_path, video_path, script_word_count,
                     estimated_duration_minutes, status, created_at, published_at,
-                    era_tags, region_tags, is_biography, selection_rationale, content_mode)
-                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                    era_tags, region_tags, is_biography, selection_rationale, content_mode,
+                    thumbnail_hook)
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
                 (
                     str(record.id),
                     record.topic,
@@ -102,9 +107,29 @@ class ChannelHistoryService:
                     1 if record.is_biography else 0,
                     record.selection_rationale,
                     record.content_mode,
+                    record.thumbnail_hook or "",
                 ),
             )
             await db.commit()
+
+    async def get_recent_thumbnail_hooks(self, limit: int = 7) -> list[tuple[str, str]]:
+        """Return (hook, topic) for the most recent N videos that have a hook stored.
+
+        Used by thumbnail_generation_node to pass a DO-NOT-REPEAT list into the
+        brainstorm prompt so the model stops verbatim-recycling reference hooks
+        across consecutive videos (e.g. shipping 'WE CAN'T EXPLAIN THIS' three
+        times in five days, which is what triggered this method).
+        """
+        async with aiosqlite.connect(self.db_path) as db:
+            cursor = await db.execute(
+                """SELECT thumbnail_hook, topic FROM videos
+                   WHERE thumbnail_hook IS NOT NULL AND thumbnail_hook != ''
+                   ORDER BY created_at DESC
+                   LIMIT ?""",
+                (limit,),
+            )
+            rows = await cursor.fetchall()
+            return [(row[0], row[1]) for row in rows]
 
     async def get_past_topics(self, limit: int = 200) -> list[str]:
         async with aiosqlite.connect(self.db_path) as db:

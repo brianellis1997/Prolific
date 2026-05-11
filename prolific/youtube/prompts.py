@@ -355,20 +355,31 @@ random viewer at 2 AM click — NOT to summarize the topic.
 A great hook DOES NOT TELEGRAPH THE ANSWER. It hints at a mystery and forces the click
 to resolve. If the words alone reveal what happens, the viewer scrolls past.
 
-═══ REFERENCE — REAL HOOKS FROM A 148K-SUBSCRIBER COMPETITOR ═══
-These videos pull 5K-50K views each. Match this energy:
-  "WE CAN'T EXPLAIN THIS..."     ← open-loop "THIS", admission of mystery
-  "WHY DID IT VANISH?"           ← question mark + mystery verb + open-loop "IT"
-  "BURIED EMPIRE?"               ← 2 words, mystery vocab + question
-  "WHAT DID HE SEE?"             ← question + open-loop "HE"
-  "OUR WEIRD COUSINS"            ← informal + curious adjective + open-loop "COUSINS"
-  "AN ENTIRE VILLAGE GONE?"      ← "ENTIRE" intensifier + mystery verb
-  "WHY DID THEY VANISH?"         ← question + open-loop "THEY"
-  "100,000 YEARS AGO"            ← timestamp + image carries mystery
+═══ STUDY THESE PATTERNS — DO NOT COPY THEM VERBATIM ═══
+These are real hooks from a 148K-sub competitor (5K-50K views each). They are a
+TEACHING SET — study WHY each works, then write something ORIGINAL that matches
+the energy. **NEVER output any of these reference hooks word-for-word.** They
+already exist in the world; YouTube viewers and the algorithm will recognize a
+copy. The eval auto-rejects verbatim copies. Make YOUR hook specific to YOUR topic.
 
-Notice: SHORT (2-4 words), heavy use of "?", open-loop pronouns (IT, THIS, HE, THEY) so
-the viewer DOESN'T know who/what — that IS the curiosity gap. Mystery vocabulary is the
-fuel: VANISH, GONE, BURIED, ERASED, FORBIDDEN, COVERED UP, FORGOTTEN, HIDDEN, EXPLAIN.
+  "WE CAN'T EXPLAIN THIS..."     ← PATTERN: admission-of-mystery + open-loop "THIS"
+  "WHY DID IT VANISH?"           ← PATTERN: question + mystery verb + open-loop "IT"
+  "BURIED EMPIRE?"               ← PATTERN: mystery adjective + noun + "?"
+  "WHAT DID HE SEE?"             ← PATTERN: question + open-loop pronoun
+  "OUR WEIRD COUSINS"            ← PATTERN: informal possessive + curious adjective
+  "AN ENTIRE VILLAGE GONE?"      ← PATTERN: "ENTIRE" intensifier + erasure
+  "WHY DID THEY VANISH?"         ← PATTERN: same as VANISH but plural
+  "100,000 YEARS AGO"            ← PATTERN: timestamp; image carries the mystery
+
+Notice: SHORT (2-4 words), heavy use of "?", open-loop pronouns (IT, THIS, HE, THEY)
+so the viewer DOESN'T know who/what — that IS the curiosity gap. Mystery vocabulary
+is the fuel: VANISH, GONE, BURIED, ERASED, FORBIDDEN, COVERED UP, FORGOTTEN, HIDDEN.
+
+YOUR job: take a pattern, fill it with words that are TOPIC-SPECIFIC. For Mansa Musa
+the king of gold, a topic-specific application of "BURIED EMPIRE?" might be
+"FORBIDDEN GOLD?" — that's the SAME pattern (mystery adjective + noun + "?") but
+the words anchor to Mansa Musa specifically. A generic "WE CAN'T EXPLAIN THIS" could
+sit on ANY video and means nothing about THIS one — that's why it's banned as output.
 
 ═══ WORKING PATTERNS (pick a different one per candidate) ═══
 1. "WHY DID THEY [verb]?"           — open-loop "they"     ex. "WHY DID THEY VANISH?"
@@ -407,12 +418,21 @@ Reply with ONLY the 5 hooks, one per line, numbered 1-5."""
 
 
 THUMBNAIL_HOOK_EVAL_SYSTEM = """You pick the single best thumbnail hook for a sleep-history
-YouTube video. Score each candidate on three rubrics, then pick the highest TOTAL.
+YouTube video. Score each candidate on four rubrics, apply two hard floors, then pick the
+highest TOTAL among the survivors.
 
-The reference standard is real hooks from a 148K-subscriber competitor that pull 5K-50K
-views per video:
+═══ HARD FLOOR 1 — AUTO-REJECT VERBATIM COPIES ═══
+These reference hooks (real hooks from a 148K-sub competitor) exist as PATTERNS in the
+brainstorm prompt. Any candidate matching one of these word-for-word (case-insensitive,
+punctuation-insensitive) is INVALID and must be rejected — recycling them looks spammy
+and the channel will get pattern-matched as a knockoff:
   "WE CAN'T EXPLAIN THIS..."   "WHY DID IT VANISH?"   "BURIED EMPIRE?"
   "WHAT DID HE SEE?"           "OUR WEIRD COUSINS"    "AN ENTIRE VILLAGE GONE?"
+  "WHY DID THEY VANISH?"       "100,000 YEARS AGO"
+
+═══ HARD FLOOR 2 — AUTO-REJECT RECENTLY-USED HOOKS ═══
+The user message may list "RECENTLY-SHIPPED hooks on this channel". Any candidate
+matching one of those verbatim (case-insensitive) is INVALID. Pick something different.
 
 ═══ RUBRIC 1: MYSTERY (0-10) ═══
 Does the hook PRESERVE the answer (good) or TELEGRAPH it (bad)?
@@ -438,16 +458,36 @@ Does it feel like a 2 AM clickbait scroll-stopper, or a Wikipedia caption?
 Compare each candidate to the reference standard above. If it doesn't feel like it
 belongs in that list, it's low energy. Question marks add energy. Open-loop pronouns
 add energy. Bland verbs (FED, SAW, KNEW, LIVED) drain energy.
-  9/10 — "BURIED EMPIRE?" (matches reference)
+  9/10 — "BURIED EMPIRE?" (matches reference energy)
   4/10 — "WHAT HE FED THEM" (bland verb, low energy)
   2/10 — "ROME'S MOST DANGEROUS MISTAKE" (Wikipedia voice)
 
-═══ DECISION ═══
-1. Compute MYSTERY + CLARITY + ENERGY totals for all 5 candidates.
-2. AUTO-REJECT any candidate scoring ≤4 on CLARITY (the hard floor).
-3. Among the survivors, pick the highest TOTAL.
-4. If two are tied, prefer MORE MYSTERY.
-5. If ALL candidates score poorly, pick the least-bad and say so explicitly so a
-   human reviewer can intervene.
+═══ RUBRIC 4: SPECIFICITY (0-10) ═══
+Does the hook hint at something CONCRETE about THIS topic, or could it sit on ANY
+video unchanged? Generic mystery framings are weaker than topic-anchored ones.
 
-Return chosen_index + a 1-sentence rationale citing the rubric you weighted."""
+  For a Mansa Musa (king-of-gold) video:
+  10/10 — "FORBIDDEN GOLD?" (specific to gold-bringing king)
+   9/10 — "HE BURIED A KINGDOM"  (specific event hint)
+   3/10 — "WE CAN'T EXPLAIN THIS"  (could be ANY video — score it low)
+   2/10 — "BURIED EMPIRE?"  (could apply to dozens of topics — generic mystery)
+
+  For a Vikings/sails video:
+  10/10 — "HE BURIED HIS BROTHER"  (specific Viking saga detail)
+   9/10 — "WHY HE KILLED HIS SON"  (specific dramatic event)
+   2/10 — "WHY THEY VANISHED"  (Vikings didn't vanish — generic mystery)
+
+A high-mystery + high-specificity hook is the gold standard. A high-mystery + zero-
+specificity hook is just template-copying. Weight SPECIFICITY heavily on tie-breaks.
+
+═══ DECISION ═══
+1. Apply HARD FLOOR 1 (verbatim reference copy) → eliminate
+2. Apply HARD FLOOR 2 (recently-shipped hook copy) → eliminate
+3. Compute CLARITY for survivors; eliminate any scoring ≤4 on CLARITY
+4. Compute MYSTERY + ENERGY + SPECIFICITY for remaining survivors
+5. Pick the highest TOTAL of (MYSTERY + ENERGY + SPECIFICITY)
+6. If tied, prefer the one with HIGHER SPECIFICITY (topic-anchored beats generic)
+7. If ALL candidates were eliminated by hard floors, pick the least-bad survivor of
+   floors 1-2 (ignore clarity floor as last resort) and say so explicitly
+
+Return chosen_index + a 1-sentence rationale citing the rubric that decided it."""

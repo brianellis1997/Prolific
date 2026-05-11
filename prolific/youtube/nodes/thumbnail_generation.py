@@ -57,11 +57,35 @@ async def thumbnail_generation_node(state: YouTubePipelineState) -> dict:
     service = get_image_gen_service()
     llm_service = get_llm_service()
 
+    # Pull the last 7 thumbnail hooks shipped on this channel so the brainstorm
+    # prompt can include them as a DO-NOT-REPEAT list. Without this, the LLM
+    # keeps reaching for whatever reference example is most prominent in the
+    # system prompt — which is how "WE CAN'T EXPLAIN THIS" shipped 3× in 5 days.
+    recent_hooks: list[tuple[str, str]] = []
+    try:
+        from prolific.youtube.services.channel_history import get_channel_history_service
+        history_service = get_channel_history_service()
+        await history_service.initialize()
+        recent_hooks = await history_service.get_recent_thumbnail_hooks(limit=7)
+    except Exception as exc:
+        logger.warning(f"Could not load recent thumbnail hooks (non-fatal): {exc}")
+
+    recent_hooks_block = ""
+    if recent_hooks:
+        lines = [f'  - "{h}"  (topic: {t[:60]})' for h, t in recent_hooks]
+        recent_hooks_block = (
+            "\n\n═══ RECENTLY-SHIPPED HOOKS ON THIS CHANNEL — DO NOT REPEAT ═══\n"
+            "The last few videos shipped with these hooks. Your output MUST be different\n"
+            "from ALL of these (case-insensitive). Recycling makes the channel look spammy.\n"
+            + "\n".join(lines)
+        )
+
     hook_text = ""
     try:
         hook_prompt = THUMBNAIL_HOOK_SYSTEM.format(
             topic=topic, is_biography=is_biography,
         )
+        hook_prompt += recent_hooks_block
         if story_context:
             hook_prompt += f"\n\nSTORY CONTEXT (use this to pick the most dramatic hook):\n{story_context}"
 
@@ -89,10 +113,18 @@ async def thumbnail_generation_node(state: YouTubePipelineState) -> dict:
             rationale: str = Field(description="Why this hook wins")
 
         candidates_str = "\n".join(f"[{i}] {c}" for i, c in enumerate(candidates))
+        eval_user_msg = f"Topic: {topic}\n\nHook candidates:\n{candidates_str}"
+        if recent_hooks:
+            recent_str = "\n".join(f'  - "{h}"' for h, _ in recent_hooks)
+            eval_user_msg += (
+                f"\n\nRECENTLY-SHIPPED hooks on this channel (any candidate matching one of these "
+                f"verbatim, case-insensitive, must be REJECTED — pick another):\n{recent_str}"
+            )
+        eval_user_msg += "\n\nPick the best one."
         eval_result = await llm_service.invoke_with_structured_output(
             messages=[
                 SystemMessage(content=THUMBNAIL_HOOK_EVAL_SYSTEM),
-                HumanMessage(content=f"Topic: {topic}\n\nHook candidates:\n{candidates_str}\n\nPick the best one."),
+                HumanMessage(content=eval_user_msg),
             ],
             output_schema=HookEvaluation,
             tier="research",

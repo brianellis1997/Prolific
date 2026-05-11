@@ -28,6 +28,7 @@ class VideoRecord(BaseModel):
     is_biography: bool = False
     selection_rationale: str = ""
     content_mode: str = "BIOGRAPHY"
+    thumbnail_hook: str = ""
 
     class Config:
         frozen = False

@@ -253,22 +253,35 @@ async def _run_dedup_gate(
 
         for c, vec in zip(prefilter_keep, cand_embeddings):
             result = check_dedup(c.topic, c.hook_angle, vec, past_records)
-            if not result.is_dupe:
-                accepted.append(c)
-                continue
 
+            # Validate the continuation flag up-front whenever it's set, even
+            # when cosine accepts the candidate. The entity-gate below has a
+            # `not c.is_intentional_continuation` bypass — without up-front
+            # validation, the LLM can flag any same-day candidate as "Part 2"
+            # and dodge BOTH cosine and entity gates. This is exactly how the
+            # 2026-05-10 Toxoplasma duplicate slipped through 7 hours after
+            # the original. Failing validation demotes the flag so the topic
+            # can still ship as fresh, just without bypass privilege.
             if c.is_intentional_continuation:
                 is_valid, reason = validate_continuation(
                     continues_video_id=c.continues_video_id,
                     distinct_angle=c.distinct_angle,
                     dedup_result=result,
                     cooldown_days=settings.shorts_continuation_cooldown_days,
+                    past_records=past_records,
                 )
-                if is_valid:
-                    logger.info("CONTINUATION ACCEPTED short '%s' (parent=%s)", c.topic[:80], c.continues_video_id)
-                    accepted.append(c)
-                    continue
-                logger.info("CONTINUATION REJECTED short '%s': %s", c.topic[:80], reason)
+                if not is_valid:
+                    logger.info("CONTINUATION FLAG DEMOTED short '%s': %s", c.topic[:80], reason)
+                    c.is_intentional_continuation = False
+
+            if not result.is_dupe:
+                accepted.append(c)
+                continue
+
+            if c.is_intentional_continuation:
+                logger.info("CONTINUATION ACCEPTED short '%s' (parent=%s)", c.topic[:80], c.continues_video_id)
+                accepted.append(c)
+                continue
 
             rejection_log.append((c.topic, result))
     else:

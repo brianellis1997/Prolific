@@ -137,6 +137,8 @@ _GENERIC_ENTITY_STOPLIST = {
     "animal", "animals", "person", "people", "human", "humans", "fact", "facts",
     "story", "history", "video", "topic", "thing", "things", "stuff",
     "world", "earth", "life", "time", "day", "night", "year", "years",
+    # Period adjectives — too generic to anchor a "same entity" claim
+    "ancient", "medieval", "modern", "old", "new", "early", "late", "century",
 }
 
 
@@ -157,10 +159,16 @@ Examples:
 - "exploding tree like a grenade" → ["sandbox tree"]
 - "the man who didn't eat for 382 days" → ["angus barbieri", "fasting"]
 - "centipede that you should never kill in your house" → ["house centipede"]
+- "Demodex folliculorum mites in your face pores" → ["demodex"]
+- "Toxoplasma gondii parasite that controls mouse behavior" → ["toxoplasma"]
 
 Rules:
 - Lowercased canonical names only
-- No generic categories like "animal", "person", "fact", "history" — too broad
+- For scientific organisms, prefer the GENUS form ("demodex", not "demodex folliculorum";
+  "toxoplasma", not "toxoplasma gondii"). The genus is more stable across rephrasings
+  and prevents accidental duplicates when one script names the species and another doesn't.
+- No generic categories like "animal", "person", "fact", "history", "ancient", "modern"
+  — too broad to anchor a "same entity" claim
 - ≤3 entities
 - If you can't identify a specific entity, return []
 
@@ -214,6 +222,31 @@ async def entity_extraction(text: str, max_chars: int = 2000) -> list[str]:
     return cleaned
 
 
+def _entity_match(cand: str, past: str) -> str | None:
+    """Return the matched token if two canonical entities should be treated as the same.
+
+    Strict equality OR one entity is a whole-PHRASE substring of the other
+    (e.g., "demodex" matches "demodex folliculorum", but "demo" would NOT match
+    "demodex" — word boundaries required). Catches LLM canonicalization drift
+    where one extraction pass returns the genus and another returns the species,
+    which would otherwise slip through the set-intersection check.
+
+    Returns None when there's no match.
+    """
+    if cand == past:
+        return cand
+    # Require ≥4 chars on the shorter side to avoid generic-word false positives.
+    if len(cand) < 4 or len(past) < 4:
+        return None
+    cand_padded = f" {cand} "
+    past_padded = f" {past} "
+    if cand_padded in past_padded:
+        return cand
+    if past_padded in cand_padded:
+        return past
+    return None
+
+
 def check_entity_overlap(
     candidate_entities: list[str],
     past: Sequence[PastTopicEmbedding],
@@ -222,9 +255,11 @@ def check_entity_overlap(
 ) -> EntityOverlapResult:
     """Hard-block any candidate whose entity matches a past video within cooldown.
 
-    Set-membership comparison (not fuzzy). Catches LLM-rephrased entity-rename
-    evasion that the cosine gate misses (e.g., "bird with deadly harpoon" vs
-    past "woodpecker tongue secret" — same entity per LLM, but cosine 0.59).
+    Match rule: strict equality OR whole-phrase substring (e.g., "demodex" matches
+    "demodex folliculorum"). Catches LLM-rephrased entity-rename evasion that the
+    cosine gate misses (e.g., "bird with deadly harpoon" vs past "woodpecker tongue
+    secret" — same entity per LLM, but cosine 0.59), AND LLM canonicalization drift
+    where one pass returns the genus and another returns the species.
 
     Past records older than `cooldown_days` are ignored (entity has gone stale).
     """
@@ -249,21 +284,23 @@ def check_entity_overlap(
             if age_days > cooldown_days:
                 continue
         past_set = {e.lower().strip() for e in past_item.entities if e}
-        overlap = cand_set & past_set
-        if overlap:
-            matched = next(iter(overlap))
-            logger.info(
-                "DEDUP REJECTED entity overlap: '%s' matches past video '%s' [%s]",
-                matched, past_item.topic[:60], past_item.video_id,
-            )
-            return EntityOverlapResult(
-                is_dupe=True,
-                matched_entity=matched,
-                matched_video_id=past_item.video_id,
-                matched_topic=past_item.topic,
-                matched_published_at=past_item.published_at,
-                reject_reason=f"entity '{matched}' overlaps past video '{past_item.topic}' ({past_item.video_id})",
-            )
+        past_set -= _GENERIC_ENTITY_STOPLIST
+        for c in cand_set:
+            for p in past_set:
+                matched = _entity_match(c, p)
+                if matched is not None:
+                    logger.info(
+                        "DEDUP REJECTED entity overlap: '%s' matches past video '%s' [%s]",
+                        matched, past_item.topic[:60], past_item.video_id,
+                    )
+                    return EntityOverlapResult(
+                        is_dupe=True,
+                        matched_entity=matched,
+                        matched_video_id=past_item.video_id,
+                        matched_topic=past_item.topic,
+                        matched_published_at=past_item.published_at,
+                        reject_reason=f"entity '{matched}' overlaps past video '{past_item.topic}' ({past_item.video_id})",
+                    )
 
     return EntityOverlapResult(is_dupe=False)
 

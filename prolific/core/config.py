@@ -96,8 +96,17 @@ class Settings(BaseSettings):
     # YouTube Pipeline
     youtube_script_model: str = "google/gemini-3-flash-preview"
     youtube_image_model: str = "google/gemini-3.1-flash-image-preview"
-    youtube_target_word_count: int = 10000
-    youtube_max_images: int = 8
+    # Length target: 3hr / ~20K words / 15 sections (rebalanced 2026-05-12).
+    # Previously 10K/8 since 2026-03-28 commit 2d60e40, which had panic-cut the
+    # original 30K/18 default to dodge a Railway-side issue with the longer
+    # pipeline runs. At 1hr we were undersized vs the sleep-history niche (top
+    # competitors ship 2-3hr standard). At 100 wpm narration, 20K words ≈ 3hr,
+    # matching the niche's watch-time-per-click leaders.
+    # NB: youtube_max_images doubles as the section count via
+    # script_planning.py:35 (num_sections = settings.youtube_max_images).
+    # Keep words_per_section ≈ 1,333 for writer coherence — same as before.
+    youtube_target_word_count: int = 20000
+    youtube_max_images: int = 15
     youtube_image_style: str = "oil painting, historical illustration, warm muted tones, cinematic lighting"
     youtube_output_dir: str = "./youtube_output"
     youtube_history_db_path: str = "/app/data/youtube_history.sqlite"

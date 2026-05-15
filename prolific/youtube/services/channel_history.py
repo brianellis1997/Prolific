@@ -112,6 +112,25 @@ class ChannelHistoryService:
             )
             await db.commit()
 
+    async def get_recent_titles(self, limit: int = 14) -> list[tuple[str, str]]:
+        """Return (title, topic) for the most recent N published videos.
+
+        Used by metadata_generation_node to pass a DO-NOT-REPEAT list into the
+        title prompt so the LLM stops converging on the same mode-appropriate
+        stem (e.g. "The Forgotten Epoch Before Civilization" shipping 5/8 AND
+        5/14 a week apart — both LOSTCIV mode, different topics, identical stem).
+        """
+        async with aiosqlite.connect(self.db_path) as db:
+            cursor = await db.execute(
+                """SELECT title, topic FROM videos
+                   WHERE title IS NOT NULL AND title != ''
+                   ORDER BY created_at DESC
+                   LIMIT ?""",
+                (limit,),
+            )
+            rows = await cursor.fetchall()
+            return [(row[0], row[1]) for row in rows]
+
     async def get_recent_thumbnail_hooks(self, limit: int = 7) -> list[tuple[str, str]]:
         """Return (hook, topic) for the most recent N videos that have a hook stored.
 

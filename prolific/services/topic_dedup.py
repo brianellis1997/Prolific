@@ -22,16 +22,49 @@ from prolific.services.embedding import get_embedding_service
 logger = logging.getLogger(__name__)
 
 
+# Match any " | <branding tag>" at the end of a title. Originally a fixed list,
+# but every time we add a new mode we have to remember to update the regex
+# (e.g. "Sleep Documentary" was missing, causing 5/14 vs 5/8 title clash
+# to slip through). The general pattern below matches any pipe-delimited
+# trailing phrase containing the channel-brand keywords, regardless of order.
 _CHANNEL_SUFFIX_RE = re.compile(
-    r"\s*\|\s*(sleep history|sleep history narration|relaxing history|"
-    r"relaxing sleep history narration|relaxing history narration|"
-    r"relaxing history narration for sleep|fall asleep to history|"
-    r"sleep story|epic sleep story|documentary for sleep|history for sleep|"
-    r"a lost civilizations sleep documentary).*$",
+    r"\s*\|\s*[a-z0-9\-\s\(\)]*?\b(sleep|history|documentary|narration|story|relaxing)\b[a-z0-9\-\s\(\)\.\,]*$",
     re.IGNORECASE,
 )
 _PUNCT_RE = re.compile(r"[^\w\s]")
 _WHITESPACE_RE = re.compile(r"\s+")
+
+
+def title_stems_clash(new_stem: str, past_stems: dict[str, str]) -> str | None:
+    """Return the clashing past title if a normalized new title duplicates a past one.
+
+    Detects three classes of clash:
+      1. Exact equality after normalization
+      2. New stem is a word-prefix of a past stem (or vice versa) when at least
+         the first 4 content words match — this catches the case where one
+         video shipped as "X | Sleep" and another shipped as "X: Y subtitle | Sleep",
+         which produce different stems but identical leading branding.
+
+    Returns the clashing past TITLE (not stem) for logging, or None if no clash.
+    """
+    if not new_stem:
+        return None
+    # 1. Exact
+    if new_stem in past_stems:
+        return past_stems[new_stem]
+    # 2. Prefix match on first 4 words
+    new_words = new_stem.split()
+    if len(new_words) < 4:
+        return None
+    new_prefix = " ".join(new_words[:4])
+    for past_stem, past_title in past_stems.items():
+        past_words = past_stem.split()
+        if len(past_words) < 4:
+            continue
+        past_prefix = " ".join(past_words[:4])
+        if new_prefix == past_prefix:
+            return past_title
+    return None
 
 
 def normalize_title(text: str) -> str:

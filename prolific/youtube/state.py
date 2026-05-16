@@ -32,6 +32,10 @@ class YouTubePipelineState(TypedDict):
     # One of "BIOGRAPHY" (Mon/Wed/Fri), "LOST_CIVILIZATION" (Thu), "IMMERSIVE_DAILY_LIFE" (Sat).
     # Injected by scheduler or /api/v1/youtube/generate; defaults to BIOGRAPHY for back-compat.
     content_mode: str
+    # Live competitor block built once in topic_selection_node and reused downstream
+    # (metadata_generation, thumbnail_generation) so the title + thumb LLMs see
+    # the same "what's hot in the niche right now" snapshot the brainstorm did.
+    competitor_inspiration: str
 
     # Script
     script_sections: Annotated[list[ScriptSection], merge_artifacts_by_id]

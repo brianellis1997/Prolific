@@ -66,6 +66,11 @@ class TopicCandidate(BaseModel):
     era_tags: list[str] = Field(default_factory=list)
     region_tags: list[str] = Field(default_factory=list)
     appeal_reason: str = ""
+    # click_hypothesis: required answer to "why would a scrolling viewer stop and
+    # click on THIS video over the next thing in their feed?". Forces the LLM to
+    # think like a creator optimizing for CTR rather than a researcher cataloging
+    # interesting facts. Weighted heavily in selection.
+    click_hypothesis: str = ""
     trending_tie_in: str = ""
     # Continuation flag: set ONLY when intentionally building on a past video
     # (legitimate "Part 2" with a distinct angle, not a rephrased duplicate).
@@ -176,6 +181,198 @@ async def _get_performance_context() -> str:
     except Exception as e:
         logger.warning(f"Analytics fetch failed (non-fatal): {e}")
         return ""
+
+
+_COMPETITOR_CACHE: dict[str, tuple[float, str]] = {}  # key: cache_key → (expires_at_ts, block_text)
+
+
+def _get_yt_client():
+    """Build an authenticated YT Data API client for read operations."""
+    import json
+    import os
+    import base64
+    from pathlib import Path as _Path
+    from google.oauth2.credentials import Credentials
+    from googleapiclient.discovery import build
+
+    env_key = os.environ.get("YOUTUBE_CREDENTIALS_B64")
+    if env_key:
+        creds_data = json.loads(base64.b64decode(env_key))
+    else:
+        cred_path = settings.youtube_credentials_path
+        if not _Path(cred_path).exists():
+            return None
+        creds_data = json.loads(_Path(cred_path).read_text())
+    creds = Credentials(
+        token=creds_data.get("token"),
+        refresh_token=creds_data.get("refresh_token"),
+        token_uri=creds_data.get("token_uri", "https://oauth2.googleapis.com/token"),
+        client_id=creds_data.get("client_id"),
+        client_secret=creds_data.get("client_secret"),
+    )
+    return build("youtube", "v3", credentials=creds)
+
+
+async def _get_hot_niche_titles() -> str:
+    """YT search for trending sleep-history content (view-weighted, recent).
+
+    Complements the fixed-channel scrape. Pulls top videos in the niche
+    regardless of which channel posted them, sorted by view count, from
+    the last N days. Gives the prompt LIVE signal about what's currently
+    hot rather than a static reference set.
+
+    Each YT search call is 100 quota units. With 4 default queries + 22
+    pipeline runs/month, that's 4×100×22 = 8800 quota/mo, well under
+    the 300K/mo free tier. Cached 6h to amortize bursts.
+    """
+    import time
+    queries = [q.strip() for q in settings.youtube_niche_search_queries.split(",") if q.strip()]
+    if not queries:
+        return ""
+    cache_key = "hot::" + ",".join(sorted(queries)) + f"::{settings.youtube_niche_search_days}d"
+    now = time.time()
+    cached = _COMPETITOR_CACHE.get(cache_key)
+    if cached and cached[0] > now:
+        return cached[1]
+
+    try:
+        yt = _get_yt_client()
+        if yt is None:
+            return ""
+        from datetime import datetime, timezone, timedelta
+        published_after = (datetime.now(timezone.utc) - timedelta(days=settings.youtube_niche_search_days)).strftime("%Y-%m-%dT%H:%M:%SZ")
+        all_rows: list[tuple[int, str, str]] = []  # (views, title, channel)
+        for q in queries:
+            try:
+                # Filter to long videos (>20 min) to skip shorts, sorted by view count, recent
+                sr = yt.search().list(
+                    part="snippet", q=q, type="video", order="viewCount",
+                    publishedAfter=published_after, videoDuration="long",
+                    maxResults=settings.youtube_niche_search_per_query,
+                ).execute()
+                vids = sr.get("items", [])
+                if not vids:
+                    continue
+                vid_ids = [v["id"]["videoId"] for v in vids if v.get("id", {}).get("videoId")]
+                if not vid_ids:
+                    continue
+                # Fetch view counts (search response doesn't include them reliably)
+                stats = yt.videos().list(part="statistics,snippet", id=",".join(vid_ids)).execute()
+                for it in stats.get("items", []):
+                    title = it["snippet"]["title"]
+                    channel = it["snippet"]["channelTitle"]
+                    views = int(it["statistics"].get("viewCount", 0))
+                    all_rows.append((views, title, channel))
+            except Exception as inner:
+                logger.warning(f"Niche search '{q}' failed: {inner}")
+                continue
+        if not all_rows:
+            return ""
+        # Dedup by title, keep highest-view variant; sort by views desc
+        best_by_title: dict[str, tuple[int, str, str]] = {}
+        for views, title, ch in all_rows:
+            cur = best_by_title.get(title)
+            if not cur or cur[0] < views:
+                best_by_title[title] = (views, title, ch)
+        rows = sorted(best_by_title.values(), key=lambda r: -r[0])[:15]
+        lines = [f'    [{views:>6,} views, {ch}] "{title}"' for views, title, ch in rows]
+        block = (
+            f"HOT NICHE TITLES (top sleep/history videos posted in the last "
+            f"{settings.youtube_niche_search_days} days, sorted by views — "
+            "what's resonating in the niche RIGHT NOW):\n" + "\n".join(lines)
+        )
+        _COMPETITOR_CACHE[cache_key] = (now + 6 * 3600, block)  # 6h TTL
+        logger.info(f"Hot niche titles: {len(rows)} videos pulled across {len(queries)} queries")
+        return block
+    except Exception as exc:
+        logger.warning(f"Hot niche search failed (non-fatal): {exc}")
+        return ""
+
+
+async def _fetch_fixed_competitor_block() -> str:
+    """Latest top uploads from the configured competitor channels."""
+    import time
+    channel_ids = [c.strip() for c in settings.youtube_competitor_channel_ids.split(",") if c.strip()]
+    if not channel_ids:
+        return ""
+    cache_key = "fixed::" + ",".join(sorted(channel_ids))
+    now = time.time()
+    cached = _COMPETITOR_CACHE.get(cache_key)
+    if cached and cached[0] > now:
+        return cached[1]
+    try:
+        yt = _get_yt_client()
+        if yt is None:
+            return ""
+        per_channel = settings.youtube_competitor_videos_per_channel
+        sections: list[str] = []
+        for cid in channel_ids:
+            try:
+                ch_resp = yt.channels().list(part="snippet,statistics", id=cid).execute()
+                if not ch_resp.get("items"):
+                    continue
+                ch = ch_resp["items"][0]
+                title = ch["snippet"]["title"]
+                subs = int(ch["statistics"].get("subscriberCount", 0))
+                uploads_pl = "UU" + cid[2:]
+                pl = yt.playlistItems().list(
+                    part="snippet,contentDetails", playlistId=uploads_pl, maxResults=per_channel,
+                ).execute()
+                vids = pl.get("items", [])
+                if not vids:
+                    continue
+                vid_ids = [v["contentDetails"]["videoId"] for v in vids]
+                stats_resp = yt.videos().list(part="statistics", id=",".join(vid_ids)).execute()
+                stats_by_id = {it["id"]: it["statistics"] for it in stats_resp.get("items", [])}
+                rows: list[tuple[int, str]] = []
+                for v in vids:
+                    vid = v["contentDetails"]["videoId"]
+                    t = v["snippet"]["title"]
+                    views = int(stats_by_id.get(vid, {}).get("viewCount", 0))
+                    rows.append((views, t))
+                rows.sort(key=lambda r: -r[0])
+                lines = [f'    [{views:>6,} views] "{t}"' for views, t in rows[:per_channel]]
+                sections.append(f"  {title} ({subs:,} subs):\n" + "\n".join(lines))
+            except Exception as inner:
+                logger.warning(f"Competitor fetch failed for {cid}: {inner}")
+                continue
+        if not sections:
+            return ""
+        block = (
+            "FIXED COMPETITOR CHANNELS (recent top uploads from the same sleep-history peers):\n"
+            + "\n\n".join(sections)
+        )
+        _COMPETITOR_CACHE[cache_key] = (now + 3600, block)  # 1h TTL
+        logger.info(f"Fixed competitor block: {len(sections)} channels")
+        return block
+    except Exception as exc:
+        logger.warning(f"Fixed competitor fetch failed (non-fatal): {exc}")
+        return ""
+
+
+async def _get_competitor_inspiration() -> str:
+    """Compose the full click-inspiration block — fixed channels + hot-niche search.
+
+    Both feed into prompts as INSPIRATION, never as templates. AVOID-STEMS +
+    the prompt's anti-copy guidance prevent verbatim reuse.
+    """
+    fixed_block = await _fetch_fixed_competitor_block()
+    hot_block = await _get_hot_niche_titles()
+    if not fixed_block and not hot_block:
+        return ""
+    parts = [
+        "LIVE COMPETITOR INSPIRATION — what's actually winning in the niche RIGHT NOW.",
+        "Use as a snapshot of the language, framings, and topic-shapes that resonate.",
+        "**Never copy verbatim** — the AVOID-STEMS rule still applies. Steal energy, not words.",
+    ]
+    if hot_block:
+        parts.append("")
+        parts.append(hot_block)
+    if fixed_block:
+        parts.append("")
+        parts.append(fixed_block)
+    combined = "\n".join(parts)
+    return combined
 
 
 async def _get_trending_context() -> str:
@@ -295,6 +492,7 @@ async def topic_selection_node(state: YouTubePipelineState) -> dict:
     trending_context = await _get_trending_context()
     performance_context = await _get_performance_context()
     diversity_context = await _get_diversity_context(history_service, content_mode=content_mode)
+    competitor_block = await _get_competitor_inspiration()
 
     # Dynamic AVOID-STEMS list: pull the first-3-word stems of recent video titles so
     # the LLM is told explicitly which opening phrases it has overused. This catches
@@ -334,9 +532,17 @@ async def topic_selection_node(state: YouTubePipelineState) -> dict:
         if extra_feedback:
             prompt_past = past_topics_str + "\n\nREJECTED ON LAST ATTEMPT:\n" + extra_feedback
 
+        # Compose: mode instruction + AVOID-STEMS + competitor inspiration block.
+        # Competitor block is the "what's working in this niche right now" signal —
+        # acts as creative oxygen so the brainstorm isn't stuck in our channel's
+        # own history. The AVOID-STEMS rule still applies to prevent copying.
+        full_instruction = content_type_instruction + avoid_stems_block
+        if competitor_block:
+            full_instruction += "\n\n" + competitor_block
+
         brainstorm_prompt = TOPIC_BRAINSTORM_SYSTEM.format(
             num_candidates=10,
-            content_type_instruction=content_type_instruction + avoid_stems_block,
+            content_type_instruction=full_instruction,
             past_topics=prompt_past,
             trending_context=trending_context if trending_context else "(no trending data available)",
             performance_context=perf_block,
@@ -560,6 +766,7 @@ async def topic_selection_node(state: YouTubePipelineState) -> dict:
         "is_intentional_continuation": chosen.is_intentional_continuation,
         "continues_video_id": chosen.continues_video_id,
         "content_mode": content_mode,
+        "competitor_inspiration": competitor_block or "",
         "current_phase": "script_planning",
         "messages": [AIMessage(content=f"Selected topic: {chosen.topic} [mode={content_mode}]")],
     }

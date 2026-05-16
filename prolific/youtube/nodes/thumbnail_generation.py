@@ -98,11 +98,19 @@ async def thumbnail_generation_node(state: YouTubePipelineState) -> dict:
             temperature=0.9,
         )
         raw_hooks = hook_response.content.strip()
-        candidates = []
+        candidates: list[str] = []
         for line in raw_hooks.split("\n"):
             line = line.strip().lstrip("0123456789.)-: ")
-            if line and len(line.split()) <= 6:
-                candidates.append(line.strip('"').strip("'").upper())
+            cleaned = line.strip('"').strip("'").strip().upper()
+            if not cleaned or len(cleaned.split()) > 6:
+                continue
+            # Reject malformed candidates that don't start with a letter — catches
+            # the ",000 MILES LOST?" failure mode where the LLM dropped the leading
+            # digit during chunked rendering. Also reject too-short outputs.
+            if len(cleaned) < 5 or not cleaned[0].isalpha():
+                logger.debug(f"Skipping malformed hook candidate: {cleaned!r}")
+                continue
+            candidates.append(cleaned)
         if not candidates:
             candidates = [raw_hooks.split("\n")[0].strip().upper()]
 

@@ -139,44 +139,49 @@ MODE_STYLE_BLOCKS = {
 # ---------------------------------------------------------------------------
 MODE_TITLE_PATTERNS = {
     "BIOGRAPHY": (
-        "Title should put the specific FIGURE first or center, with a hint at what makes\n"
-        "their story unexpected. Energy directions (pick ONE per title, vary per video):\n"
-        "  - A specific dramatic event from their life ('THE NIGHT NAPOLEON BURNED LETTERS')\n"
-        "  - A contested or hidden side ('THE QUEEN HISTORY ERASED')\n"
-        "  - A specific question only the video answers ('WHY DID HE EXECUTE HIS HEIR?')\n"
-        "  - A claim that contradicts the pop image ('THE PHILOSOPHER WHO STARTED A WAR')\n"
-        "DO NOT use scaffolds like 'X: The Life and Legacy' or 'The Untold Story of X' — \n"
-        "they're dead weight and the channel ships too many already. Make the title\n"
-        "specific to THIS person and THIS arc. Suffix: ' | Sleep History', ' | Relaxing\n"
-        "History Narration', ' | Epic Sleep Story', or pick something mode-appropriate."
+        "STRUCTURE: Put the specific FIGURE first or center. The title should hint at\n"
+        "what makes THIS person's story unexpected — a dramatic event, a contested side,\n"
+        "or a claim that flips their pop-culture image. Avoid generic 'X: The Life and\n"
+        "Legacy of Y' framings. Anchor to a SPECIFIC arc, not the whole life.\n"
+        "ENERGY: Match what's actually winning right now (see LIVE COMPETITOR INSPIRATION\n"
+        "block in the prompt). Don't invent stale templates. Watch the AVOID-STEMS list."
     ),
     "LOST_CIVILIZATION": (
-        "Title should feel like the headline of a real unsolved case file, anchored to the\n"
-        "SPECIFIC subject of this video (not generic 'lost mystery' vibes). Energy directions\n"
-        "(pick ONE per title, vary per video):\n"
-        "  - A specific question only the video answers ('WHO BUILT THE OLMEC HEADS?')\n"
-        "  - A short declarative claim that contradicts conventional history\n"
-        "  - A specific place/site + an unexpected hook ('CARAL: A CITY BEFORE WHEAT')\n"
-        "  - A timestamp or quantity that signals scale ('11,500 YEARS BEFORE WRITING')\n"
-        "DO NOT use scaffolds like 'The Lost X That Science Can't Explain', 'What They Found\n"
-        "Beneath X', 'Evidence of X That Mainstream Archaeology Ignores', 'The Forgotten Epoch\n"
-        "Before Civilization' — these have shipped repeatedly and are now banned starts.\n"
-        "Suffix: ' | Sleep Documentary', ' | History for Sleep', ' | Sleep History', or pick\n"
-        "something mode-appropriate."
+        "STRUCTURE: Feel like the headline of a real unsolved case file, anchored to the\n"
+        "SPECIFIC subject of this video. The viewer should learn what the video is about\n"
+        "from the title — not be teased by a poetic abstraction.\n"
+        "ENERGY: Match what's actually winning right now (see LIVE COMPETITOR INSPIRATION\n"
+        "block in the prompt). Don't invent stale templates. Watch the AVOID-STEMS list."
     ),
     "IMMERSIVE_DAILY_LIFE": (
-        "Title should put the listener in the role's POV. Energy directions (pick ONE per\n"
-        "title, vary per video):\n"
-        "  - A specific high-stakes day in that role's life ('THE NIGHT YOU GUARDED CAESAR')\n"
-        "  - A sensory anchor + the role ('THE TASTE OF VIKING WINTER')\n"
-        "  - A specific shock from inside the role ('AS A KHAZAR TRADER YOU CARRIED HUMAN HAIR')\n"
-        "  - A question the role would ask themselves ('CAN YOU SURVIVE A LEGION MARCH?')\n"
-        "DO NOT use scaffolds like 'A Day in the Life of a [Role]', 'Why You Wouldn't Last\n"
-        "a [Era]', 'Inside the Daily Life of [Role]' — these have shipped multiple times.\n"
-        "Anchor to the SPECIFIC role + setting. Suffix: ' | Sleep History', ' | Relaxing\n"
-        "History', or mode-appropriate variant."
+        "STRUCTURE: The title must tell the viewer what the video IS — name the\n"
+        "specific role + setting clearly (e.g., 'Manhattan Project Lab Technician',\n"
+        "'WWI U-Boat Crewman', 'Ming Dynasty Eunuch Chamberlain'). The sensory immersion\n"
+        "happens INSIDE the script — the title's job is to make the viewer pick it up.\n"
+        "Do not lead with abstract sensory openings like 'THE HEAT OF THE SIPHON' or\n"
+        "'THE TICK OF THE TELETYPE' — they obscure the topic. Lead with the role/event.\n"
+        "ENERGY: Match what's actually winning right now (see LIVE COMPETITOR INSPIRATION\n"
+        "block in the prompt). Don't invent stale templates. Watch the AVOID-STEMS list."
     ),
 }
+
+
+# ---------------------------------------------------------------------------
+# Title-formatting rules applied across ALL modes. Goes inside METADATA_SYSTEM.
+# ---------------------------------------------------------------------------
+TITLE_FORMATTING_RULES = """═══ TITLE FORMATTING RULES (apply to every mode) ═══
+- Use Title Case ("The Night Tycho Brahe Lost His Nose") — NOT ALL CAPS.
+- Selective ALL CAPS is allowed on 1-2 emphasis words for visual punch
+  ("An ENTIRE Inuit Village Was Found Empty", "Why Humans STOPPED Evolving").
+- Length: 50-90 chars including the channel suffix ("| Sleep History" etc).
+- Suffix: pick a mode-appropriate one from the channel's existing suffixes
+  (" | Sleep History", " | Sleep Documentary", " | Relaxing History Narration",
+  " | History for Sleep", " | Epic Sleep Story") — vary across videos.
+- The title's CONTENT TYPE = headline-grade specificity: name the person/place/
+  event/year clearly. Anchor every title to a concrete noun from THIS video.
+- AVOID-STEMS rule (banned title openings from past videos) is enforced — the
+  user message lists current banned 3-word prefixes; do not start with any of them.
+"""
 
 
 
@@ -205,7 +210,22 @@ For each topic, provide:
 - is_biography: Whether this is a biography/character study
 - era_tags: Historical eras covered (e.g., "ancient", "medieval", "renaissance", "modern")
 - region_tags: Regions/civilizations (e.g., "rome", "china", "egypt", "americas")
-- appeal_reason: Why this would be interesting and sleep-friendly
+- appeal_reason: Why this would be interesting and sleep-friendly (substance/quality angle)
+- click_hypothesis: **REQUIRED.** Answer: "why would a viewer scrolling YouTube at 2am STOP
+  scrolling and CLICK on this over the next video in their feed?" One concrete sentence
+  naming the trigger — name recognition, dramatic stakes, mystery gap, viscerality, novelty,
+  or unexpected contrast. The content is great regardless; the click is what we're solving.
+  Examples (strong):
+    * "Yasuke's name + 'African Samurai of Feudal Japan' is an instant double-take —
+       no one knew this person existed and now they need the full story."
+    * "Cahokia is a city most Americans don't know existed; '40,000 people just walked
+       away' creates an open mystery they can't close without watching."
+    * "'The Limping Conqueror' flips Tamerlane from a remote name to an underdog tyrant —
+       most viewers half-recognize the name and have to know what limping has to do with it."
+  Examples (weak — rewrite if your hypothesis sounds like these):
+    * "Interesting story about ancient civilization." (vague — what's the trigger?)
+    * "Combines history with mystery." (generic — what's specific to THIS topic?)
+    * "Appeals to people who like X." (no scroll-stop named.)
 - trending_tie_in: If inspired by current news, briefly explain the connection (otherwise leave empty)
 
 CONTINUATION FLAG (use sparingly — almost always False):
@@ -248,16 +268,52 @@ Prioritize topics that are:
    People fall asleep to interesting stories, not boring ones.
 4. Aligned with what the channel's analytics show performs well"""
 
-TOPIC_SELECT_SYSTEM = """You are selecting the single best topic from a list of candidates
-for a sleep history YouTube video. Choose the topic that:
-1. Is the most INTERESTING and COMPELLING — would someone actually want to listen to this?
-2. Would appeal to the widest audience — famous figures and events beat obscure ones
-3. Is distinct from past videos on the channel
-4. Has enough drama, intrigue, and depth for 1-2 hours of narration
-5. Pick legendary figures (Cleopatra, Caesar, Napoleon) and epic events (fall of Rome,
-   age of pirates) over niche/obscure topics that nobody searches for
+TOPIC_SELECT_SYSTEM = """You are picking the topic with the strongest 5-SECOND SCROLL-STOP
+for a sleep-history YouTube video.
 
-Return the index (0-based) of your chosen topic and a brief rationale."""
+Important reframe: the content is great regardless of which topic you pick (a long-form
+script and a calming narration both come out fine). The choice is about CLICK-THROUGH —
+which topic + implied title will make a scrolling viewer actually stop and tap?
+
+Score each candidate on these factors, then pick the highest TOTAL:
+
+1. SCROLL-STOP STRENGTH (0-10) — heavy weight on click_hypothesis quality:
+   - Does the candidate have a SPECIFIC click trigger named (name recognition + flip,
+     mystery gap, visceral image, dramatic stakes, unexpected contrast)?
+   - Or is the hypothesis vague ("interesting story", "appeals to history fans")?
+   Anchor: a strong hypothesis names ONE specific scroll-stop. Score 8+. Vague
+   hypotheses score 3-4. Generic-curiosity hypotheses score 5-6.
+
+2. NAME / HOOK RECOGNITION (0-10):
+   - Does the title imply a NAME most viewers half-recognize (Rasputin, Cleopatra,
+     Khan, Caesar, Mansa Musa, Tamerlane)?
+   - Or a HOOK most viewers can place (Manhattan Project, Bronze Age, Roman Legion,
+     Silk Road, Aztec ritual)?
+   - Pure-obscurity topics score lower UNLESS the click_hypothesis explicitly names
+     why obscurity becomes the hook ("a city no one knew existed").
+
+3. DRAMA SPECIFICITY (0-10):
+   - Does the candidate point at a specific dramatic moment, conflict, or reveal?
+   - Or is it a general overview ("the history of X")?
+   Specific drama > general survey, every time.
+
+4. NICHE FIT (0-10):
+   - Is this still a sleep-history-appropriate topic? (Long, calm-narratable, has
+     enough material for 2-3 hours, not too dependent on visuals.)
+   - This is a SANITY CHECK, not the optimization target. Score 6+ for anything that
+     fits; reject only if it's actively unsuitable.
+
+DO NOT optimize for:
+   - "Has anyone listened to enough sleep videos to learn X?" — not the goal.
+   - "Is this educationally complete?" — the script handles depth; we're picking the hook.
+
+Pick the candidate with the highest TOTAL across these four. If two are tied, prefer the
+one with the more SPECIFIC click_hypothesis. If all click_hypotheses are vague, log a
+warning in your rationale so a human reviewer can intervene.
+
+Return the index (0-based) of your chosen topic and a 1-sentence rationale citing the
+factor that decided it (e.g., "click_hypothesis names a name-flip on Tamerlane that the
+weaker candidates lack")."""
 
 SCRIPT_PLANNING_SYSTEM = """You are planning the structure of a {duration}-hour narrated
 history video for a sleep YouTube channel. The topic is: {topic}
@@ -428,84 +484,114 @@ random viewer at 2 AM click — NOT to summarize the topic.
 
 ═══ THE GOLDEN RULE ═══
 A great hook DOES NOT TELEGRAPH THE ANSWER. It hints at a mystery and forces the click
-to resolve. If the words alone reveal what happens, the viewer scrolls past.
+to resolve. AND the hook must anchor to something SPECIFIC about THIS topic — a generic
+mystery phrase that could sit on any video means nothing.
 
-═══ STUDY THESE PATTERNS — DO NOT COPY THEM VERBATIM ═══
-These are real hooks from a 148K-sub competitor (5K-50K views each). They are a
-TEACHING SET — study WHY each works, then write something ORIGINAL that matches
-the energy. **NEVER output any of these reference hooks word-for-word.** They
-already exist in the world; YouTube viewers and the algorithm will recognize a
-copy. The eval auto-rejects verbatim copies. Make YOUR hook specific to YOUR topic.
+═══ WHAT'S ACTUALLY WORKING (real top-performer thumbnails, 5 sleep-history channels) ═══
+Study WHY each works. **NEVER copy these verbatim** — the eval auto-rejects exact copies.
 
-  "WE CAN'T EXPLAIN THIS..."     ← PATTERN: admission-of-mystery + open-loop "THIS"
-  "WHY DID IT VANISH?"           ← PATTERN: question + mystery verb + open-loop "IT"
-  "BURIED EMPIRE?"               ← PATTERN: mystery adjective + noun + "?"
-  "WHAT DID HE SEE?"             ← PATTERN: question + open-loop pronoun
-  "OUR WEIRD COUSINS"            ← PATTERN: informal possessive + curious adjective
-  "AN ENTIRE VILLAGE GONE?"      ← PATTERN: "ENTIRE" intensifier + erasure
-  "WHY DID THEY VANISH?"         ← PATTERN: same as VANISH but plural
-  "100,000 YEARS AGO"            ← PATTERN: timestamp; image carries the mystery
+  Sleepy Time History (153K subs):
+    "WHAT DID WE ACTUALLY DO?"          (2.1M views — direct question + "WE")
+    "THE MYSTERY OF RH NEGATIVE BLOOD"  (1.2M — CATEGORY-OF-thing + specific subject)
+    "WE CAN'T EXPLAIN THIS HISTORY GAP" (832K — mystery admission + specific anchor)
+    "THE FIRST WHITE PEOPLE?"           (671K — provocative claim/question)
+    "WHY AFRICA?"                       (397K — 2-word direct question)
+    "THE FULL HISTORY OF CATS"          (381K — "THE FULL HISTORY OF X")
 
-Notice: SHORT (2-4 words), heavy use of "?", open-loop pronouns (IT, THIS, HE, THEY)
-so the viewer DOESN'T know who/what — that IS the curiosity gap. Mystery vocabulary
-is the fuel: VANISH, GONE, BURIED, ERASED, FORBIDDEN, COVERED UP, FORGOTTEN, HIDDEN.
+  Vatican Mysteries For Sleep (32K subs):
+    "TOP SECRET"                        (685K — bold claim, intrigue)
+    "VATICAN'S GREATEST FEAR?"          (456K — possessive + intensifier + ?)
+    "THE VATICAN KNOWS WHO THEY WERE"   (276K — authority-reveal claim)
+    "TERRIFYING SECRETS REVEALED"       (— intensifier + reveal promise)
+    "WHO WERE THEY?"                    (— bare question + open-loop pronoun)
 
-YOUR job: take a pattern, fill it with words that are TOPIC-SPECIFIC. For Mansa Musa
-the king of gold, a topic-specific application of "BURIED EMPIRE?" might be
-"FORBIDDEN GOLD?" — that's the SAME pattern (mystery adjective + noun + "?") but
-the words anchor to Mansa Musa specifically. A generic "WE CAN'T EXPLAIN THIS" could
-sit on ANY video and means nothing about THIS one — that's why it's banned as output.
+  Sleepy History (26K subs):
+    "Fall asleep to the history of LONDON"        (808K — soft promise + specific place)
+    "FALL ASLEEP The history of THE INDUSTRIAL REVOLUTION" (— soft promise + specific event)
+    "Fall Asleep To the history of KING HENRY VIII"        (— soft promise + specific figure)
 
-═══ WORKING PATTERNS (pick a different one per candidate) ═══
-1. "WHY DID THEY [verb]?"           — open-loop "they"     ex. "WHY DID THEY VANISH?"
-2. "WHAT [HE/SHE] [strong verb]"    — open-loop pronoun    ex. "WHAT HE BURIED"
-3. "WE CAN'T EXPLAIN [THIS/IT]"     — admission of mystery ex. "WE CAN'T EXPLAIN THIS"
-4. "[ADJECTIVE] [NOUN]?"            — short + mystery      ex. "BURIED CITY?"
-5. "THE UNTOLD [NOUN]"              — pure intrigue claim  ex. "THE UNTOLD ORDER"
-6. "[VERB]ED FROM HISTORY"          — erasure framing      ex. "ERASED FROM HISTORY"
-7. "[NUMBER] YEARS AGO"             — timestamp + image    ex. "1,000 YEARS LOST"
+═══ FIVE PATTERNS THAT WIN — vary across the 5 hooks you generate ═══
+1. **DIRECT QUESTION** (highest CTR pattern in the data):
+   "WHO BUILT THIS?", "WHY DID THEY LEAVE?", "WHAT DID HE SEE?", "WHO WERE THEY?"
+   Use WHO/WHAT/WHY + an open-loop pronoun (THEY, HE, SHE, IT, THIS).
 
-═══ HARD BANS — never produce these ═══
-- Literary/academic references nobody knows: "WHIFF OF GRAPESHOT", "EXEUNT", "AD INFINITUM"
-- Poetic abstractions that need decoding: "LIES IN STONE", "WHISPERS OF TIME"
-- Hooks that telegraph the answer: "WHY THE WORLD FEARED SAILS" (you can guess: Vikings raided),
+2. **MYSTERY ADMISSION + SPECIFIC ANCHOR**:
+   "WE CAN'T EXPLAIN THE TARIM MUMMIES", "NOBODY KNOWS WHO CARVED THESE"
+   Pair "WE CAN'T EXPLAIN / NOBODY KNOWS / SCIENCE IGNORES" with a SPECIFIC thing
+   from your video. NOT generic — name the specific subject.
+
+3. **PROVOCATIVE CLAIM / DECLARATION**:
+   "THE FIRST AMERICANS", "TOP SECRET", "THE BIBLE GOT IT WRONG", "HE BURIED A CONTINENT"
+   A short, declarative, controversial-feeling statement that contradicts a default belief.
+
+4. **CATEGORY-OF-THING** (works great when the subject is the click):
+   "THE MYSTERY OF RH-NEGATIVE BLOOD", "THE FULL HISTORY OF CATS",
+   "THE SECRET OF MOHENJO-DARO", "THE LAST DAY OF POMPEII"
+   "THE [adjective] [category] OF [specific topic]" — anchors hard to the subject.
+
+5. **CAPITAL INTENSIFIER + REVEAL**:
+   "TERRIFYING SECRETS REVEALED", "WHAT HE BURIED", "WHY THEY OBEYED"
+   Use a strong intensifier (TERRIFYING, GREATEST, REAL, FIRST, LAST) + a curiosity hook.
+
+═══ HARD ANTI-PATTERNS — never produce these ═══
+- **"FORBIDDEN ___"** and **"BANNED ___"** prefixes are STALE — they don't appear in
+  any top-performer thumbnail across 5 channels surveyed. Avoid both.
+- Literary/academic references nobody knows: "WHIFF OF GRAPESHOT", "AD INFINITUM"
+- Poetic abstractions: "LIES IN STONE", "WHISPERS OF TIME"
+- Hooks that telegraph the answer: "WHY THE WORLD FEARED SAILS" (Vikings raided),
   "WHY ROME FELL" (everyone knows Rome fell)
-- Generic filler: "RISE AND FALL", "A GREAT LEADER", "FORGOTTEN EMPIRE", "ANCIENT HISTORY"
-- Bland verbs: "FED", "SAW", "LIVED", "KNEW" — replace with visceral verbs (BURIED, BANNED, KILLED)
+- Generic filler that could sit on any video: "ANCIENT HISTORY", "RISE AND FALL",
+  "FORGOTTEN EMPIRE"
+- Bland verbs: "FED", "SAW", "LIVED", "KNEW" — replace with visceral verbs
 
 ═══ EXAMPLES FROM YOUR OWN CHANNEL ═══
 ✓ "WHY HE KILLED HIS SON"        — visceral verb + open-loop pronoun
-✓ "THE CAPTAIN THEY VOTED FOR"   — unexpected (pirates voted?), trails into mystery
-✗ "WHY THE WORLD FEARED SAILS"   — answer telegraphed (Vikings)
-✗ "HIS WHIFF OF GRAPESHOT"       — obscure, nobody knows what it means
-✗ "HIS LIES IN STONE"            — poetic but unclear
-✗ "WHAT HE FED THEM"             — bland verb, no scroll-stop
+✓ "WHY DID THEY BUILD THIS?"     — direct question, open-loop "THEY" and "THIS"
+✓ "THE CAPTAIN THEY VOTED FOR"   — unexpected drama, trails into mystery
+✗ "FORBIDDEN GOLD?"              — generic FORBIDDEN prefix; subject too abstract
+✗ "BANNED ANCESTORS?"            — generic BANNED prefix
+✗ "BURIED FOR CENTURIES?"        — could sit on any video; no specific anchor
+✗ "BRAIDS IN THE DESERT?"        — confusing, no clear hook
+✗ "HIS WHIFF OF GRAPESHOT"       — obscure reference
+✗ ",000 MILES LOST?"             — malformed (broken number)
 
 ═══ FORMAT ═══
-Length: 2-4 words. Question marks ENCOURAGED. ALL CAPS for the final overlay.
+Length: 2-6 words. Question marks ENCOURAGED. ALL CAPS for the final overlay.
+**MUST start with a letter or "$" or quote.** Never start with a comma, period,
+or stray digit (parser-broken output).
 
 Topic: {topic}
 Is biography: {is_biography}
 
-Generate EXACTLY 5 different hooks, each using a different pattern from the list above.
-At least 2 must end in "?". At least 1 must use an open-loop pronoun (IT, THIS, THEY).
+Generate EXACTLY 5 different hooks, each using a DIFFERENT pattern from the five above.
+At least 2 must use Pattern 1 (DIRECT QUESTION). At least 1 must include a specific
+noun/name from the topic (subject anchor). NONE may start with "FORBIDDEN" or "BANNED".
 Reply with ONLY the 5 hooks, one per line, numbered 1-5."""
 
 
 THUMBNAIL_HOOK_EVAL_SYSTEM = """You pick the single best thumbnail hook for a sleep-history
-YouTube video. Score each candidate on four rubrics, apply two hard floors, then pick the
+YouTube video. Score each candidate on four rubrics, apply three hard floors, then pick the
 highest TOTAL among the survivors.
 
-═══ HARD FLOOR 1 — AUTO-REJECT VERBATIM COPIES ═══
-These reference hooks (real hooks from a 148K-sub competitor) exist as PATTERNS in the
-brainstorm prompt. Any candidate matching one of these word-for-word (case-insensitive,
-punctuation-insensitive) is INVALID and must be rejected — recycling them looks spammy
-and the channel will get pattern-matched as a knockoff:
-  "WE CAN'T EXPLAIN THIS..."   "WHY DID IT VANISH?"   "BURIED EMPIRE?"
-  "WHAT DID HE SEE?"           "OUR WEIRD COUSINS"    "AN ENTIRE VILLAGE GONE?"
-  "WHY DID THEY VANISH?"       "100,000 YEARS AGO"
+═══ HARD FLOOR 1 — AUTO-REJECT VERBATIM COPIES OF REFERENCES ═══
+The brainstorm prompt lists real competitor thumbnails. Any candidate matching one of
+these word-for-word (case-insensitive, punctuation-insensitive) is INVALID:
+  "WHAT DID WE ACTUALLY DO?"        "THE MYSTERY OF RH NEGATIVE BLOOD"
+  "WE CAN'T EXPLAIN THIS HISTORY GAP"   "THE FIRST WHITE PEOPLE?"
+  "WHY AFRICA?"                     "THE FULL HISTORY OF CATS"
+  "TOP SECRET"                      "VATICAN'S GREATEST FEAR?"
+  "THE VATICAN KNOWS WHO THEY WERE" "TERRIFYING SECRETS REVEALED"
+  "WHO WERE THEY?"                  any "Fall asleep to the history of X"
 
-═══ HARD FLOOR 2 — AUTO-REJECT RECENTLY-USED HOOKS ═══
+═══ HARD FLOOR 2 — AUTO-REJECT "FORBIDDEN ___" / "BANNED ___" PREFIXES ═══
+Survey of top-performing thumbnails across 5 sleep-history channels (Sleepy Time History,
+Boring History Secrets, Drowsy Historian, Vatican Mysteries For Sleep, Sleepy History)
+found ZERO winners starting with "FORBIDDEN ___" or "BANNED ___". These prefixes feel
+like a thumbnail-farm tic. AUTO-REJECT any candidate starting with the word "FORBIDDEN"
+or "BANNED" (case-insensitive). The brainstorm has been told not to produce these — if
+one slipped through, kill it here.
+
+═══ HARD FLOOR 3 — AUTO-REJECT RECENTLY-USED HOOKS ═══
 The user message may list "RECENTLY-SHIPPED hooks on this channel". Any candidate
 matching one of those verbatim (case-insensitive) is INVALID. Pick something different.
 

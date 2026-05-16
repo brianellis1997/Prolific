@@ -112,6 +112,23 @@ class Settings(BaseSettings):
     youtube_history_db_path: str = "/app/data/youtube_history.sqlite"
     youtube_biography_ratio: float = 0.7
 
+    # Competitor channels scraped at brainstorm time for click-inspiration.
+    # Comma-separated channel IDs (UC...). Pipeline fetches latest N uploads from each
+    # via YT Data API and injects titles + view counts into the brainstorm prompt.
+    # Defaults to the two closest sleep-history competitors; override via env var if needed.
+    youtube_competitor_channel_ids: str = (
+        "UC6uGYezl7-dtRlaXohwo5ew,"   # @SleepyTimeHistoryYT — 153K subs, our closest peer
+        "UCtKLvGbzqAluwUW3Ez_zeQA"    # @BoringHistorySecrets — 94K subs, "history for sleep" niche
+    )
+    youtube_competitor_videos_per_channel: int = 8
+    # In addition to the fixed competitor channels above, the pipeline also runs YouTube
+    # search for trending sleep-history content (view-weighted, filtered to recent uploads)
+    # so the brainstorm/title prompts see what's HOT right now, not just stable competitors.
+    # Comma-separated queries.
+    youtube_niche_search_queries: str = "history for sleep,sleep history,history fall asleep,boring history"
+    youtube_niche_search_days: int = 14    # only count uploads from the last N days as "hot"
+    youtube_niche_search_per_query: int = 6
+
     # 11Labs TTS
     elevenlabs_api_key: str = ""
     elevenlabs_voice_id: str = ""

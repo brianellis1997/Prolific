@@ -111,6 +111,15 @@ async def metadata_generation_node(state: YouTubePipelineState) -> dict:
             + "\n".join(lines)
         )
 
+    # Reuse the competitor block built once in topic_selection_node — same
+    # "what's hot in the niche right now" snapshot the brainstorm saw. Without
+    # this, the title LLM is generating titles in a vacuum compared to brainstorm.
+    competitor_block = state.get("competitor_inspiration") or ""
+    competitor_block_for_prompt = ""
+    if competitor_block:
+        competitor_block_for_prompt = "\n\n" + competitor_block
+
+    from prolific.youtube.prompts import TITLE_FORMATTING_RULES
     prompt = METADATA_SYSTEM.format(
         topic=topic,
         is_biography=is_biography,
@@ -118,7 +127,7 @@ async def metadata_generation_node(state: YouTubePipelineState) -> dict:
         duration_hours=f"{duration_hours:.1f}",
         section_titles=section_titles_with_timestamps,
         title_patterns=title_patterns,
-    ) + continuation_instruction + recent_titles_block
+    ) + continuation_instruction + recent_titles_block + competitor_block_for_prompt + "\n\n" + TITLE_FORMATTING_RULES
 
     result = await llm_service.invoke_with_structured_output(
         messages=[

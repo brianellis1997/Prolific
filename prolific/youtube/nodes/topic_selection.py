@@ -296,6 +296,33 @@ async def topic_selection_node(state: YouTubePipelineState) -> dict:
     performance_context = await _get_performance_context()
     diversity_context = await _get_diversity_context(history_service, content_mode=content_mode)
 
+    # Dynamic AVOID-STEMS list: pull the first-3-word stems of recent video titles so
+    # the LLM is told explicitly which opening phrases it has overused. This catches
+    # patterns the mode-specific prompts can't enumerate ahead of time — e.g.
+    # "What They Found Beneath ___" emerged from the LLM, not the prompt, and once
+    # it shipped twice it should be in the AVOID list automatically.
+    avoid_stems_block = ""
+    try:
+        recent_titles = await history_service.get_recent_titles(limit=14)
+        if recent_titles:
+            from collections import Counter
+            stems = Counter()
+            for title, _topic in recent_titles:
+                stem = normalize_title(title)
+                words = stem.split()[:3]
+                if len(words) >= 3:
+                    stems[" ".join(words)] += 1
+            # Any 3-word stem that's appeared on the channel at all goes in AVOID
+            avoid_lines = [f"  - {p!r}" for p, _c in stems.most_common(20)]
+            if avoid_lines:
+                avoid_stems_block = (
+                    "\n\nAVOID-STEMS (banned title openings on this channel — your title "
+                    "MUST NOT start with any of these first-3-word phrases):\n"
+                    + "\n".join(avoid_lines)
+                )
+    except Exception as exc:
+        logger.warning(f"Could not load AVOID-STEMS (non-fatal): {exc}")
+
     from prolific.youtube.prompts import TOPIC_BRAINSTORM_SYSTEM, TOPIC_SELECT_SYSTEM
 
     perf_block = performance_context if performance_context else "(no performance data yet - channel is new)"
@@ -309,7 +336,7 @@ async def topic_selection_node(state: YouTubePipelineState) -> dict:
 
         brainstorm_prompt = TOPIC_BRAINSTORM_SYSTEM.format(
             num_candidates=10,
-            content_type_instruction=content_type_instruction,
+            content_type_instruction=content_type_instruction + avoid_stems_block,
             past_topics=prompt_past,
             trending_context=trending_context if trending_context else "(no trending data available)",
             performance_context=perf_block,

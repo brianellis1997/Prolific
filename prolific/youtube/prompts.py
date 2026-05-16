@@ -9,52 +9,106 @@
 #   IMMERSIVE_DAILY_LIFE (Sat) — second-person daily-life / survival immersion
 # These strings are injected as `content_type_instruction` into TOPIC_BRAINSTORM_SYSTEM.
 
-CONTENT_INSTRUCTION_BIOGRAPHY_FIXED = (
-    "This video should be a BIOGRAPHY / character deep dive about a specific historical figure."
-)
+CONTENT_INSTRUCTION_BIOGRAPHY_FIXED = """This video is a BIOGRAPHY / character deep dive about
+a specific historical figure. The figure should be someone a curious viewer would WANT to know
+more about — ideally someone with dramatic stakes, moral ambiguity, or a hidden / contested side
+to their story.
 
-CONTENT_INSTRUCTION_BIOGRAPHY_FORCED = (
-    "This video MUST be a BIOGRAPHY / character deep dive. "
-    "The channel needs more biography content. Focus on a specific historical figure."
+Cast wide across ALL of world history — not just the Western canon, not just emperors and kings.
+Strong picks come from any culture/period: Sufi mystics, Khmer god-kings, Yuan-dynasty admirals,
+Songhai scholars, Polynesian wayfinders, Russian Old Believer rebels, Indian poet-philosophers,
+Tang-dynasty courtesan-poets, Persian astronomers, Caribbean maroon leaders, Joseon-era reformers,
+Aztec tlatoanis, Norse skald-warriors, Andean rebel queens, Sahelian mansas, Byzantine intriguers,
+Mughal princesses... Many of the channel's strongest performers will be names viewers half-recognize
+or don't recognize at all but find dramatically irresistible.
+
+CURIOSITY TRIGGERS (one must apply to the topic you propose):
+  - A specific dramatic arc — rise, fall, betrayal, return, revenge
+  - A figure famous in one frame and invisible in pop history (e.g., Asian scientists, female
+    rulers, non-European generals, religious dissenters)
+  - A hidden / contested side to a famous name (what nobody talks about)
+  - A figure who shaped events most people credit to someone else
+
+DO NOT:
+  - Use formulaic title scaffolds like "X: The Life and Legacy" — the topic dictates its own framing
+  - Default to the obvious top-of-mind set (Napoleon, Caesar, Cleopatra, Genghis, Alexander) when
+    the channel already has those — see the DO-NOT-REPEAT and AVOID-STEMS lists for what's stale
+"""
+
+CONTENT_INSTRUCTION_BIOGRAPHY_FORCED = CONTENT_INSTRUCTION_BIOGRAPHY_FIXED + (
+    "\n\nNOTE: the channel needs more biography content this cycle — strictly biography, not broader."
 )
 
 CONTENT_INSTRUCTION_BROAD_TOPIC = (
-    "This video should be a BROAD TOPIC exploration (civilization, era, event, cultural movement) "
-    "rather than a single person's biography."
+    "This video is a BROAD TOPIC exploration (civilization, era, event, cultural movement) "
+    "rather than a single person's biography. Pick something dramatic and specific to a place "
+    "and period — a war, a collapse, a movement, a discovery, a cultural rupture. Cast wide "
+    "across world history; the channel skews Western too often."
 )
 
-CONTENT_INSTRUCTION_LOSTCIV = """This video MUST explore a prehistoric mystery, lost civilization,
-archaeological enigma, or unexplained ancient phenomenon. Lean into the curiosity gap between
-mainstream archaeology's claims and what evidence might suggest. Topics should evoke scale, deep
-time, and authority denial — Göbekli Tepe, the Younger Dryas impact hypothesis, sunken Sundaland,
-the pre-Clovis horizon, the Bronze Age collapse, megalithic enigmas, antediluvian sites.
+CONTENT_INSTRUCTION_LOSTCIV = """This video explores a SPECIFIC unresolved historical or
+archaeological mystery — a place, period, artifact, or event whose story is genuinely contested
+or uncertain. The strongest format is a real question at the heart of the video ("what happened
+to X?", "who built Y?", "why does Z exist?"), not a vague "alternative history" vibe.
 
-Frame topics with patterns like:
-  - "The Lost X That Y"
-  - "What Science CANNOT Explain About Z"
-  - "The Forgotten Epoch Before Civilization"
-  - "We Were NOT The First..."
-  - "Evidence They Don't Want You To See"
+The space is enormous. Cast across ALL of world history, not just the same five
+alternative-history talking points the LLM tends to reach for. Strong territory includes:
+pre-Columbian Americas (Caral, Chinchorro, Olmec colossal heads, Cahokia, Casas Grandes,
+Cliff dwellings), Pacific Islander deep-time seafaring, Saharan green-period civilizations,
+Tibetan plateau prehistory, Caspian and Black Sea drowned-landscape mysteries, Indus Valley
+script and city collapse, Australian Dreamtime archaeology, Mediterranean Sea Peoples and
+end-of-Bronze-Age, North African Fezzan and Garamantes, Steppe nomad confederacies, Polynesian
+deep-time, Andean Chavín and Norte Chico, sub-Saharan iron-age complexes, Mesoamerican
+codices, ancient Chinese pyramids, Russian taiga megaliths, Madagascar's lost megafauna...
 
-Set is_biography=False. Era tags should skew prehistoric / antediluvian / pre-classical. Region
-tags can stay specific (Anatolia, Egypt, Mesoamerica, Indus Valley, etc.). AVOID framings centered
-on a single named historical figure — this mode is about places, periods, and unanswered questions."""
+CURIOSITY TRIGGERS (one must apply):
+  - A WHO/WHAT/WHY question with no settled academic answer
+  - An artifact or site that contradicts when/where it "should" exist
+  - A sudden disappearance, abandonment, or cultural rupture
+  - A recent finding that revises a long-held story
+  - A culture famous in one specialty but invisible in pop history
 
-CONTENT_INSTRUCTION_IMMERSIVE = """This video MUST be a second-person daily-life or survival
-immersion. The listener IS the medieval peasant / Roman legionnaire / Viking trader / Egyptian
-embalmer / Aztec chocolate maker for the next two hours. The listener experiences the period from
-inside their body — they wake, eat, work, suffer, sleep.
+DO NOT:
+  - Use formulaic scaffolds like "The Lost X That Y", "Evidence They Don't Want You To See",
+    "What Science CANNOT Explain About Z" — these read as thumbnail-farm bait. Let the topic
+    dictate its framing.
+  - Default to the same handful of subjects (Göbekli Tepe, Sundaland, Younger Dryas, pre-Clovis,
+    Bronze Age Collapse) — the channel has covered these. The DO-NOT-REPEAT list shows what's stale.
 
-Topic patterns:
-  - "A Day in the Life of a [role] in [era]"
-  - "Why You Wouldn't Last a Week as a [role]"
-  - "How [role]s Survived [hardship] Without [modern thing]"
-  - "What It Felt Like to Be a [role] During [event]"
+Set is_biography=False. No central named figure — this mode is about places, periods, and
+unanswered questions. Region tags should be specific to the subject; era tags can range from
+prehistoric all the way through medieval depending on the mystery."""
 
-Lean on tactile sensory specifics — what you'd smell at dawn, the weight of wool against skin,
-the taste of stale bread, what you'd fear when the door bolted at night. Set is_biography=False.
-Topics should reference an occupation, social role, or daily challenge — NOT a famous individual.
-Era and region tags should still be filled in based on the setting."""
+CONTENT_INSTRUCTION_IMMERSIVE = """This video puts the LISTENER inside a specific historical
+role for 2-3 hours, in second-person. They wake, eat, work, suffer, sleep AS that role. Lean
+hard on tactile sensory specifics — what you'd smell at dawn, the weight of wool against skin,
+the taste of stale bread, what you'd fear when the door bolted at night.
+
+The space is enormous. Go BEYOND the obvious "Roman peasant" / "Medieval peasant" picks.
+Strong territory across ALL of world history:
+  - Ming-era silk merchant in Suzhou, Edo-period kabuki actor, Sahelian salt-trader,
+    Andean chasqui runner, pre-colonial Maori taiaha-fighter, Khazar river-trader,
+    Mughal court astronomer, Byzantine eunuch chamberlain, 1880s Klondike sluice miner,
+    Tang-dynasty Sogdian foreign-trader, antebellum Cuban sugar engineer, Inca quipu reader,
+    Norse skald, Khmer temple architect, Aztec featherworker, Polynesian deep-water navigator,
+    Cossack scout, Persian qanat-digger, Songhai cavalry officer, Heian-era court calligrapher...
+  - Modern roles work too: Soviet cosmonaut, Manhattan Project lab technician,
+    1920s Shanghai jazz musician, Cold War cipher clerk, Apollo lunar geologist.
+
+CURIOSITY TRIGGERS (one must apply):
+  - A role most listeners don't know existed
+  - A specific high-stakes day (war, disaster, ritual, journey)
+  - An occupation that touches a famous event from a hidden angle
+  - A role whose daily reality contradicts the romanticized pop image
+
+DO NOT:
+  - Default to "A Day in the Life of a [Role]" or "Why You Wouldn't Last a [Era]" as fixed
+    scaffolds — let the topic's drama dictate the framing
+  - Repeat occupations or regions from recent videos (see DO-NOT-REPEAT + AVOID-STEMS lists)
+  - Reach for the same Roman / Viking / Medieval picks when the channel has covered them
+
+Set is_biography=False. Topics should reference an occupation, social role, or daily challenge —
+not a famous named individual. Region and era tags should be filled in based on the setting."""
 
 
 # ---------------------------------------------------------------------------
@@ -85,21 +139,42 @@ MODE_STYLE_BLOCKS = {
 # ---------------------------------------------------------------------------
 MODE_TITLE_PATTERNS = {
     "BIOGRAPHY": (
-        '- "The Untold Story of X | Sleep History"\n'
-        '- "X: The Life and Legacy | Relaxing History Narration"\n'
-        '- "[Figure]: The Architect of Y | Sleep History"'
+        "Title should put the specific FIGURE first or center, with a hint at what makes\n"
+        "their story unexpected. Energy directions (pick ONE per title, vary per video):\n"
+        "  - A specific dramatic event from their life ('THE NIGHT NAPOLEON BURNED LETTERS')\n"
+        "  - A contested or hidden side ('THE QUEEN HISTORY ERASED')\n"
+        "  - A specific question only the video answers ('WHY DID HE EXECUTE HIS HEIR?')\n"
+        "  - A claim that contradicts the pop image ('THE PHILOSOPHER WHO STARTED A WAR')\n"
+        "DO NOT use scaffolds like 'X: The Life and Legacy' or 'The Untold Story of X' — \n"
+        "they're dead weight and the channel ships too many already. Make the title\n"
+        "specific to THIS person and THIS arc. Suffix: ' | Sleep History', ' | Relaxing\n"
+        "History Narration', ' | Epic Sleep Story', or pick something mode-appropriate."
     ),
     "LOST_CIVILIZATION": (
-        '- "The Lost X That Science Can\'t Explain | Sleep History"\n'
-        '- "What They Found Beneath X | Relaxing History"\n'
-        '- "The Forgotten Epoch Before Civilization | Sleep Documentary"\n'
-        '- "Evidence of X That Mainstream Archaeology Ignores | History for Sleep"'
+        "Title should feel like the headline of a real unsolved case file, anchored to the\n"
+        "SPECIFIC subject of this video (not generic 'lost mystery' vibes). Energy directions\n"
+        "(pick ONE per title, vary per video):\n"
+        "  - A specific question only the video answers ('WHO BUILT THE OLMEC HEADS?')\n"
+        "  - A short declarative claim that contradicts conventional history\n"
+        "  - A specific place/site + an unexpected hook ('CARAL: A CITY BEFORE WHEAT')\n"
+        "  - A timestamp or quantity that signals scale ('11,500 YEARS BEFORE WRITING')\n"
+        "DO NOT use scaffolds like 'The Lost X That Science Can't Explain', 'What They Found\n"
+        "Beneath X', 'Evidence of X That Mainstream Archaeology Ignores', 'The Forgotten Epoch\n"
+        "Before Civilization' — these have shipped repeatedly and are now banned starts.\n"
+        "Suffix: ' | Sleep Documentary', ' | History for Sleep', ' | Sleep History', or pick\n"
+        "something mode-appropriate."
     ),
     "IMMERSIVE_DAILY_LIFE": (
-        '- "A Day in the Life of a [Role] | Sleep History"\n'
-        '- "Why You Wouldn\'t Last a Day in [Setting] | Relaxing History"\n'
-        '- "How [Role]s Survived [Era] | Sleep Documentary"\n'
-        '- "Inside the Daily Life of a [Role] | History for Sleep"'
+        "Title should put the listener in the role's POV. Energy directions (pick ONE per\n"
+        "title, vary per video):\n"
+        "  - A specific high-stakes day in that role's life ('THE NIGHT YOU GUARDED CAESAR')\n"
+        "  - A sensory anchor + the role ('THE TASTE OF VIKING WINTER')\n"
+        "  - A specific shock from inside the role ('AS A KHAZAR TRADER YOU CARRIED HUMAN HAIR')\n"
+        "  - A question the role would ask themselves ('CAN YOU SURVIVE A LEGION MARCH?')\n"
+        "DO NOT use scaffolds like 'A Day in the Life of a [Role]', 'Why You Wouldn't Last\n"
+        "a [Era]', 'Inside the Daily Life of [Role]' — these have shipped multiple times.\n"
+        "Anchor to the SPECIFIC role + setting. Suffix: ' | Sleep History', ' | Relaxing\n"
+        "History', or mode-appropriate variant."
     ),
 }
 

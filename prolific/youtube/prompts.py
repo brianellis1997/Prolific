@@ -469,6 +469,15 @@ The text needs to POP — it should be the first thing someone sees, even as a t
 thumbnail in a YouTube feed. White or light-colored text with heavy black outlines works
 well. The styling should add character without sacrificing readability.
 
+CRITICAL — TEXT RENDERING RULES:
+- Render the EXACT phrase "{hook_text}" with NO spaces inside words, NO line breaks
+  in the middle of words, and NO dropped or duplicated letters.
+- Every word must be rendered as a single unbroken unit. "HOW" stays as "HOW", never
+  "HO W" or "H OW". "BARON" stays as "BARON", never "BAR ON".
+- If the phrase needs to wrap to multiple lines, ONLY break at word boundaries (spaces).
+- Spell every word correctly. No invented characters, no garbled letters, no glyphs
+  that look like letters but aren't.
+
 Position the text on the LEFT side of the image, taking up roughly 40% of the frame.
 The illustration should be on the RIGHT — showing the subject at their most POWERFUL
 or dramatic moment (in battle, on a throne, commanding armies, making a discovery).
@@ -478,94 +487,99 @@ The illustration should be dramatic and eye-catching with warm golden lighting, 
 colors, and a sense of historical grandeur. Cinematic composition.
 1280x720 resolution."""
 
-THUMBNAIL_HOOK_SYSTEM = """You write SHORT, scroll-stopping thumbnail text for a sleep-history
-YouTube video. The text appears on a cinematic AI-generated image. Your job is to make a
-random viewer at 2 AM click — NOT to summarize the topic.
+THUMBNAIL_HOOK_SYSTEM = """You write the thumbnail text for a sleep-history YouTube
+video — big bold letters rendered over a cinematic illustration.
 
-═══ THE GOLDEN RULE ═══
-A great hook DOES NOT TELEGRAPH THE ANSWER. It hints at a mystery and forces the click
-to resolve. AND the hook must anchor to something SPECIFIC about THIS topic — a generic
-mystery phrase that could sit on any video means nothing.
+═══ THE GOAL ═══
+The hook should make a scroller feel "wait... what the hell is this story?" — NOT
+"here is a semantically compressed summary of this video."
 
-═══ WHAT'S ACTUALLY WORKING (real top-performer thumbnails, 5 sleep-history channels) ═══
-Study WHY each works. **NEVER copy these verbatim** — the eval auto-rejects exact copies.
+Humans click on: CLARITY, INTRIGUE, CONFIDENCE, FAMILIARITY.
+Humans do NOT click on: linguistic novelty, keyword density, semantic uniqueness.
 
-  Sleepy Time History (153K subs):
-    "WHAT DID WE ACTUALLY DO?"          (2.1M views — direct question + "WE")
-    "THE MYSTERY OF RH NEGATIVE BLOOD"  (1.2M — CATEGORY-OF-thing + specific subject)
-    "WE CAN'T EXPLAIN THIS HISTORY GAP" (832K — mystery admission + specific anchor)
-    "THE FIRST WHITE PEOPLE?"           (671K — provocative claim/question)
-    "WHY AFRICA?"                       (397K — 2-word direct question)
-    "THE FULL HISTORY OF CATS"          (381K — "THE FULL HISTORY OF X")
+═══ WHAT IT SHOULD SOUND LIKE ═══
+✓ A movie poster
+✓ A whispered rumor
+✓ A documentary hook
+✓ A dramatic chapter title
 
-  Vatican Mysteries For Sleep (32K subs):
-    "TOP SECRET"                        (685K — bold claim, intrigue)
-    "VATICAN'S GREATEST FEAR?"          (456K — possessive + intensifier + ?)
-    "THE VATICAN KNOWS WHO THEY WERE"   (276K — authority-reveal claim)
-    "TERRIFYING SECRETS REVEALED"       (— intensifier + reveal promise)
-    "WHO WERE THEY?"                    (— bare question + open-loop pronoun)
+═══ WHAT IT SHOULD NEVER SOUND LIKE ═══
+✗ An essay title
+✗ A sentence fragment
+✗ A Wikipedia heading
+✗ An AI summary or prompt completion
+✗ A content-farm listicle ("___'S MOST VIOLENT ___", "___'S ANCIENT GHOSTS")
 
-  Sleepy History (26K subs):
-    "Fall asleep to the history of LONDON"        (808K — soft promise + specific place)
-    "FALL ASLEEP The history of THE INDUSTRIAL REVOLUTION" (— soft promise + specific event)
-    "Fall Asleep To the history of KING HENRY VIII"        (— soft promise + specific figure)
+═══ THREE LANES THAT WIN — pick the one that fits the topic ═══
 
-═══ FIVE PATTERNS THAT WIN — vary across the 5 hooks you generate ═══
-1. **DIRECT QUESTION** (highest CTR pattern in the data):
-   "WHO BUILT THIS?", "WHY DID THEY LEAVE?", "WHAT DID HE SEE?", "WHO WERE THEY?"
-   Use WHO/WHAT/WHY + an open-loop pronoun (THEY, HE, SHE, IT, THIS).
+LANE 1 — IDENTITY (a dramatic noun phrase that frames a person as a CHARACTER):
+  THE MAD MONK              THE LAST KHAN             THE LOST KING
+  THE FINAL PHARAOH         THE CURSED EMPEROR        THE FORGOTTEN WARLORD
+  HISTORY'S MOST FEARED MAN              THE EMPEROR WHO VANISHED
+  THE MAN WHO WOULD NOT DIE
 
-2. **MYSTERY ADMISSION + SPECIFIC ANCHOR**:
-   "WE CAN'T EXPLAIN THE TARIM MUMMIES", "NOBODY KNOWS WHO CARVED THESE"
-   Pair "WE CAN'T EXPLAIN / NOBODY KNOWS / SCIENCE IGNORES" with a SPECIFIC thing
-   from your video. NOT generic — name the specific subject.
+Why these work: clean, premium-feeling, identity-focused. Complete phrases that
+sound like a chapter title in a novel about this person.
 
-3. **PROVOCATIVE CLAIM / DECLARATION**:
-   "THE FIRST AMERICANS", "TOP SECRET", "THE BIBLE GOT IT WRONG", "HE BURIED A CONTINENT"
-   A short, declarative, controversial-feeling statement that contradicts a default belief.
+LANE 2 — NATIVE QUESTION (a real question a viewer would actually wonder):
+  WHY DID THEY FEAR HIM?    WHY WAS HE EXILED?       WHO BETRAYED THE KHAN?
+  WHAT WAS HIDDEN HERE?     WHY DID ROME FALL?       WHAT HAPPENED TO THEM?
 
-4. **CATEGORY-OF-THING** (works great when the subject is the click):
-   "THE MYSTERY OF RH-NEGATIVE BLOOD", "THE FULL HISTORY OF CATS",
-   "THE SECRET OF MOHENJO-DARO", "THE LAST DAY OF POMPEII"
-   "THE [adjective] [category] OF [specific topic]" — anchors hard to the subject.
+Why these work: conversational, grammatically complete, sound like someone
+actually wondering aloud. NOT translated-English fragments like "HOW WAS THE
+MAD BARON?" (missing the rest of the sentence).
 
-5. **CAPITAL INTENSIFIER + REVEAL**:
-   "TERRIFYING SECRETS REVEALED", "WHAT HE BURIED", "WHY THEY OBEYED"
-   Use a strong intensifier (TERRIFYING, GREATEST, REAL, FIRST, LAST) + a curiosity hook.
+LANE 3 — ATMOSPHERIC (a cinematic documentary line):
+  THE NIGHT ROME FELL              WHEN THE WORLD WENT DARK
+  DEATH ON THE SILK ROAD           LIFE AFTER THE BLACK DEATH
+  THE LAST DAYS OF THE SAMURAI     INSIDE THE MONGOL EMPIRE
+  THE CITY BURIED BY ASH           LOST IN THE DESERT KINGDOM
+  THE EMPIRE THAT DISAPPEARED      THE END OF THE VIKINGS
 
-═══ HARD ANTI-PATTERNS — never produce these ═══
-- **"FORBIDDEN ___"** and **"BANNED ___"** prefixes are STALE — they don't appear in
-  any top-performer thumbnail across 5 channels surveyed. Avoid both.
-- Literary/academic references nobody knows: "WHIFF OF GRAPESHOT", "AD INFINITUM"
-- Poetic abstractions: "LIES IN STONE", "WHISPERS OF TIME"
-- Hooks that telegraph the answer: "WHY THE WORLD FEARED SAILS" (Vikings raided),
-  "WHY ROME FELL" (everyone knows Rome fell)
-- Generic filler that could sit on any video: "ANCIENT HISTORY", "RISE AND FALL",
-  "FORGOTTEN EMPIRE"
-- Bland verbs: "FED", "SAW", "LIVED", "KNEW" — replace with visceral verbs
+Why these work: cinematic, calm, documentary-like — they sound like the opening
+title card of a Netflix history doc. This is the STRONGEST lane for sleep-history
+because it matches the sleepy-cinematic aesthetic the audience already loves.
 
-═══ EXAMPLES FROM YOUR OWN CHANNEL ═══
-✓ "WHY HE KILLED HIS SON"        — visceral verb + open-loop pronoun
-✓ "WHY DID THEY BUILD THIS?"     — direct question, open-loop "THEY" and "THIS"
-✓ "THE CAPTAIN THEY VOTED FOR"   — unexpected drama, trails into mystery
-✗ "FORBIDDEN GOLD?"              — generic FORBIDDEN prefix; subject too abstract
-✗ "BANNED ANCESTORS?"            — generic BANNED prefix
-✗ "BURIED FOR CENTURIES?"        — could sit on any video; no specific anchor
-✗ "BRAIDS IN THE DESERT?"        — confusing, no clear hook
-✗ "HIS WHIFF OF GRAPESHOT"       — obscure reference
-✗ ",000 MILES LOST?"             — malformed (broken number)
+═══ ANTI-PATTERNS — these all read as "translated by AI" ═══
+✗ "HOW WAS THE MAD BARON?"           — translated/incomplete (how was he WHAT?)
+✗ "WHAT THEY FOUND BELOW"            — sentence fragment, no subject
+✗ "WHY THIS KING DESTROYED HISTORY"  — missing articles, syntactically malformed
+✗ "HOW THE EMPIRE BECAME LOST"       — clumsy non-native phrasing
+✗ "WHO WAS THE ___ KING?"            — stale AI template (any noun)
+✗ "FORBIDDEN ___" / "BANNED ___"     — stale AI template
+✗ "MONGOLIA'S MOST VIOLENT WARLORD"  — Listverse/content-farm headline
+✗ "CHILE'S ANCIENT GHOSTS"           — magazine pull-quote, semantic compression
+✗ "COMMODUS BROKE THE EMPIRE"        — flat textbook declaration
+✗ "WHAT WE CAN'T EXPLAIN"            — generic filler, fits ANY video
+
+═══ LIVE COMPETITOR REFERENCE ═══
+The user message may include a block of titles currently winning in this niche.
+Study their RHYTHM and EMOTIONAL CHARGE — not the specific words. They confirm
+that the three lanes above are what's working RIGHT NOW.
+
+═══ ANCHOR TO THE TOPIC ═══
+Read the topic. Identify:
+- The CHARACTER (monk, baron, khan, emperor, miner, navigator, etc.) — for Lane 1
+- The QUESTION a viewer would naturally have — for Lane 2
+- The SETTING / EVENT / ERA — for Lane 3
+
+A hook that could sit unchanged on a different video is too generic.
 
 ═══ FORMAT ═══
-Length: 2-6 words. Question marks ENCOURAGED. ALL CAPS for the final overlay.
-**MUST start with a letter or "$" or quote.** Never start with a comma, period,
-or stray digit (parser-broken output).
+- 2-6 words preferred (up to 7 OK for atmospheric lane)
+- ALL CAPS (renderer applies the style)
+- Question marks ONLY when the hook IS a complete real question
+- Must start with a letter
+- Must be a COMPLETE phrase — no fragments, no missing articles
 
 Topic: {topic}
 Is biography: {is_biography}
 
-Generate EXACTLY 5 different hooks, each using a DIFFERENT pattern from the five above.
-At least 2 must use Pattern 1 (DIRECT QUESTION). At least 1 must include a specific
-noun/name from the topic (subject anchor). NONE may start with "FORBIDDEN" or "BANNED".
+Generate EXACTLY 5 hooks. Distribution:
+- At least 2 from LANE 3 (atmospheric) — strongest lane for sleep-history
+- At least 1 from LANE 1 (identity)
+- At least 1 from LANE 2 (native question)
+
 Reply with ONLY the 5 hooks, one per line, numbered 1-5."""
 
 
@@ -573,15 +587,10 @@ THUMBNAIL_HOOK_EVAL_SYSTEM = """You pick the single best thumbnail hook for a sl
 YouTube video. Score each candidate on four rubrics, apply three hard floors, then pick the
 highest TOTAL among the survivors.
 
-═══ HARD FLOOR 1 — AUTO-REJECT VERBATIM COPIES OF REFERENCES ═══
-The brainstorm prompt lists real competitor thumbnails. Any candidate matching one of
-these word-for-word (case-insensitive, punctuation-insensitive) is INVALID:
-  "WHAT DID WE ACTUALLY DO?"        "THE MYSTERY OF RH NEGATIVE BLOOD"
-  "WE CAN'T EXPLAIN THIS HISTORY GAP"   "THE FIRST WHITE PEOPLE?"
-  "WHY AFRICA?"                     "THE FULL HISTORY OF CATS"
-  "TOP SECRET"                      "VATICAN'S GREATEST FEAR?"
-  "THE VATICAN KNOWS WHO THEY WERE" "TERRIFYING SECRETS REVEALED"
-  "WHO WERE THEY?"                  any "Fall asleep to the history of X"
+═══ HARD FLOOR 1 — AUTO-REJECT VERBATIM COPIES OF COMPETITOR HOOKS ═══
+The user message may include a live competitor reference block. Any candidate matching
+one of those titles word-for-word (case-insensitive, punctuation-insensitive) is INVALID.
+The goal is to LEARN from competitor rhythm/phrasing, not to copy them.
 
 ═══ HARD FLOOR 2 — AUTO-REJECT "FORBIDDEN ___" / "BANNED ___" PREFIXES ═══
 Survey of top-performing thumbnails across 5 sleep-history channels (Sleepy Time History,
@@ -628,27 +637,51 @@ Does the hook hint at something CONCRETE about THIS topic, or could it sit on AN
 video unchanged? Generic mystery framings are weaker than topic-anchored ones.
 
   For a Mansa Musa (king-of-gold) video:
-  10/10 — "FORBIDDEN GOLD?" (specific to gold-bringing king)
-   9/10 — "HE BURIED A KINGDOM"  (specific event hint)
-   3/10 — "WE CAN'T EXPLAIN THIS"  (could be ANY video — score it low)
-   2/10 — "BURIED EMPIRE?"  (could apply to dozens of topics — generic mystery)
+  10/10 — "MANSA MUSA'S GOLDEN HAJJ"  (named subject + specific event)
+   9/10 — "HE BROKE EGYPT'S ECONOMY"  (specific event hint, subject implied)
+   3/10 — "WE CAN'T EXPLAIN THIS"     (could be ANY video — score it low)
+   2/10 — "BURIED EMPIRE?"            (generic mystery — too template-y)
 
   For a Vikings/sails video:
-  10/10 — "HE BURIED HIS BROTHER"  (specific Viking saga detail)
-   9/10 — "WHY HE KILLED HIS SON"  (specific dramatic event)
-   2/10 — "WHY THEY VANISHED"  (Vikings didn't vanish — generic mystery)
+  10/10 — "HE BURIED HIS BROTHER"     (specific saga detail)
+   9/10 — "WHY HE KILLED HIS SON"     (specific dramatic event)
+   2/10 — "WHY THEY VANISHED"         (Vikings didn't vanish — generic mystery)
 
 A high-mystery + high-specificity hook is the gold standard. A high-mystery + zero-
 specificity hook is just template-copying. Weight SPECIFICITY heavily on tie-breaks.
 
+═══ RUBRIC 5: SOUNDS LIKE A REAL THUMBNAIL (0-10) ═══
+Does the hook sound like a movie poster / documentary hook / dramatic chapter
+title — or like an AI summary / Wikipedia heading / content-farm listicle?
+  10/10 — "THE NIGHT ROME FELL"           (atmospheric documentary line)
+  10/10 — "THE MAD MONK"                  (identity, complete noun phrase)
+   9/10 — "WHY DID THEY FEAR HIM?"        (native conversational question)
+   4/10 — "MONGOLIA'S MOST VIOLENT WARLORD"  (Listverse-style listicle)
+   3/10 — "CHILE'S ANCIENT GHOSTS"        (magazine pull-quote, AI-summary feel)
+   3/10 — "WHO WAS THE MAD BARON?"        (stale "WHO WAS THE ___" template)
+   2/10 — "HOW WAS THE MAD BARON?"        (translated/incomplete — how was he WHAT?)
+   1/10 — "WHAT HE BURIED PERMAFROST"     (missing articles, syntactically broken)
+
+AUTO-REJECT (score 0, do not pick) any hook scoring ≤3 on this rubric. Examples
+that auto-fail:
+  - "WHO WAS THE ___" template (any noun) — robotic AI scaffold
+  - "HOW WAS X?" / "WHEN WAS Y?" without a real question — incomplete
+  - "WHY HE/SHE/THEY ___ ED THE ___" with missing articles — clipped fragment
+  - "___'S MOST ___ ___" content-farm/listicle phrasing
+  - "___'S ANCIENT ___" magazine-headline phrasing
+  - Any hook that reads as a Mad Libs slot-fill or AI summary instead of a
+    movie-poster / documentary line
+
 ═══ DECISION ═══
-1. Apply HARD FLOOR 1 (verbatim reference copy) → eliminate
-2. Apply HARD FLOOR 2 (recently-shipped hook copy) → eliminate
-3. Compute CLARITY for survivors; eliminate any scoring ≤4 on CLARITY
-4. Compute MYSTERY + ENERGY + SPECIFICITY for remaining survivors
-5. Pick the highest TOTAL of (MYSTERY + ENERGY + SPECIFICITY)
-6. If tied, prefer the one with HIGHER SPECIFICITY (topic-anchored beats generic)
-7. If ALL candidates were eliminated by hard floors, pick the least-bad survivor of
-   floors 1-2 (ignore clarity floor as last resort) and say so explicitly
+1. Apply HARD FLOOR 1 (verbatim competitor copy) → eliminate
+2. Apply HARD FLOOR 2 (FORBIDDEN/BANNED prefix) → eliminate
+3. Apply HARD FLOOR 3 (recently-shipped hook copy) → eliminate
+4. Compute CLARITY for survivors; eliminate any scoring ≤4 on CLARITY
+5. Compute NATURAL ENGLISH for survivors; eliminate any scoring ≤3
+6. Compute MYSTERY + ENERGY + SPECIFICITY + NATURAL for remaining survivors
+7. Pick the highest TOTAL of (MYSTERY + ENERGY + SPECIFICITY + NATURAL)
+8. If tied, prefer the one with HIGHER NATURAL ENGLISH score (speakable wins)
+9. If ALL candidates were eliminated by hard floors / read-aloud, pick the least-bad
+   survivor of floors 1-3 and say so explicitly so logs flag it for review
 
 Return chosen_index + a 1-sentence rationale citing the rubric that decided it."""

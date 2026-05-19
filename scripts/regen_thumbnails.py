@@ -23,6 +23,7 @@ from pydantic import BaseModel, Field
 
 from prolific.core.config import settings
 from prolific.services.llm import get_llm_service
+from prolific.youtube.nodes.thumbnail_generation import _verify_thumbnail_text
 from prolific.youtube.prompts import (
     THUMBNAIL_HOOK_EVAL_SYSTEM,
     THUMBNAIL_HOOK_SYSTEM,
@@ -144,12 +145,42 @@ async def regen_one(yt, video_id: str, do_not_repeat: list[str], dry_run: bool) 
     final_path = str(out_dir / "thumbnail.jpg")
 
     img_svc = get_image_gen_service()
-    prompt = THUMBNAIL_PROMPT_TEMPLATE.format(
+    base_prompt = THUMBNAIL_PROMPT_TEMPLATE.format(
         style=settings.youtube_image_style,
         topic=meta["topic"],
         hook_text=hook,
     )
-    await img_svc.generate_image(prompt=prompt, output_path=raw_path)
+
+    max_attempts = settings.youtube_thumbnail_max_verify_attempts
+    prompt = base_prompt
+    for attempt in range(1, max_attempts + 1):
+        await img_svc.generate_image(prompt=prompt, output_path=raw_path)
+        logger.info(f"  image generated (attempt {attempt}/{max_attempts}): {raw_path}")
+        try:
+            verification = await _verify_thumbnail_text(raw_path, hook)
+        except Exception as exc:
+            logger.warning(f"  vision check failed to run (non-fatal): {exc}")
+            break
+        if verification.text_intact:
+            logger.info(
+                f"  vision check PASSED: detected='{verification.detected_text}' — {verification.reason}"
+            )
+            break
+        logger.warning(
+            f"  vision check FAILED on attempt {attempt}: detected='{verification.detected_text}' — {verification.reason}"
+        )
+        if attempt < max_attempts:
+            prompt = (
+                base_prompt
+                + "\n\nCRITICAL RETRY — PREVIOUS RENDER WAS REJECTED.\n"
+                f"The previous image rendered the text as '{verification.detected_text}' "
+                f"which failed verification: {verification.reason}. "
+                f"Render the EXACT phrase '{hook}' with every word as one clean "
+                f"unbroken unit. NO spaces inside words. NO line breaks inside words. "
+                f"Spell every letter correctly. If you must wrap to multiple lines, "
+                f"break ONLY at the spaces between words."
+            )
+
     Image.open(raw_path).resize((1280, 720), Image.LANCZOS).save(
         final_path, "JPEG", quality=85, optimize=True
     )

@@ -1,5 +1,6 @@
 """Thumbnail generation node - AI generates image with styled text baked in."""
 
+import base64
 import logging
 from pathlib import Path
 
@@ -20,6 +21,59 @@ from prolific.youtube.services.image_gen import get_image_gen_service
 from prolific.youtube.state import YouTubePipelineState
 
 logger = logging.getLogger(__name__)
+
+
+class ThumbnailTextVerification(BaseModel):
+    """Vision-LLM judgment of whether the rendered thumbnail text is intact."""
+
+    detected_text: str = Field(
+        description="The full text you see rendered in the image, exactly as it appears — preserve any broken spacing like 'HO W' if that is what you see."
+    )
+    text_intact: bool = Field(
+        description="True only if every word in the expected hook is rendered as a single unbroken unit (no mid-word spaces, no missing letters, no garbled characters, no mid-word line breaks)."
+    )
+    reason: str = Field(
+        description="One sentence: if text_intact=False, name the specific failure (e.g. 'HOW is rendered as HO W with a space mid-word'). If True, briefly confirm it looks correct."
+    )
+
+
+async def _verify_thumbnail_text(
+    image_path: str, expected_hook: str
+) -> ThumbnailTextVerification:
+    """Use a vision LLM to check that the hook text is rendered cleanly.
+
+    Catches diffusion-model failures where a word is split mid-letter ('HO W'),
+    letters are dropped, or characters are garbled. The pipeline retries when
+    this fails before shipping the thumbnail.
+    """
+    with open(image_path, "rb") as f:
+        image_b64 = base64.b64encode(f.read()).decode()
+
+    prompt = f"""You verify whether a YouTube thumbnail's overlay text is rendered correctly.
+
+EXPECTED HOOK TEXT: "{expected_hook}"
+
+Examine the image and judge ONLY the rendered text. Ignore artistic style.
+Set text_intact=False if ANY of these failures appear:
+  - A word is broken by a mid-word space (e.g. "HO W" instead of "HOW", "BAR ON" instead of "BARON")
+  - A word is broken by a mid-word line break (a single word split across two lines)
+  - A letter is dropped, doubled, or replaced by a glyph that isn't a real letter
+  - The rendered text doesn't match the expected hook (different words entirely)
+  - Text is unreadable due to extreme distortion
+
+Set text_intact=True if every word in the expected hook is rendered as one clean unbroken unit, even if the artistic style is unusual.
+
+Report detected_text as what you literally see, preserving any mid-word spaces so the failure mode is visible in the log."""
+
+    llm = get_llm_service()
+    return await llm.invoke_with_image_structured(
+        prompt=prompt,
+        image_base64=image_b64,
+        output_schema=ThumbnailTextVerification,
+        image_format="png",
+        tier="vision",
+        temperature=0.0,
+    )
 
 
 def _build_story_context(state: YouTubePipelineState) -> str:
@@ -148,14 +202,60 @@ async def thumbnail_generation_node(state: YouTubePipelineState) -> dict:
 
     try:
         raw_path = str(output_dir / "thumbnail_raw.png")
-        prompt = THUMBNAIL_PROMPT_TEMPLATE.format(
+        base_prompt = THUMBNAIL_PROMPT_TEMPLATE.format(
             style=style, topic=topic, hook_text=hook_text,
         )
         if story_context:
-            prompt += f"\n\nStory context for choosing the right scene:\n{story_context}"
+            base_prompt += f"\n\nStory context for choosing the right scene:\n{story_context}"
 
-        await service.generate_image(prompt=prompt, output_path=raw_path)
-        logger.info(f"AI thumbnail generated: {raw_path}")
+        # Retry loop driven by a vision-LLM check. Diffusion models occasionally
+        # split words ("HO W" instead of "HOW") or drop letters. The vision check
+        # catches this before the thumb ships; the retry prompt is intensified
+        # against the specific failure mode. Cap at max_attempts to bound cost.
+        max_attempts = settings.youtube_thumbnail_max_verify_attempts
+        prompt = base_prompt
+        verification: ThumbnailTextVerification | None = None
+        for attempt in range(1, max_attempts + 1):
+            await service.generate_image(prompt=prompt, output_path=raw_path)
+            logger.info(f"AI thumbnail generated (attempt {attempt}/{max_attempts}): {raw_path}")
+
+            try:
+                verification = await _verify_thumbnail_text(raw_path, hook_text)
+            except Exception as verify_exc:
+                logger.warning(
+                    f"Vision verification failed to run (attempt {attempt}, non-fatal): {verify_exc}"
+                )
+                verification = None
+                break
+
+            if verification.text_intact:
+                logger.info(
+                    f"Thumbnail text PASSED verification on attempt {attempt}: "
+                    f"detected='{verification.detected_text}' — {verification.reason}"
+                )
+                break
+
+            logger.warning(
+                f"Thumbnail text FAILED verification on attempt {attempt}: "
+                f"detected='{verification.detected_text}' — {verification.reason}"
+            )
+
+            if attempt < max_attempts:
+                prompt = (
+                    base_prompt
+                    + "\n\nCRITICAL RETRY — PREVIOUS RENDER WAS REJECTED.\n"
+                    f"The previous image rendered the text as '{verification.detected_text}' "
+                    f"which failed verification: {verification.reason}. "
+                    f"Render the EXACT phrase '{hook_text}' with every word as one clean "
+                    f"unbroken unit. NO spaces inside words. NO line breaks inside words. "
+                    f"Spell every letter correctly. If you must wrap to multiple lines, "
+                    f"break ONLY at the spaces between words."
+                )
+            else:
+                logger.warning(
+                    f"Thumbnail text verification exhausted {max_attempts} attempts — "
+                    f"shipping last render anyway (manual review may be needed)"
+                )
 
         final_path = str(output_dir / "thumbnail.jpg")
         img = Image.open(raw_path).resize((1280, 720), Image.LANCZOS)

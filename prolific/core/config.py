@@ -112,6 +112,13 @@ class Settings(BaseSettings):
     youtube_history_db_path: str = "/app/data/youtube_history.sqlite"
     youtube_biography_ratio: float = 0.7
 
+    # Vision check on the rendered thumbnail catches diffusion-model failures
+    # (split words like "HO W" instead of "HOW", dropped letters, garbled glyphs).
+    # On failure, the pipeline retries image generation with an intensified prompt
+    # naming the specific failure. 2 = one initial render + one retry. Cap is low
+    # because cost is image-gen ($0.02/call) not the vision check ($0.0002).
+    youtube_thumbnail_max_verify_attempts: int = 2
+
     # Competitor channels scraped at brainstorm time for click-inspiration.
     # Comma-separated channel IDs (UC...). Pipeline fetches latest N uploads from each
     # via YT Data API and injects titles + view counts into the brainstorm prompt.

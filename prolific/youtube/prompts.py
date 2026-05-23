@@ -139,29 +139,30 @@ MODE_STYLE_BLOCKS = {
 # ---------------------------------------------------------------------------
 MODE_TITLE_PATTERNS = {
     "BIOGRAPHY": (
-        "STRUCTURE: Put the specific FIGURE first or center. The title should hint at\n"
-        "what makes THIS person's story unexpected — a dramatic event, a contested side,\n"
-        "or a claim that flips their pop-culture image. Avoid generic 'X: The Life and\n"
-        "Legacy of Y' framings. Anchor to a SPECIFIC arc, not the whole life.\n"
-        "ENERGY: Match what's actually winning right now (see LIVE COMPETITOR INSPIRATION\n"
-        "block in the prompt). Don't invent stale templates. Watch the AVOID-STEMS list."
+        "PRIMARY LANE: Lane 1 (IDENTITY). Frame the person as a CHARACTER — what\n"
+        "ONE thing about them, when you say it out loud, makes someone go 'wait,\n"
+        "what?' The named subject + that one dramatic identity claim IS the title.\n"
+        "Bare 'Name: Life and Legacy' framings are banned. So is naming only an\n"
+        "obscure role-title without a hook.\n"
+        "OK to use Lane 2 (Native Question) ~1 in 4 BIO videos for variety —\n"
+        "but the question must be specific to THIS person, not generic."
     ),
     "LOST_CIVILIZATION": (
-        "STRUCTURE: Feel like the headline of a real unsolved case file, anchored to the\n"
-        "SPECIFIC subject of this video. The viewer should learn what the video is about\n"
-        "from the title — not be teased by a poetic abstraction.\n"
-        "ENERGY: Match what's actually winning right now (see LIVE COMPETITOR INSPIRATION\n"
-        "block in the prompt). Don't invent stale templates. Watch the AVOID-STEMS list."
+        "PRIMARY LANE: Lane 3 (ATMOSPHERIC). These topics already feel like Netflix\n"
+        "history-doc subject matter — lean fully into that voice. 'Doggerland: The\n"
+        "Land the Ocean Took' is the target rhythm, not 'Doggerland: The SUNKEN\n"
+        "World That Connected Europe' (too encyclopedia-stack).\n"
+        "Lane 2 (Native Question) is a strong secondary — questions like 'Why Did\n"
+        "the Tarim Mummies Look European?' work when there's a real mystery anchor."
     ),
     "IMMERSIVE_DAILY_LIFE": (
-        "STRUCTURE: The title must tell the viewer what the video IS — name the\n"
-        "specific role + setting clearly (e.g., 'Manhattan Project Lab Technician',\n"
-        "'WWI U-Boat Crewman', 'Ming Dynasty Eunuch Chamberlain'). The sensory immersion\n"
-        "happens INSIDE the script — the title's job is to make the viewer pick it up.\n"
-        "Do not lead with abstract sensory openings like 'THE HEAT OF THE SIPHON' or\n"
-        "'THE TICK OF THE TELETYPE' — they obscure the topic. Lead with the role/event.\n"
-        "ENERGY: Match what's actually winning right now (see LIVE COMPETITOR INSPIRATION\n"
-        "block in the prompt). Don't invent stale templates. Watch the AVOID-STEMS list."
+        "PRIMARY LANE: Lane 1 (IDENTITY) framed around the ROLE as a CHARACTER, not\n"
+        "as a label. 'Apollo 11 Command Module Pilot' is the BAD pattern — that's a\n"
+        "job description, not a hook. The good pattern is 'The Astronaut Who Watched\n"
+        "the Moon Landing from Orbit' or 'The Loneliest Man in History: Apollo 11's\n"
+        "Forgotten Crewmember' — same role, but reframed as a character with a story.\n"
+        "Keep the searchable role-term in there (Apollo 11 / Roman Baker / U-Boat\n"
+        "Crewman) but pair it with the dramatic identity phrase that earns the click."
     ),
 }
 
@@ -437,10 +438,73 @@ SECTIONS: {section_titles}
 
 Create optimized YouTube metadata following these rules:
 
-TITLE (under 70 characters):
-- Front-load the topic keyword
-- Include a sleep/relaxation signal
-- Choose from these patterns based on the CONTENT MODE above:
+═══ TITLE (under 70 chars before "| Sleep ..." suffix) ═══
+The title does TWO things at once:
+  1. SCROLL-STOP — make a 2 AM scroller want to click
+  2. ANCHOR — name a concrete searchable subject (person, place, event) so YT
+     search and the viewer both know what the video IS
+
+The title must NEVER sound like a descriptive job-title label ("Apollo 11
+Command Module Pilot") or an encyclopedia entry ("Tarim Basin Mummies: The
+UNEXPLAINED Caucasian Tribe of Ancient China"). It must sound like a movie
+poster, a documentary hook, or a dramatic chapter title — same psychology
+as the thumbnail.
+
+═══ THREE LANES (same as the thumbnail hook system) ═══
+Pick ONE lane per title; weight per CONTENT MODE (see {title_patterns} below).
+
+LANE 1 — IDENTITY (named subject framed as a CHARACTER):
+  shape:  "[Specific Name]: [Dramatic Identity Phrase]"
+       or "The [Dramatic Identity Phrase] Who [Did Something Specific]"
+  feel:   chapter-title in a novel about this person
+  weight: PRIMARY for BIOGRAPHY and IMMERSIVE_DAILY_LIFE
+
+LANE 2 — NATIVE QUESTION (a real question a viewer would actually ask):
+  shape:  "Why Did [Specific Subject] [Specific Action]?"
+       or "What Was [Specific Thing] / Who Built [Specific Thing]?"
+  feel:   conversational, grammatically complete, sounds spoken
+  weight: SECONDARY (use 1 in 4-5 videos) for any mode
+
+LANE 3 — ATMOSPHERIC (cinematic documentary title card):
+  shape:  "[Subject]: The [Dramatic Phrase] That [Specific Verb]"
+       or "Inside [Concrete Place / Era]" or "The [Period] When [X Happened]"
+  feel:   Netflix history-doc opening title
+  weight: PRIMARY for LOST_CIVILIZATION
+
+═══ HARD ANTI-PATTERNS — never produce these ═══
+✗ "Apollo 11 Command Module Pilot"           — job-title label, zero hook
+✗ "Ancient Alexandria Library Keeper"        — same — descriptive role only
+✗ "A Day in the Life of a Roman Baker"       — generic-format label
+✗ "[Name]: The Life and Legacy of [Person]"  — Wikipedia framing
+✗ "[Subject]: The Untold Story of [Thing]"   — content-farm template
+✗ "[Subject]'s Most ___ ___"                 — Listverse listicle
+✗ "[Subject]: The [ALLCAPS WORD] [Generic Noun] of [Place]"
+                                              — encyclopedia subtitle
+✗ Two-clause encyclopedia stacks with colons + commas + parentheticals — pick
+  ONE concrete idea and let the rest land in the description.
+
+═══ LANE EXAMPLES (study the SHAPE, not the words) ═══
+Lane 1 (Identity):
+  ✓ "Michael Collins: The Loneliest Astronaut in History"
+  ✓ "The Mad Monk Who Tried to Rebuild the Mongol Empire"
+  ✓ "Mansa Musa: The Richest Man Who Ever Lived"
+
+Lane 2 (Native Question):
+  ✓ "Why Did the Tarim Mummies Look European?"
+  ✓ "What Was Hidden Beneath Göbekli Tepe?"
+  ✓ "Who Burned the Library of Alexandria?"
+
+Lane 3 (Atmospheric):
+  ✓ "Doggerland: The Land the Ocean Took"
+  ✓ "The Night Tycho Brahe Lost His Nose"
+  ✓ "Inside the Last Days of Alexandria"
+
+═══ COMPETITOR REFERENCE ═══
+The user message includes a block of titles currently winning in the niche.
+Study their RHYTHM, LENGTH, and EMOTIONAL CHARGE — not the specific words.
+Imitate the SHAPE, not the LETTERS.
+
+═══ MODE GUIDANCE ═══
 {title_patterns}
 
 DESCRIPTION (500+ words):

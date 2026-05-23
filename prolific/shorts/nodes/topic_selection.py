@@ -301,10 +301,14 @@ async def topic_selection_node(state: ShortsPipelineState) -> dict:
     """
     from prolific.services.topic_dedup import (
         build_rejection_feedback,
+        check_cluster_overlap,
         check_entity_overlap,
+        check_opener_variance,
+        cluster_extraction,
         entity_extraction,
         hydrate_embeddings,
         normalize_title,
+        pick_current_category,
         _composite_text,
         _rich_composite_text,
     )
@@ -337,11 +341,15 @@ async def topic_selection_node(state: ShortsPipelineState) -> dict:
         async def _persist_entities(vid_id, ents):
             await history_service.update_entities(vid_id, ents)
 
+        async def _persist_clusters(vid_id, clusters):
+            await history_service.update_cluster_tags(vid_id, clusters)
+
         past_records = await hydrate_embeddings(
             records=past_records,
             composite_text_for_record=lambda r: _rich_composite_text(r.topic, r.title, r.script_excerpt),
             persist_callback=_persist,
             persist_entities_callback=_persist_entities,
+            persist_clusters_callback=_persist_clusters,
         )
 
     yt_topics = await _get_past_video_titles()
@@ -354,6 +362,34 @@ async def topic_selection_node(state: ShortsPipelineState) -> dict:
 
     trending_context, source_urls = await _get_trending_context(niche)
     performance_context = await _get_shorts_performance_context()
+
+    # Category cycling — deterministic rotation through content categories so
+    # we can't ship a run of all-horror videos again. Position based on total
+    # published count, modulo the category list length.
+    current_category = None
+    if settings.shorts_category_cycling_enabled:
+        try:
+            total_published = await history_service.count_published()
+            current_category = pick_current_category(total_published)
+            logger.info(
+                f"Category cycling: total_published={total_published} -> "
+                f"category={current_category['key']} ({current_category['name']})"
+            )
+        except Exception as exc:
+            logger.warning(f"Category cycling failed (non-fatal): {exc}")
+            current_category = None
+
+    # Recent titles for the opener-variance gate. Falls back to the YT-search
+    # titles if the DB call fails — they cover roughly the same set anyway.
+    recent_titles_for_opener: list[str] = []
+    if settings.shorts_opener_variance_enabled:
+        try:
+            recent_titles_for_opener = await history_service.get_recent_titles(
+                limit=settings.shorts_opener_window_size,
+            )
+        except Exception as exc:
+            logger.warning(f"Recent-titles fetch failed for opener gate (non-fatal): {exc}")
+            recent_titles_for_opener = yt_topics[: settings.shorts_opener_window_size]
 
     ai_video_mode = _is_ai_video_run()
     if ai_video_mode:
@@ -432,6 +468,41 @@ async def topic_selection_node(state: ShortsPipelineState) -> dict:
                 trending_context=trending_context if trending_context else "(no trending data available)",
                 past_topics=prompt_past,
             )
+
+        # Inject category-cycling + opener-variance constraints as system-prompt
+        # extensions so we don't have to rewrite the niche prompts in-place. These
+        # are dynamic per-run signals, not static prompt content.
+        if current_category and current_category["key"] != "general":
+            prompt += (
+                "\n\n═══ CATEGORY ROTATION (HARD CONSTRAINT) ═══\n"
+                f"This batch must generate topics in the '{current_category['name']}' category ONLY.\n"
+                f"Category description: {current_category['description']}\n"
+                "Topics outside this category will be rejected. Pick subjects that genuinely\n"
+                "fit — do not force a horror topic into a 'science curiosity' frame, etc."
+            )
+        if recent_titles_for_opener and settings.shorts_opener_variance_enabled:
+            # Show the LLM the recent opener stems so it knows what to avoid up-front
+            from prolific.services.topic_dedup import _opener_stem
+            opener_counts: dict[str, int] = {}
+            for t in recent_titles_for_opener:
+                s = _opener_stem(t)
+                if s:
+                    opener_counts[s] = opener_counts.get(s, 0) + 1
+            over_used = sorted(
+                ((stem, n) for stem, n in opener_counts.items()
+                 if n >= settings.shorts_opener_max_repeats_per_window),
+                key=lambda x: -x[1],
+            )
+            if over_used:
+                bullets = "\n".join(f"  - \"{stem}...\" used {n}x recently" for stem, n in over_used)
+                prompt += (
+                    "\n\n═══ OPENER VARIANCE (HARD CONSTRAINT) ═══\n"
+                    "The following title-opening stems have been over-used in the last "
+                    f"{settings.shorts_opener_window_size} videos. Your topics MUST NOT "
+                    "start with any of them (after stripping articles):\n"
+                    f"{bullets}\n"
+                    "Use a different leading phrase. Vary cadence and vocabulary."
+                )
 
         result = await llm_service.invoke_with_structured_output(
             messages=[
@@ -520,6 +591,65 @@ async def topic_selection_node(state: ShortsPipelineState) -> dict:
         else:
             logger.warning("Entity gate rejected ALL short candidates — keeping cosine-accepted set to avoid stall")
 
+    # ---- CLUSTER GATE ----
+    # Block candidates whose thematic cluster overlaps a recent past video within
+    # shorts_cluster_cooldown_days (default 7d). Structural fix for the 5/18
+    # Shorts feed throttle event — entity gate let 6 different parasites through
+    # in 5 days because each had a distinct entity but they all clustered as
+    # "parasites".
+    if settings.shorts_cluster_gate_enabled and past_records:
+        cluster_filtered: list[ShortTopicCandidate] = []
+        for c in accepted:
+            try:
+                cand_clusters = await cluster_extraction(f"{c.topic} | {c.hook_angle}")
+            except Exception as exc:
+                logger.warning("Cluster extraction failed for short '%s': %s — failing open", c.topic[:60], exc)
+                cluster_filtered.append(c)
+                continue
+            overlap = check_cluster_overlap(
+                candidate_clusters=cand_clusters,
+                past=past_records,
+                cooldown_days=settings.shorts_cluster_cooldown_days,
+            )
+            if overlap.is_dupe and not c.is_intentional_continuation:
+                logger.info(
+                    "DEDUP cluster-gate REJECTED short '%s' — clusters=%s, %s",
+                    c.topic[:60], cand_clusters, overlap.reject_reason,
+                )
+                continue
+            cluster_filtered.append(c)
+
+        if cluster_filtered:
+            accepted = cluster_filtered
+        else:
+            logger.warning("Cluster gate rejected ALL short candidates — keeping entity-accepted set to avoid stall")
+
+    # ---- OPENER VARIANCE GATE ----
+    # Reject candidates whose 2-word leading stem (article-stripped) already
+    # appears too many times in the recent past. Stops "The Terrifying X / The
+    # Horrifying Y / The Nightmare Z" cadence fatigue.
+    if settings.shorts_opener_variance_enabled and recent_titles_for_opener:
+        opener_filtered: list[ShortTopicCandidate] = []
+        for c in accepted:
+            is_dupe, reason = check_opener_variance(
+                candidate_title=c.topic,
+                recent_titles=recent_titles_for_opener,
+                window=settings.shorts_opener_window_size,
+                max_repeats=settings.shorts_opener_max_repeats_per_window,
+            )
+            if is_dupe:
+                logger.info(
+                    "DEDUP opener-gate REJECTED short '%s' — %s",
+                    c.topic[:60], reason,
+                )
+                continue
+            opener_filtered.append(c)
+
+        if opener_filtered:
+            accepted = opener_filtered
+        else:
+            logger.warning("Opener-variance gate rejected ALL short candidates — keeping cluster-accepted set to avoid stall")
+
     candidates_str = "\n".join(
         f"[{i}] {c.topic} ({c.topic_type}, mode={c.content_mode}) - {c.hook_angle}"
         + (f" [TRENDING: {c.trending_tie_in}]" if c.trending_tie_in else "")
@@ -567,6 +697,7 @@ async def topic_selection_node(state: ShortsPipelineState) -> dict:
         for i, scene in enumerate(chosen.scene_ideas, 1):
             logger.info(f"  Scene {i}: {scene[:80]}")
 
+    category_label = (current_category or {}).get("key", "general")
     selection_rationale = (
         f"Topic: {chosen.topic}\n"
         f"Hook: {chosen.hook_angle}\n"
@@ -574,9 +705,11 @@ async def topic_selection_node(state: ShortsPipelineState) -> dict:
         f"Virality reason: {chosen.virality_reason}\n"
         f"Performance context used: {bool(performance_context)}\n"
         f"AI video mode: {ai_video_mode}\n"
+        f"Category cycle: {category_label}\n"
         f"Candidates considered: {[c.topic for c in candidates]}"
     )
     logger.info(f"Selection rationale: {selection_result.rationale}")
+    logger.info(f"Category cycle: {category_label}")
 
     return {
         "topic": chosen.topic,

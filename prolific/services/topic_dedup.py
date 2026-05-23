@@ -97,6 +97,10 @@ class PastTopicEmbedding:
     script_excerpt: str = ""  # Truncated script_text or description; richer than topic alone
     entities: list[str] = field(default_factory=list)  # Canonical entity names from LLM extraction
     content_mode: str = ""  # e.g. BIOGRAPHY / IMMERSIVE_DAILY_LIFE / LOST_CIVILIZATION; used to block cross-mode "Part 2"s
+    # Thematic cluster tags from LLM extraction — coarser than entities.
+    # 6 parasite videos shipped in 5 days each had a DIFFERENT entity but the
+    # SAME cluster ("parasites"). Cluster overlap blocks that pattern.
+    cluster_tags: list[str] = field(default_factory=list)
 
 
 @dataclass
@@ -105,6 +109,18 @@ class EntityOverlapResult:
 
     is_dupe: bool
     matched_entity: str | None = None
+    matched_video_id: str | None = None
+    matched_topic: str | None = None
+    matched_published_at: datetime | None = None
+    reject_reason: str = ""
+
+
+@dataclass
+class ClusterOverlapResult:
+    """Result of running the cluster gate on a single candidate."""
+
+    is_dupe: bool
+    matched_cluster: str | None = None
     matched_video_id: str | None = None
     matched_topic: str | None = None
     matched_published_at: datetime | None = None
@@ -338,6 +354,271 @@ def check_entity_overlap(
     return EntityOverlapResult(is_dupe=False)
 
 
+# ---------------------------------------------------------------------------
+# Cluster gate — coarser than entity gate. Entity blocks "same screwworm twice",
+# cluster blocks "any parasite story this week regardless of which parasite."
+# ---------------------------------------------------------------------------
+
+_GENERIC_CLUSTER_STOPLIST = {
+    "general", "miscellaneous", "fact", "facts", "story", "stories",
+    "history", "science", "topic", "topics", "video", "videos",
+}
+
+
+class _ClusterResult(__import__("pydantic").BaseModel):
+    """Structured-output schema for the cluster-extraction LLM call."""
+    clusters: list[str]
+
+
+_CLUSTER_EXTRACTION_PROMPT = """Classify the following content into 1-2 thematic CLUSTER tags.
+
+Cluster tags are COARSER than entities — they describe the type-of-story this
+content belongs to, not the specific subject. The goal is to detect when a
+channel keeps shipping the same FLAVOR of content even when the specific
+entities differ.
+
+Examples (input → clusters):
+- "Toxoplasma parasite that controls mouse brains"            → ["parasites", "mind-control"]
+- "Tongue-eating louse replaces a fish's tongue"              → ["parasites", "body-horror"]
+- "Why Cleaning Old Gravestones Could Be Your Last Mistake"   → ["hidden-dangers", "body-shock"]
+- "Your Jaw is Strong Enough to Snap Your Own Fingers"        → ["body-shock", "anatomy-trivia"]
+- "Harvard's Darkest Secret: Books Bound in Human Skin"       → ["dark-history", "morbid-curio"]
+- "Why Touching This Forbidden Toupee Is a Painful Mistake"   → ["hidden-dangers", "body-shock"]
+- "The Sound That Literally Melted These Hikers"              → ["mysterious-deaths", "dark-history"]
+- "The Octopus Mom Who Starves Herself For Her Babies"        → ["animal-behavior", "marine-life"]
+- "Why Roman Soldiers Sharpened Their Swords on Bones"        → ["dark-history", "military-history"]
+
+Rules:
+- Pick 1-2 cluster tags. Use kebab-case lowercase (e.g. "body-shock", not "Body Shock").
+- Tags should generalize — many different specific topics can share a cluster.
+- AVOID generic tags like "fact", "history", "science", "story" — too broad.
+- If genuinely cross-cluster, pick the dominant one.
+- For NON-horror trivia (cool science, surprising history, animal behavior without
+  death/parasite framing), use clusters like "science-curio", "animal-behavior",
+  "history-detail", "math-trivia", "physics-trivia" — these MATTER for diversity tracking.
+
+Content:
+\"\"\"{text}\"\"\""""
+
+
+async def cluster_extraction(text: str, max_chars: int = 2000) -> list[str]:
+    """Extract thematic cluster tags via cheap LLM call.
+
+    Mirrors entity_extraction in shape but operates at a coarser level. The
+    cluster gate uses these to block thematic-clustering even when entities
+    differ ("6 different parasites in 5 days" → same cluster, blocked).
+
+    Returns lowercased kebab-case cluster list, capped at max-per-video. Returns
+    [] on API failure (fail-open).
+    """
+    if not text or not text.strip():
+        return []
+
+    text = text.strip()[:max_chars]
+
+    try:
+        from langchain_core.messages import HumanMessage, SystemMessage
+        from prolific.services.llm import get_llm_service
+
+        llm_service = get_llm_service()
+        result = await llm_service.invoke_with_structured_output(
+            messages=[
+                SystemMessage(content=_CLUSTER_EXTRACTION_PROMPT.format(text=text)),
+                HumanMessage(content="Extract cluster tags now."),
+            ],
+            output_schema=_ClusterResult,
+            tier="research",
+            temperature=0.0,
+        )
+    except Exception as exc:
+        logger.warning("DEDUP cluster_extraction failed for '%s...': %s — failing open", text[:60], exc)
+        return []
+
+    cleaned: list[str] = []
+    max_per = settings.shorts_cluster_max_per_video
+    for c in (result.clusters or [])[:max_per]:
+        if not isinstance(c, str):
+            continue
+        norm = c.strip().lower().replace("_", "-")
+        norm = "-".join(p for p in norm.split() if p)
+        if not norm or norm in _GENERIC_CLUSTER_STOPLIST:
+            continue
+        cleaned.append(norm)
+    return cleaned
+
+
+def check_cluster_overlap(
+    candidate_clusters: list[str],
+    past: Sequence[PastTopicEmbedding],
+    cooldown_days: int,
+    now: datetime | None = None,
+) -> ClusterOverlapResult:
+    """Block candidates whose cluster overlaps a recent past video within cooldown.
+
+    This is the structural fix for the 5/18 Shorts feed throttle event. Entity
+    gate prevented "screwworm twice" but allowed 6 different parasites in 5
+    days. Cluster gate flips that — same cluster within cooldown = reject,
+    regardless of which specific entity.
+
+    Past records older than `cooldown_days` are ignored (cluster gone stale).
+    """
+    if not candidate_clusters or not past:
+        return ClusterOverlapResult(is_dupe=False)
+
+    cand_set = {c.lower().strip() for c in candidate_clusters if c}
+    cand_set -= _GENERIC_CLUSTER_STOPLIST
+    if not cand_set:
+        return ClusterOverlapResult(is_dupe=False)
+
+    now = now or datetime.now(timezone.utc)
+    for past_item in past:
+        if not past_item.cluster_tags:
+            continue
+        if past_item.published_at is not None:
+            pub = past_item.published_at
+            if pub.tzinfo is None:
+                pub = pub.replace(tzinfo=timezone.utc)
+            age_days = (now - pub).total_seconds() / 86400
+            if age_days > cooldown_days:
+                continue
+        past_set = {c.lower().strip() for c in past_item.cluster_tags if c}
+        past_set -= _GENERIC_CLUSTER_STOPLIST
+        overlap = cand_set & past_set
+        if overlap:
+            matched = sorted(overlap)[0]
+            logger.info(
+                "DEDUP REJECTED cluster overlap: '%s' matches past video '%s' [%s]",
+                matched, past_item.topic[:60], past_item.video_id,
+            )
+            return ClusterOverlapResult(
+                is_dupe=True,
+                matched_cluster=matched,
+                matched_video_id=past_item.video_id,
+                matched_topic=past_item.topic,
+                matched_published_at=past_item.published_at,
+                reject_reason=f"cluster '{matched}' overlaps past video '{past_item.topic}' ({past_item.video_id})",
+            )
+
+    return ClusterOverlapResult(is_dupe=False)
+
+
+# ---------------------------------------------------------------------------
+# Title-opener variance gate — pure-Python, no LLM.
+# Catches the "The Terrifying X / The Horrifying Y / The Nightmare Z" pattern
+# that hit Wait Really? in the days before the throttle landed.
+# ---------------------------------------------------------------------------
+
+def _opener_stem(title: str, stem_words: int = 2) -> str:
+    """Extract the leading N words verbatim (no article stripping).
+
+    Originally tried stripping leading "the / a / your" articles + taking the
+    next N content words. That MISSED the worst real-world failure mode:
+    "The Terrifying Pufferfish" / "The Terrifying Parasite" / "The Terrifying
+    Delta P" — three different content nouns but the same opener cadence
+    that trips YT's spam classifier. Raw 2-word prefix catches "the
+    terrifying" repeating verbatim.
+
+    Stem is lowercased + punctuation-stripped. Empty when title is too short.
+    """
+    if not title:
+        return ""
+    words = _PUNCT_RE.sub(" ", title.lower()).split()
+    if len(words) < stem_words:
+        return ""
+    return " ".join(words[:stem_words])
+
+
+def check_opener_variance(
+    candidate_title: str,
+    recent_titles: Sequence[str],
+    window: int = 7,
+    max_repeats: int = 2,
+    stem_words: int = 2,
+) -> tuple[bool, str]:
+    """Return (is_dupe, reject_reason) for the opener-variance gate.
+
+    Looks at the last `window` published titles, computes the 2-word leading
+    stem (article-stripped), and rejects the candidate if its stem already
+    appears `>= max_repeats` times in that window.
+
+    Threshold semantics: max_repeats=2 means "after 2 past videos with this
+    opener, the 3rd would be rejected." Adjust via config.
+    """
+    cand_stem = _opener_stem(candidate_title, stem_words=stem_words)
+    if not cand_stem:
+        return False, ""
+    recent = list(recent_titles)[:window]
+    matching = [t for t in recent if _opener_stem(t, stem_words=stem_words) == cand_stem]
+    if len(matching) >= max_repeats:
+        return True, (
+            f"opener stem '{cand_stem}' appears in {len(matching)} of last "
+            f"{len(recent)} titles (limit {max_repeats})"
+        )
+    return False, ""
+
+
+# ---------------------------------------------------------------------------
+# Category cycling — deterministic rotation through content categories so a
+# stretch of all-horror videos can't compound the way it did pre-throttle.
+# ---------------------------------------------------------------------------
+
+SHORTS_CONTENT_CATEGORIES: list[dict[str, str]] = [
+    {
+        "key": "horror_fact",
+        "name": "Horror / Body-Shock",
+        "description": (
+            "Disturbing-but-true facts: parasites, deadly chemistry, body anomalies, "
+            "morbid history. The channel's bread-and-butter — but only 1 in every "
+            f"{4} videos to keep the algorithm from flagging the channel as a "
+            "shock-content farm."
+        ),
+    },
+    {
+        "key": "science_curio",
+        "name": "Science Curiosity (non-horror)",
+        "description": (
+            "Surprising science facts WITHOUT death, parasites, or body horror. "
+            "Examples: 'Octopuses have 9 brains', 'Honey never spoils', 'Bananas "
+            "are slightly radioactive', 'Hot water freezes faster than cold "
+            "sometimes'. Wonder, not dread."
+        ),
+    },
+    {
+        "key": "history_detail",
+        "name": "Surprising History Detail",
+        "description": (
+            "Specific historical fact that flips a default belief, with NO horror "
+            "framing. Examples: 'Cleopatra lived closer to the moon landing than to "
+            "the pyramids', 'Oxford is older than the Aztec Empire', 'The Eiffel "
+            "Tower grows 6 inches in summer'."
+        ),
+    },
+    {
+        "key": "animal_behavior",
+        "name": "Animal Behavior (non-parasite, non-death)",
+        "description": (
+            "Cool animal facts about behavior, intelligence, adaptation — but "
+            "NOT involving parasitism, death, or body horror. Examples: 'Otters "
+            "hold hands while sleeping', 'Crows hold grudges and remember faces', "
+            "'Octopuses can taste through their suckers'."
+        ),
+    },
+]
+
+
+def pick_current_category(total_published: int) -> dict[str, str]:
+    """Return the category dict for the current short based on rotation count.
+
+    Deterministic: position = total_published % len(SHORTS_CONTENT_CATEGORIES).
+    With 4 categories, this gives 25% horror, 75% non-horror — exactly the
+    diversification ratio we want post-throttle.
+    """
+    if not SHORTS_CONTENT_CATEGORIES:
+        return {"key": "general", "name": "General", "description": ""}
+    idx = max(0, total_published) % len(SHORTS_CONTENT_CATEGORIES)
+    return SHORTS_CONTENT_CATEGORIES[idx]
+
+
 def check_dedup(
     candidate_topic: str,
     candidate_supporting_text: str,
@@ -537,6 +818,7 @@ async def hydrate_embeddings(
     composite_text_for_record: Callable[[PastTopicEmbedding], str],
     persist_callback: Callable[[str, np.ndarray, str], Awaitable[None]],
     persist_entities_callback: Callable[[str, list[str]], Awaitable[None]] | None = None,
+    persist_clusters_callback: Callable[[str, list[str]], Awaitable[None]] | None = None,
 ) -> list[PastTopicEmbedding]:
     """Embed any records missing cached embeddings, persist to DB, return all hydrated.
 
@@ -564,8 +846,12 @@ async def hydrate_embeddings(
         r for r in records
         if not r.entities and r.script_excerpt
     ] if (persist_entities_callback is not None and settings.topic_dedup_entity_gate_enabled) else []
+    needs_clusters = [
+        r for r in records
+        if not r.cluster_tags and (r.script_excerpt or r.topic)
+    ] if (persist_clusters_callback is not None and settings.shorts_cluster_gate_enabled) else []
 
-    if not needs_embedding and not needs_entities:
+    if not needs_embedding and not needs_entities and not needs_clusters:
         return records
 
     if needs_embedding:
@@ -625,6 +911,32 @@ async def hydrate_embeddings(
             except Exception as exc:
                 logger.warning(
                     "DEDUP failed to persist entities for %s: %s (continuing)",
+                    record.video_id, exc,
+                )
+
+    if needs_clusters:
+        logger.info(
+            "DEDUP cluster-extracting %d/%d past records",
+            len(needs_clusters), len(records),
+        )
+        by_id = {r.video_id: r for r in records}
+        for record in needs_clusters:
+            try:
+                clusters = await cluster_extraction(record.script_excerpt or record.topic)
+            except Exception as exc:
+                logger.warning(
+                    "DEDUP cluster extraction failed for %s: %s (continuing)",
+                    record.video_id, exc,
+                )
+                continue
+            record.cluster_tags = clusters
+            if record.video_id in by_id:
+                by_id[record.video_id].cluster_tags = clusters
+            try:
+                await persist_clusters_callback(record.video_id, clusters)
+            except Exception as exc:
+                logger.warning(
+                    "DEDUP failed to persist clusters for %s: %s (continuing)",
                     record.video_id, exc,
                 )
 

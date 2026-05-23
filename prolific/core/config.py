@@ -187,6 +187,36 @@ class Settings(BaseSettings):
     # Shorts Scheduler
     shorts_cron_interval_hours: int = 4
     shorts_cron_enabled: bool = False
+    # Cadence cut from 4/day to 2/day after the 5/18 Shorts feed throttle event.
+    # Cluster repetition (6 parasites in 5 days) and over-publishing on a small
+    # channel likely tripped YT's content-farm classifier. Two posts/day with
+    # better diversification beats four mediocre ones. Override via env var as
+    # comma-separated hour list in ET. Default 12,20 = lunch + evening slots.
+    shorts_cron_hours: str = "12,20"
+
+    # ---- Shorts diversity guards (post-throttle hardening) ----
+    # Cluster-level dedup: extracts thematic cluster tags (e.g. "parasites",
+    # "body-shock") from past scripts via LLM and blocks candidates whose cluster
+    # overlaps a past short within cooldown. Catches the failure mode where the
+    # entity gate allowed 6 different parasites in 5 days because each had a
+    # distinct entity ("toxoplasma" / "screwworm" / "tongue-eating louse") but
+    # the cluster was identical.
+    shorts_cluster_gate_enabled: bool = True
+    shorts_cluster_cooldown_days: int = 7
+    shorts_cluster_max_per_video: int = 2
+
+    # Title-opener variance: count how many recent shorts start with the same
+    # 2-word stem (e.g. "the terrifying", "your jaw") and reject candidates
+    # whose topic would push that count above the threshold. Stops the
+    # "The Terrifying X / The Horrifying Y / The Nightmare Z" stem fatigue.
+    shorts_opener_variance_enabled: bool = True
+    shorts_opener_window_size: int = 7
+    shorts_opener_max_repeats_per_window: int = 2
+
+    # Category cycling: forces brainstorm to rotate through content categories
+    # so a stretch of all-horror videos can't happen. Cycle is deterministic
+    # based on count of published shorts modulo the category list length.
+    shorts_category_cycling_enabled: bool = True
 
     # Comment Reply Scheduler
     comment_reply_enabled: bool = False

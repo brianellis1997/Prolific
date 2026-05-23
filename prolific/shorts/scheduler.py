@@ -1,4 +1,8 @@
-"""APScheduler-based cron for the shorts pipeline — 4x daily."""
+"""APScheduler-based cron for the shorts pipeline.
+
+Schedule is config-driven (settings.shorts_cron_hours, comma-separated ET hours).
+Cut from 4/day to 2/day on 2026-05-20 after the Shorts feed throttle event.
+"""
 
 import logging
 
@@ -8,7 +12,17 @@ logger = logging.getLogger(__name__)
 
 _scheduler = None
 
-SHORTS_SCHEDULE_HOURS = [9, 12, 16, 20]
+
+def _parse_schedule_hours() -> list[int]:
+    """Parse SHORTS_CRON_HOURS env var into a list of ints. Falls back to 2/day."""
+    raw = (settings.shorts_cron_hours or "").strip()
+    if not raw:
+        return [12, 20]
+    try:
+        return [int(h.strip()) for h in raw.split(",") if h.strip()]
+    except ValueError:
+        logger.warning(f"Could not parse SHORTS_CRON_HOURS={raw!r} — defaulting to 12,20")
+        return [12, 20]
 
 
 async def _scheduled_run():
@@ -28,11 +42,16 @@ async def _scheduled_run():
 
 
 def start_scheduler():
-    """Start the shorts scheduler: 4 shorts per day at 9AM, 12PM, 4PM, 8PM ET."""
+    """Start the shorts scheduler. Hours come from SHORTS_CRON_HOURS env var."""
     global _scheduler
 
     if not settings.shorts_cron_enabled:
         logger.info("Shorts scheduler disabled (SHORTS_CRON_ENABLED=false)")
+        return
+
+    schedule_hours = _parse_schedule_hours()
+    if not schedule_hours:
+        logger.warning("No shorts cron hours configured — scheduler not starting")
         return
 
     try:
@@ -41,7 +60,7 @@ def start_scheduler():
 
         _scheduler = AsyncIOScheduler()
 
-        for hour in SHORTS_SCHEDULE_HOURS:
+        for hour in schedule_hours:
             trigger = CronTrigger(
                 hour=hour,
                 minute=0,
@@ -56,7 +75,7 @@ def start_scheduler():
             )
 
         _scheduler.start()
-        hours_str = ", ".join(f"{h}:00" for h in SHORTS_SCHEDULE_HOURS)
+        hours_str = ", ".join(f"{h}:00" for h in schedule_hours)
         logger.info(f"Shorts scheduler started: daily at {hours_str} ET")
 
     except ImportError:

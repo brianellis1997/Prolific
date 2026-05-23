@@ -56,6 +56,10 @@ class ShortsHistoryService:
             await db.execute("ALTER TABLE shorts ADD COLUMN entities TEXT DEFAULT '[]'")
         except Exception:
             pass
+        try:
+            await db.execute("ALTER TABLE shorts ADD COLUMN cluster_tags TEXT DEFAULT '[]'")
+        except Exception:
+            pass
         await db.execute("""
             CREATE TABLE IF NOT EXISTS used_stock_clips (
                 video_id TEXT NOT NULL,
@@ -212,7 +216,7 @@ class ShortsHistoryService:
             db.row_factory = aiosqlite.Row
             cursor = await db.execute(
                 """SELECT id, youtube_video_id, topic, hook, script_text, selection_rationale,
-                          published_at, embedding, embedding_model_version, entities
+                          published_at, embedding, embedding_model_version, entities, cluster_tags
                    FROM shorts
                    WHERE youtube_video_id IS NOT NULL AND youtube_video_id != ''
                    ORDER BY created_at DESC
@@ -232,6 +236,10 @@ class ShortsHistoryService:
                     entities = _json.loads(row["entities"] or "[]")
                 except Exception:
                     entities = []
+                try:
+                    cluster_tags = _json.loads(row["cluster_tags"] or "[]")
+                except Exception:
+                    cluster_tags = []
                 results.append(
                     PastTopicEmbedding(
                         video_id=row["youtube_video_id"] or row["id"],
@@ -242,6 +250,7 @@ class ShortsHistoryService:
                         embedding_model_version=row["embedding_model_version"],
                         script_excerpt=(row["script_text"] or "")[:5000],
                         entities=entities,
+                        cluster_tags=cluster_tags,
                     )
                 )
             return results
@@ -258,6 +267,48 @@ class ShortsHistoryService:
                 (_json.dumps(entities), short_id, short_id),
             )
             await db.commit()
+
+    async def update_cluster_tags(self, short_id: str, cluster_tags: list[str]) -> None:
+        """Persist extracted thematic cluster tags for a published short."""
+        import json as _json
+        async with aiosqlite.connect(self.db_path) as db:
+            await self._ensure_table(db)
+            await db.execute(
+                """UPDATE shorts
+                   SET cluster_tags = ?
+                   WHERE youtube_video_id = ? OR id = ?""",
+                (_json.dumps(cluster_tags), short_id, short_id),
+            )
+            await db.commit()
+
+    async def count_published(self) -> int:
+        """Return total count of published shorts. Used for category rotation."""
+        async with aiosqlite.connect(self.db_path) as db:
+            await self._ensure_table(db)
+            cursor = await db.execute(
+                """SELECT COUNT(*) FROM shorts
+                   WHERE youtube_video_id IS NOT NULL AND youtube_video_id != ''"""
+            )
+            row = await cursor.fetchone()
+            return int(row[0]) if row else 0
+
+    async def get_recent_titles(self, limit: int = 14) -> list[str]:
+        """Return the topics of the last N published shorts, newest first.
+
+        Used for the opener-variance gate which needs raw titles, not the
+        full PastTopicEmbedding records.
+        """
+        async with aiosqlite.connect(self.db_path) as db:
+            await self._ensure_table(db)
+            cursor = await db.execute(
+                """SELECT topic FROM shorts
+                   WHERE youtube_video_id IS NOT NULL AND youtube_video_id != ''
+                   ORDER BY created_at DESC
+                   LIMIT ?""",
+                (limit,),
+            )
+            rows = await cursor.fetchall()
+            return [row[0] for row in rows]
 
     async def update_embedding(
         self, video_id: str, embedding: np.ndarray, model_version: str

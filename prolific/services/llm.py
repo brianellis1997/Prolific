@@ -5,15 +5,24 @@ Supports OpenRouter for access to multiple models with cost optimization:
 - Premium models (Sonnet) for writing
 """
 
+import json
 import logging
 from datetime import datetime
 from typing import Any, Literal
 
+import httpx
 import openai
 from langchain_core.language_models import BaseChatModel
 from langchain_core.messages import BaseMessage, SystemMessage
 from langchain_openai import ChatOpenAI
-from tenacity import retry, retry_if_exception, stop_after_attempt, wait_exponential
+from pydantic import ValidationError
+from tenacity import (
+    before_sleep_log,
+    retry,
+    retry_if_exception,
+    stop_after_attempt,
+    wait_exponential,
+)
 
 from prolific.core.config import settings
 
@@ -23,7 +32,28 @@ ModelTier = Literal["research", "extraction", "writing", "verification", "vision
 
 
 def _is_retryable(exc: BaseException) -> bool:
-    """Return True for transient OpenRouter/model errors worth retrying."""
+    """Return True for transient model/transport errors worth retrying.
+
+    Categories covered (each one has cost the pipeline a full run at some point):
+
+    1. **OpenRouter/openai SDK errors** — rate limits, transient 5xx, timeouts.
+    2. **httpx transport errors** — connection drops, read timeouts, 5xx without
+       a usable response body. Some Gemini outputs return 200-OK with truncated
+       streams that the SDK surfaces as httpx errors rather than openai errors.
+    3. **JSON decode errors** — Gemini Flash occasionally returns a 200-OK with
+       a malformed JSON body (truncation mid-string, leading non-JSON garbage).
+       Killed the 2026-05-27 IMMERSIVE_DAILY_LIFE run mid-script. Same prompt
+       almost always succeeds on retry — different sampling seed = clean output.
+    4. **Pydantic validation errors** — `invoke_with_structured_output` parses
+       the LLM response against a schema; when the LLM returns plausible-looking
+       text that doesn't match the schema, pydantic raises ValidationError.
+       Killed the 2026-05-26 shorts ClipShotList run. Same prompt usually
+       succeeds on retry.
+
+    Explicitly NOT retried: auth errors (401/403), permission errors,
+    `openai.BadRequestError` without a transient marker — those are permanent
+    failures that retry won't help.
+    """
     if isinstance(exc, (openai.APITimeoutError, openai.APIConnectionError)):
         return True
     if isinstance(exc, openai.RateLimitError):
@@ -33,14 +63,32 @@ def _is_retryable(exc: BaseException) -> bool:
     if isinstance(exc, openai.BadRequestError):
         msg = str(exc).lower()
         return "timeout" in msg or "overloaded" in msg or "capacity" in msg
+
+    # httpx-layer transient errors (sometimes surface above the openai SDK).
+    if isinstance(exc, (httpx.TimeoutException, httpx.RemoteProtocolError, httpx.ReadError)):
+        return True
+    if isinstance(exc, httpx.HTTPStatusError):
+        code = exc.response.status_code if exc.response is not None else 0
+        return code in (408, 429, 500, 502, 503, 504)
+
+    # Malformed LLM response — almost always transient (different sampling seed
+    # → clean output). Catches both raw JSON parse failures and the structured-
+    # output path where pydantic validation fails on plausibly-shaped-but-wrong
+    # LLM output.
+    if isinstance(exc, json.JSONDecodeError):
+        return True
+    if isinstance(exc, ValidationError):
+        return True
+
     return False
 
 
 _llm_retry = retry(
     retry=retry_if_exception(_is_retryable),
-    wait=wait_exponential(multiplier=2, min=4, max=30),
-    stop=stop_after_attempt(3),
+    wait=wait_exponential(multiplier=2, min=4, max=60),
+    stop=stop_after_attempt(settings.llm_max_retry_attempts),
     reraise=True,
+    before_sleep=before_sleep_log(logger, logging.WARNING),
 )
 
 

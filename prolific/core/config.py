@@ -27,6 +27,14 @@ class Settings(BaseSettings):
 
     # Tiered Model Selection (cost optimization)
     # Fast/cheap models for research, extraction, verification
+    # Max retry attempts on the LLM service for transient errors (timeouts,
+    # rate limits, malformed JSON, pydantic validation failures). 5 = one
+    # initial call + 4 retries with exponential backoff (4s → 8s → 16s → 32s →
+    # cap 60s). Each retried call is logged at WARNING. Bumped from 3 → 5 on
+    # 2026-05-27 after a JSONDecodeError in section 6 of a 15-section
+    # IMMERSIVE_DAILY_LIFE script killed the whole run.
+    llm_max_retry_attempts: int = 5
+
     research_model: str = "google/gemini-3-flash-preview"
     extraction_model: str = "google/gemini-3-flash-preview"
     verification_model: str = "google/gemini-3-flash-preview"

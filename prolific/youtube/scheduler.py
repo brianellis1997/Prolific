@@ -62,18 +62,24 @@ def start_scheduler():
     minute = settings.youtube_cron_minute
     tz = settings.youtube_cron_timezone
 
-    # Job 1: BIOGRAPHY anchor (Mon-only as of 2026-05-05 cadence rebalance).
-    _scheduler.add_job(
-        _make_scheduled_run("BIOGRAPHY"),
-        CronTrigger(
-            day_of_week=settings.youtube_bio_cron_day,
-            hour=hour, minute=minute, timezone=tz,
-        ),
-        id="youtube_bio",
-        name=f"YouTube BIOGRAPHY ({settings.youtube_bio_cron_day} {hour:02d}:{minute:02d} {tz})",
-        replace_existing=True,
-    )
-    active_jobs = ["youtube_bio"]
+    active_jobs = []
+
+    # Job 1 (gated): BIOGRAPHY. CUT 2026-06-03 — full-data rebalance showed BIO
+    # dead-last on views (63), retention (18%) and subs (6 from 8 videos). Kept
+    # behind a flag so it can be revived without code changes if a future
+    # exotic-figure angle proves out.
+    if settings.youtube_bio_enabled:
+        _scheduler.add_job(
+            _make_scheduled_run("BIOGRAPHY"),
+            CronTrigger(
+                day_of_week=settings.youtube_bio_cron_day,
+                hour=hour, minute=minute, timezone=tz,
+            ),
+            id="youtube_bio",
+            name=f"YouTube BIOGRAPHY ({settings.youtube_bio_cron_day} {hour:02d}:{minute:02d} {tz})",
+            replace_existing=True,
+        )
+        active_jobs.append("youtube_bio")
 
     # Job 2 (gated): LOST_CIVILIZATION on Thu/Fri.
     if settings.youtube_lostciv_enabled:

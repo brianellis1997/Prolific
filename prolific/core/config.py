@@ -163,16 +163,21 @@ class Settings(BaseSettings):
     youtube_cron_minute: int = 0
     youtube_cron_timezone: str = "America/New_York"
     youtube_cron_enabled: bool = False
-    # 5-day cadence (rebalanced 2026-05-05 — small-sample data showed LOSTCIV 4×
-    # and IMMERSIVE 2× BIO's views/day, so BIO was reduced from M/W/F to Mon-only):
-    #   Mon=BIOGRAPHY anchor, Wed=IMMERSIVE, Thu=LOSTCIV, Fri=LOSTCIV, Sat=IMMERSIVE.
-    # Re-evaluate at ~4 weeks (8 samples per non-BIO format). Reversible by editing
-    # these strings; no schema or data migration required.
+    # 5-day cadence (rebalanced 2026-06-03 — full 2-month data, n=36, was decisive:
+    # LOSTCIV avg 260 views / 25% retention / 29 subs, vs IMMERSIVE 88v/22%/12 subs,
+    # vs BIO 63v/18%/6 subs. LOSTCIV wins reach AND retention AND subs simultaneously;
+    # every breakout (Forgotten Epoch 1974v+11, Sanxingdui 389v, Göbekli Tepe 201v,
+    # Bronze Age Collapse 272v) is LOSTCIV. BIO (famous-figure bios — Napoleon 34v,
+    # Wu Zetian 30v) is a saturated dead end, so it's CUT. New mix: 4 LOSTCIV / 1
+    # IMMERSIVE / 0 BIO):
+    #   Mon=LOSTCIV, Wed=LOSTCIV, Thu=LOSTCIV, Sat=LOSTCIV, Fri=IMMERSIVE (legendary only).
+    # Reversible by flipping youtube_bio_enabled + editing these strings; no migration.
+    youtube_bio_enabled: bool = False
     youtube_lostciv_enabled: bool = True
     youtube_immersive_enabled: bool = True
     youtube_bio_cron_day: str = "mon"
-    youtube_lostciv_cron_day: str = "thu,fri"
-    youtube_immersive_cron_day: str = "wed,sat"
+    youtube_lostciv_cron_day: str = "mon,wed,thu,sat"
+    youtube_immersive_cron_day: str = "fri"
 
     # Shorts Pipeline
     shorts_script_model: str = "google/gemini-3-flash-preview"

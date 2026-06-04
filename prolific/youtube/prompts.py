@@ -68,12 +68,28 @@ CURIOSITY TRIGGERS (one must apply):
   - A recent finding that revises a long-held story
   - A culture famous in one specialty but invisible in pop history
 
+FRAME FOR TENSION, NOT RESOLUTION (data-backed 2026-06-03): topics framed around
+peace, connection, or a settled story badly underperform — "Caral: The City That
+Never Knew War" got 62 views, "Doggerland: The World That Connected Europe" got 49.
+The SAME sites framed around what's unexplained, missing, or hidden convert far
+better. Always lead with the open loop (what vanished / what shouldn't exist / what
+nobody can explain), never with harmony or a tidy answer.
+
+THE PROVEN VEIN: deep-time, pre-classical, cataclysm-and-disappearance subjects are
+the channel's biggest converters (the single best video, ~2,000 views + 11 subs, was
+about the pre-civilization deep past; runners-up were a "ghost dynasty" with
+inexplicable artifacts and a civilization-ending collapse). Keep generating FRESH
+SPECIFIC subjects within this theme — the further back, the stranger, the more
+abandoned, the better. The DO-NOT-REPEAT list prevents literal repeats; you do NOT
+need to avoid the theme, only the exact subjects already covered.
+
 DO NOT:
   - Use formulaic scaffolds like "The Lost X That Y", "Evidence They Don't Want You To See",
     "What Science CANNOT Explain About Z" — these read as thumbnail-farm bait. Let the topic
     dictate its framing.
-  - Default to the same handful of subjects (Göbekli Tepe, Sundaland, Younger Dryas, pre-Clovis,
-    Bronze Age Collapse) — the channel has covered these. The DO-NOT-REPEAT list shows what's stale.
+  - Re-pick a SPECIFIC subject already on the DO-NOT-REPEAT list (e.g. the exact Göbekli
+    Tepe / Bronze Age Collapse videos already shipped). Find a fresh entry in the vein
+    instead — its older neighbor, a parallel site on another continent, a newer dig.
 
 Set is_biography=False. No central named figure — this mode is about places, periods, and
 unanswered questions. Region tags should be specific to the subject; era tags can range from

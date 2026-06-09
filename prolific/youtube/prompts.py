@@ -500,6 +500,40 @@ A famous/recognizable name (Boudica, Apollo 11, the Vikings, Cleopatra, Genghis
 Khan) MAY lead — those names ARE the hook. The rule targets names a general
 audience won't recognize.
 
+═══ STICKINESS RULE #2 — SIMPLE WORDS EVERYWHERE, INCLUDING THE HOOK ═══
+Rule #1 fixes the FIRST words; Rule #2 governs EVERY word. The whole title must
+use plain, common, everyday vocabulary that a half-asleep person reads in one
+glance and instantly feels curious about. The goal is curiosity, not cleverness.
+
+This applies to the HOOK and the descriptor too — not just the proper noun.
+A vivid hook still fails if it's wrapped in fancy or obscure words. "The Tartan
+Ghosts of the Taklamakan Desert" is BAD: "tartan" is a niche word and
+"Taklamakan" is an unknown place — two squint-words in one title. Replace BOTH
+with simple, evocative ones a 12-year-old knows: "The Frozen Ghosts of a
+Forgotten Desert," "The 5,000-Year-Old Mummies in the Sand."
+
+SWAP obscure/fancy → simple/evocative:
+  ✗ "Tartan"      → ✓ "Frozen," "Lost," "Painted"
+  ✗ "Taklamakan"  → ✓ "the Forgotten Desert," "a Desert That Forgot Them"
+  ✗ "incendiary"  → ✓ "fire," "burned"
+  ✗ "subterranean"→ ✓ "underground," "beneath"
+  ✗ "necropolis"  → ✓ "city of the dead," "buried city"
+  ✗ "megalithic"  → ✓ "giant stone," "stones too big to move"
+
+CURIOSITY-SPARKING SIMPLE WORDS that consistently work: Lost, Forbidden,
+Frozen, Buried, Forgotten, Hidden, Secret, Vanished, Cursed, Unfinished,
+Drowned, Empty, Silent, the Last, the First, Beneath, Older Than, Should Not
+Exist. Pair ONE of these with a plain concrete noun.
+
+THE TEST (apply to the whole title): could a tired 12-year-old read it in one
+glance, understand every word, and feel a pull to find out more? If ANY word
+makes them pause or feel dumb, swap it for a simpler one.
+
+  ✓ "Greek Fire: The Weapon That Burned on Water"   (every word simple, instantly vivid)
+  ✓ "The 5,000-Year-Old City That Never Knew War"   (plain words, sparks 'wait, how?')
+  ✓ "The Underground Oracle That Controlled the Andes" (simple + intriguing)
+  ✓ "The Frozen Ghosts of a Forgotten Desert"        (was "Tartan Ghosts of the Taklamakan")
+
 ═══ THREE LANES (same as the thumbnail hook system) ═══
 Pick ONE lane per title; weight per CONTENT MODE (see {title_patterns} below).
 

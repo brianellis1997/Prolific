@@ -466,6 +466,40 @@ UNEXPLAINED Caucasian Tribe of Ancient China"). It must sound like a movie
 poster, a documentary hook, or a dramatic chapter title — same psychology
 as the thumbnail.
 
+═══ STICKINESS RULE #1 — NEVER LEAD WITH AN OBSCURE PROPER NOUN ═══
+This is the single most important title rule and it OVERRIDES the lane shapes
+below. A title that opens with an unfamiliar, hard-to-pronounce proper noun
+(an ancient site, a foreign name most people have never heard) makes a tired
+2 AM scroller's eyes slide right past — they can't parse it in the half-second
+they give it, so they don't click.
+
+THE TEST: would someone who has NEVER heard this name understand the first
+2-3 words and feel pulled in? If the title opens with a name they can't
+pronounce or place, REWRITE IT.
+
+THE FIX: lead with the CONCRETE, PICTURABLE, PLAIN-ENGLISH HOOK. Demote the
+exotic proper noun to AFTER the colon, or cut it entirely (it lives in the
+description and tags for search). The hook should be something a scroller can
+instantly SEE in their mind — "Stone Giants," "Copper Ghosts," "Ice Age
+Giants," "The Underground Oracle," "Ghost Dynasty," "The City Beneath the Ice."
+
+PROVEN FROM THIS CHANNEL'S OWN DATA:
+  ✓ "The Olmec Heads: The Stone Giants That Rewrote History"   (159 views — "Stone Giants" leads)
+  ✓ "The Copper Ghosts: Who Mined Lake Superior Before History?" (199 views — vivid hook leads)
+  ✓ "Wrangel Island: The Last Stand of the Ice Age GIANTS"     (170 views — carried by "Ice Age Giants")
+  ✓ "Sanxingdui: The GHOST Dynasty With the Alien Faces"       (463 views — payload so strong the name rides along)
+  ✗ "The Siphonarios: The Secret Keeper of Byzantium's Fire"   (30 views — opens on a word nobody knows; the topic is GREEK FIRE, a famous hook buried)
+  ✗ "Chavín de Huántar: The Underground Oracle of the Andes"   (1 view — unpronounceable name leads; "The Underground Oracle That Controlled the Andes" was the hook all along — just lead with it)
+  ✗ "Caral: The 5,000-Year-Old City That Never Knew War"       (99 views — obscure name + low-tension frame)
+
+REWRITE PATTERN (apply whenever the subject name is obscure):
+  "[Obscure Name]: The [Great Hook]"  →  "The [Great Hook]"  or  "The [Great Hook]: [Obscure Name]"
+  e.g. "Chavín de Huántar: The Underground Oracle..."  →  "The Underground Oracle That Controlled the Andes"
+  e.g. "The Siphonarios: ...Byzantium's Fire"          →  "Greek Fire: The Weapon That Burned on Water"
+A famous/recognizable name (Boudica, Apollo 11, the Vikings, Cleopatra, Genghis
+Khan) MAY lead — those names ARE the hook. The rule targets names a general
+audience won't recognize.
+
 ═══ THREE LANES (same as the thumbnail hook system) ═══
 Pick ONE lane per title; weight per CONTENT MODE (see {title_patterns} below).
 
@@ -482,10 +516,15 @@ LANE 2 — NATIVE QUESTION (a real question a viewer would actually ask):
   weight: SECONDARY (use 1 in 4-5 videos) for any mode
 
 LANE 3 — ATMOSPHERIC (cinematic documentary title card):
-  shape:  "[Subject]: The [Dramatic Phrase] That [Specific Verb]"
+  shape:  "The [Picturable Hook] That [Specific Verb]"  (hook leads — see Rule #1)
+       or "The [Picturable Hook]: [Optional Obscure Name]"
        or "Inside [Concrete Place / Era]" or "The [Period] When [X Happened]"
   feel:   Netflix history-doc opening title
   weight: PRIMARY for LOST_CIVILIZATION
+  note:   LOSTCIV subjects are usually obscure ancient sites — this is the lane
+          where Rule #1 matters MOST. Lead with the picturable English hook
+          ("The Stone Giants," "The Copper Ghosts," "The Underground Oracle"),
+          NOT the site's name. The name goes after the colon or in the metadata.
 
 ═══ HARD ANTI-PATTERNS — never produce these ═══
 ✗ "Apollo 11 Command Module Pilot"           — job-title label, zero hook
@@ -510,9 +549,10 @@ Lane 2 (Native Question):
   ✓ "What Was Hidden Beneath Göbekli Tepe?"
   ✓ "Who Burned the Library of Alexandria?"
 
-Lane 3 (Atmospheric):
-  ✓ "Doggerland: The Land the Ocean Took"
-  ✓ "The Night Tycho Brahe Lost His Nose"
+Lane 3 (Atmospheric — note how the picturable hook LEADS, not the place-name):
+  ✓ "The Stone Giants That Rewrote History" (NOT "The Olmec Heads: ...")
+  ✓ "The Land the Ocean Took" (NOT "Doggerland: ...")
+  ✓ "The Underground Oracle That Controlled the Andes" (NOT "Chavín de Huántar: ...")
   ✓ "Inside the Last Days of Alexandria"
 
 ═══ COMPETITOR REFERENCE ═══

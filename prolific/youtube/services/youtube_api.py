@@ -275,6 +275,76 @@ class YouTubeUploadService:
             logger.warning(f"Failed to get recent videos: {e}")
             return []
 
+    async def get_or_create_playlist(
+        self, title: str, description: str = "", privacy_status: str = "public"
+    ) -> str | None:
+        """Find a playlist on this channel by exact title, or create it. Returns playlist ID.
+
+        Idempotent: safe to call on every upload. Looks through the channel's own
+        playlists first (1 quota unit); only creates (50 units) if none matches.
+        Returns None on failure so the caller can skip playlist-add without failing
+        the upload.
+        """
+        import asyncio
+        try:
+            youtube = self._get_authenticated_service()
+
+            def _find_or_create():
+                # Page through the channel's playlists looking for an exact title match.
+                page_token = None
+                while True:
+                    resp = youtube.playlists().list(
+                        part="id,snippet", mine=True, maxResults=50,
+                        pageToken=page_token,
+                    ).execute()
+                    for item in resp.get("items", []):
+                        if item["snippet"]["title"].strip().lower() == title.strip().lower():
+                            return item["id"]
+                    page_token = resp.get("nextPageToken")
+                    if not page_token:
+                        break
+                # Not found — create it.
+                created = youtube.playlists().insert(
+                    part="snippet,status",
+                    body={
+                        "snippet": {"title": title, "description": description},
+                        "status": {"privacyStatus": privacy_status},
+                    },
+                ).execute()
+                logger.info(f"Created playlist '{title}' -> {created['id']}")
+                return created["id"]
+
+            return await asyncio.get_event_loop().run_in_executor(None, _find_or_create)
+        except Exception as e:
+            logger.warning(f"get_or_create_playlist('{title}') failed: {e}")
+            return None
+
+    async def add_video_to_playlist(self, playlist_id: str, video_id: str) -> bool:
+        """Append a video to a playlist. Returns True on success.
+
+        Non-fatal: logs and returns False on failure so it can't break an upload.
+        """
+        import asyncio
+        try:
+            youtube = self._get_authenticated_service()
+
+            def _insert():
+                youtube.playlistItems().insert(
+                    part="snippet",
+                    body={
+                        "snippet": {
+                            "playlistId": playlist_id,
+                            "resourceId": {"kind": "youtube#video", "videoId": video_id},
+                        }
+                    },
+                ).execute()
+                return True
+
+            return await asyncio.get_event_loop().run_in_executor(None, _insert)
+        except Exception as e:
+            logger.warning(f"add_video_to_playlist({playlist_id}, {video_id}) failed: {e}")
+            return False
+
     @staticmethod
     def _execute_upload(request):
         """Execute resumable upload with progress logging and retry."""

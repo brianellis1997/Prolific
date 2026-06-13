@@ -115,6 +115,12 @@ class Settings(BaseSettings):
     # Keep words_per_section ≈ 1,333 for writer coherence — same as before.
     youtube_target_word_count: int = 20000
     youtube_max_images: int = 15
+    # "Sleep loop" — every long-form upload is added to this one playlist so the
+    # videos autoplay into one another. For a sleeping audience, autoplay (which
+    # requires no action) is the real session-time lever; end screens need a
+    # click the viewer is asleep for, so we skip those. Added 2026-06-12 after
+    # Studio flagged keeping the sleep loop going. Empty string disables.
+    youtube_series_playlist_title: str = "Ancient Mysteries & Lost Civilizations — Sleep Documentaries"
     youtube_image_style: str = "oil painting, historical illustration, warm muted tones, cinematic lighting"
     youtube_output_dir: str = "./youtube_output"
     youtube_history_db_path: str = "/app/data/youtube_history.sqlite"

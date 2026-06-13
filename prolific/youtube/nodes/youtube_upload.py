@@ -52,6 +52,27 @@ async def youtube_upload_node(state: YouTubePipelineState) -> dict:
         video_url = result["url"]
         logger.info(f"Uploaded: {video_url}")
 
+        # "Sleep loop": add this upload to the series playlist so the channel's
+        # videos autoplay into one another. Non-fatal — a playlist hiccup must
+        # never fail an otherwise-successful upload.
+        from prolific.core.config import settings as _settings
+        playlist_title = (_settings.youtube_series_playlist_title or "").strip()
+        if video_id and playlist_title:
+            try:
+                playlist_id = await youtube_service.get_or_create_playlist(
+                    title=playlist_title,
+                    description=(
+                        "Long-form sleep documentaries on ancient mysteries and lost "
+                        "civilizations. Drift off and let one story flow into the next."
+                    ),
+                )
+                if playlist_id:
+                    added = await youtube_service.add_video_to_playlist(playlist_id, video_id)
+                    if added:
+                        logger.info(f"Added {video_id} to series playlist '{playlist_title}'")
+            except Exception as exc:
+                logger.warning(f"Playlist add failed (non-fatal): {exc}")
+
     except Exception as e:
         logger.error(f"Upload failed: {e}")
         video_id = ""

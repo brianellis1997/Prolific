@@ -201,12 +201,15 @@ class Settings(BaseSettings):
     # Shorts Scheduler
     shorts_cron_interval_hours: int = 4
     shorts_cron_enabled: bool = False
-    # Cadence cut from 4/day to 2/day after the 5/18 Shorts feed throttle event.
-    # Cluster repetition (6 parasites in 5 days) and over-publishing on a small
-    # channel likely tripped YT's content-farm classifier. Two posts/day with
-    # better diversification beats four mediocre ones. Override via env var as
-    # comma-separated hour list in ET. Default 12,20 = lunch + evening slots.
-    shorts_cron_hours: str = "12,20"
+    # Cadence: cut 4/day -> 2/day after the 5/18 throttle, then raised to 3/day
+    # on 2026-06-12 once the recovery proved durable (2 weeks of stable 900-2,200
+    # feed views/day, subs 66->94). The diversity guards (cluster gate, opener
+    # variance, weighted category rotation) now prevent the over-saturation that
+    # caused the original throttle, so 3/day is safe; shorts are ~620 chars each
+    # so 11Labs cost is negligible. DO NOT jump straight to 4/day — that was the
+    # throttle level; earn it back with clean 3/day data first. Override via env
+    # var (comma-separated ET hours). 10/15/20 = morning, afternoon, evening.
+    shorts_cron_hours: str = "10,15,20"
 
     # ---- Shorts diversity guards (post-throttle hardening) ----
     # Cluster-level dedup: extracts thematic cluster tags (e.g. "parasites",

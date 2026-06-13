@@ -568,9 +568,12 @@ SHORTS_CONTENT_CATEGORIES: list[dict[str, str]] = [
         "name": "Horror / Body-Shock",
         "description": (
             "Disturbing-but-true facts: parasites, deadly chemistry, body anomalies, "
-            "morbid history. The channel's bread-and-butter — but only 1 in every "
-            f"{4} videos to keep the algorithm from flagging the channel as a "
-            "shock-content farm."
+            "morbid history. Use SPARINGLY (~1 in 7 videos). Per performance data this "
+            "category both underperforms the others AND occasionally trips YouTube's "
+            "sensitive-content / misinformation filters into near-zero distribution "
+            "(e.g. a 'pimple could kill you' short got 1 view, a 'windows are melting' "
+            "myth got 3). When you do use it, stay on solid, verifiable ground — avoid "
+            "graphic medical/body-gore and debunked myths."
         ),
     },
     {
@@ -606,17 +609,36 @@ SHORTS_CONTENT_CATEGORIES: list[dict[str, str]] = [
 ]
 
 
+# Weighted rotation schedule (2026-06-12). The 4 categories are NOT equal: the
+# three "winner" categories (animals, history, science) consistently land
+# 500-1,150 views, while horror/body-shock both underperforms and risks
+# per-video suppression. So the cycle gives each winner 2 slots and horror 1
+# (horror ~14% vs the old 25%). Edit this list to re-weight; it references
+# category keys defined in SHORTS_CONTENT_CATEGORIES above.
+_SHORTS_CATEGORY_ROTATION: list[str] = [
+    "animal_behavior",
+    "history_detail",
+    "science_curio",
+    "animal_behavior",
+    "history_detail",
+    "science_curio",
+    "horror_fact",
+]
+
+_SHORTS_CATEGORIES_BY_KEY = {c["key"]: c for c in SHORTS_CONTENT_CATEGORIES}
+
+
 def pick_current_category(total_published: int) -> dict[str, str]:
     """Return the category dict for the current short based on rotation count.
 
-    Deterministic: position = total_published % len(SHORTS_CONTENT_CATEGORIES).
-    With 4 categories, this gives 25% horror, 75% non-horror — exactly the
-    diversification ratio we want post-throttle.
+    Deterministic weighted rotation: walks _SHORTS_CATEGORY_ROTATION by
+    total_published modulo its length. The winners (animals/history/science)
+    appear twice as often as horror — ~29% each vs ~14% horror.
     """
-    if not SHORTS_CONTENT_CATEGORIES:
+    if not _SHORTS_CATEGORY_ROTATION or not SHORTS_CONTENT_CATEGORIES:
         return {"key": "general", "name": "General", "description": ""}
-    idx = max(0, total_published) % len(SHORTS_CONTENT_CATEGORIES)
-    return SHORTS_CONTENT_CATEGORIES[idx]
+    key = _SHORTS_CATEGORY_ROTATION[max(0, total_published) % len(_SHORTS_CATEGORY_ROTATION)]
+    return _SHORTS_CATEGORIES_BY_KEY.get(key, SHORTS_CONTENT_CATEGORIES[0])
 
 
 def check_dedup(

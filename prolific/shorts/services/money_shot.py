@@ -167,8 +167,34 @@ async def _search_cc_candidates(query: str, max_results: int = 6) -> list[dict]:
         return []
 
 
-def _extract_frame_b64(video_path: str) -> str | None:
-    """Grab a representative frame (~40% in) as base64 JPEG for vision check."""
+def _probe_duration(video_path: str) -> float:
+    """Return clip duration in seconds (0.0 if unknown)."""
+    import shutil
+    import subprocess
+
+    ffprobe = shutil.which("ffprobe")
+    if not ffprobe:
+        return 0.0
+    try:
+        out = subprocess.run(
+            [ffprobe, "-v", "error", "-show_entries", "format=duration",
+             "-of", "default=noprint_wrappers=1:nokey=1", video_path],
+            capture_output=True, text=True, timeout=20,
+        )
+        return float(out.stdout.strip() or 0.0)
+    except Exception:
+        return 0.0
+
+
+def _extract_frames_montage_b64(video_path: str, num_frames: int = 4) -> str | None:
+    """Sample N frames evenly across the clip and tile them into one image.
+
+    A single early frame misses action that happens later in the clip (the
+    starfish doesn't eat at second 1.5). Sampling across the whole clip and
+    checking them together in ONE vision call catches the moment wherever it
+    occurs, without multiplying vision cost. Falls back to a single mid-clip
+    frame if duration can't be probed.
+    """
     import shutil
     import subprocess
     import tempfile
@@ -176,22 +202,57 @@ def _extract_frame_b64(video_path: str) -> str | None:
     ffmpeg = shutil.which("ffmpeg")
     if not ffmpeg or not Path(video_path).exists():
         return None
+
+    dur = _probe_duration(video_path)
+    # Even fractions across the clip, avoiding the very first/last frames.
+    if dur and dur > 0.5:
+        fracs = [(i + 1) / (num_frames + 1) for i in range(num_frames)]
+        timestamps = [round(f * dur, 2) for f in fracs]
+    else:
+        timestamps = [1.5]  # fallback: single frame
+
     try:
-        with tempfile.NamedTemporaryFile(suffix=".jpg", delete=False) as tf:
-            frame_path = tf.name
-        # Seek to a point likely to contain the action, not the intro frame.
-        subprocess.run(
-            [ffmpeg, "-y", "-ss", "1.5", "-i", video_path, "-frames:v", "1",
-             "-q:v", "4", frame_path],
-            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=30,
-        )
-        data = Path(frame_path).read_bytes()
-        Path(frame_path).unlink(missing_ok=True)
-        if not data:
+        from PIL import Image
+
+        frame_imgs = []
+        tmpdir = tempfile.mkdtemp(prefix="ms_frames_")
+        for idx, ts in enumerate(timestamps):
+            fp = str(Path(tmpdir) / f"f{idx}.jpg")
+            subprocess.run(
+                [ffmpeg, "-y", "-ss", str(ts), "-i", video_path, "-frames:v", "1",
+                 "-q:v", "4", fp],
+                stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=30,
+            )
+            if Path(fp).exists() and Path(fp).stat().st_size > 0:
+                frame_imgs.append(Image.open(fp).convert("RGB"))
+
+        if not frame_imgs:
             return None
-        return base64.b64encode(data).decode()
+        if len(frame_imgs) == 1:
+            import io
+            buf = io.BytesIO()
+            frame_imgs[0].save(buf, format="JPEG", quality=80)
+            return base64.b64encode(buf.getvalue()).decode()
+
+        # Tile into a horizontal strip, each frame scaled to a common height.
+        target_h = 360
+        scaled = []
+        for im in frame_imgs:
+            w = int(im.width * target_h / im.height)
+            scaled.append(im.resize((w, target_h)))
+        total_w = sum(im.width for im in scaled)
+        montage = Image.new("RGB", (total_w, target_h), (0, 0, 0))
+        x = 0
+        for im in scaled:
+            montage.paste(im, (x, 0))
+            x += im.width
+
+        import io
+        buf = io.BytesIO()
+        montage.save(buf, format="JPEG", quality=80)
+        return base64.b64encode(buf.getvalue()).decode()
     except Exception as exc:
-        logger.warning(f"money-shot frame extract failed: {exc}")
+        logger.warning(f"money-shot montage extract failed: {exc}")
         return None
 
 
@@ -201,18 +262,24 @@ class _MoneyShotVerdict(__import__("pydantic").BaseModel):
 
 
 async def _verify_shows_event(event_description: str, frame_b64: str) -> bool:
-    """Vision check: does this frame actually depict the promised event?"""
+    """Vision check: do ANY of the sampled frames depict the promised event?
+
+    The image is a horizontal strip of frames sampled across the clip in time
+    order, so the action is caught wherever in the clip it happens."""
     from prolific.services.llm import get_llm_service
 
     prompt = (
         "You are verifying whether a downloaded video clip actually shows a "
-        "specific event we want to use it for. Be strict — if it only shows the "
-        "subject generically (e.g. an octopus just sitting there) but NOT the "
-        "specific action, answer false.\n\n"
+        "specific event we want to use it for. The image below is a STRIP of "
+        "several frames sampled across the clip from start to end (left to "
+        "right). Be strict about the event, but lenient about WHICH frame: if "
+        "ANY frame in the strip clearly shows the event (or a moment plainly "
+        "part of it), that counts. If the frames only show the subject "
+        "generically (e.g. an octopus just sitting there, a title card, a "
+        "resting animal) but never the specific action, answer false.\n\n"
         f"THE EVENT WE NEED TO SEE: \"{event_description}\"\n\n"
-        "Look at this frame from the clip. Does it genuinely show that event (or "
-        "a moment clearly part of it)? Set shows_event=true only if a viewer "
-        "would recognize this as the event, and describe what_is_actually_shown."
+        "Set shows_event=true only if at least one frame would make a viewer "
+        "recognize the event, and describe what_is_actually_shown across the strip."
     )
     try:
         llm = get_llm_service()
@@ -269,11 +336,11 @@ async def find_verified_cc_clip(
         if not dl:
             continue
         clip_path, _audio = dl
-        frame = _extract_frame_b64(clip_path)
-        if not frame:
+        montage = _extract_frames_montage_b64(clip_path, num_frames=4)
+        if not montage:
             Path(clip_path).unlink(missing_ok=True)
             continue
-        if await _verify_shows_event(event_description, frame):
+        if await _verify_shows_event(event_description, montage):
             return MoneyShotResult(
                 file_path=clip_path,
                 source_url=cand["url"],

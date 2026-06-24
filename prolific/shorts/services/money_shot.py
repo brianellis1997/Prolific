@@ -41,7 +41,8 @@ class MoneyShotResult:
 
 class _MoneyShotPick(__import__("pydantic").BaseModel):
     scene_index: int
-    search_query: str       # what to search YouTube for, e.g. "octopus punching fish"
+    search_query: str       # simple literal visual search, e.g. "octopus punching fish"
+    fallback_query: str = ""  # broader retry if the specific search finds nothing
     event_description: str  # what the vision model must confirm is on-screen
 
 
@@ -54,10 +55,10 @@ async def identify_money_shots(
 ) -> list[_MoneyShotPick]:
     """Pick the 1-2 scenes whose specific real footage would most boost the short.
 
-    Returns the scene indexes plus a precise YouTube search query and a vision
-    description for each. These are the "payoff" moments — the actual event the
-    narration promises (the octopus punch), not generic b-roll. Returns [] if no
-    scene has a findable specific real-world action.
+    Returns the scene indexes plus a simple YouTube search query, a broader
+    fallback query, and a vision description for each. These are the "payoff"
+    moments — the actual event the narration promises (the octopus punch), not
+    generic b-roll. Returns [] if no scene has a findable VISUAL real-world action.
     """
     from langchain_core.messages import HumanMessage, SystemMessage
     from prolific.services.llm import get_llm_service
@@ -66,16 +67,27 @@ async def identify_money_shots(
     system = (
         "You pick the 'money shot' moments for a short video — the 1-2 scenes "
         "where showing the ACTUAL real-world footage of the specific event (not "
-        "generic stock b-roll) would most make the video pop. Only pick a scene "
-        "if it describes a SPECIFIC, filmable real-world action or sight that "
-        "real footage would plausibly exist for (an animal doing a specific "
-        "thing, a named place, a physical phenomenon). Skip abstract/narration-"
-        "only scenes.\n\n"
-        "For each pick give: scene_index, a concise literal YouTube search query "
-        "for the real footage (e.g. 'octopus punching fish', 'starfish eating "
-        "mussel time lapse'), and event_description — a plain sentence of what a "
-        "verifier must SEE on screen to confirm the clip is right.\n"
-        f"Pick at most {max_picks}. If nothing qualifies, return an empty list."
+        "generic stock b-roll) would most make the video pop.\n\n"
+        "ONLY pick a scene whose payoff is something you could literally SEE on "
+        "camera: an animal visibly doing a thing, a physical event, a real place. "
+        "SKIP anything that is a SOUND, a statistic, a sensor reading, an internal/"
+        "microscopic process, or an abstract concept — there is no footage of "
+        "'bees whooping' (a sound) or 'a lobster being biologically immortal'.\n\n"
+        "The search_query is the SINGLE most important thing. Write it the way a "
+        "normal person would type it into YouTube to find the clip — 2 to 5 simple, "
+        "common words describing what you'd SEE. NOT scientific or technical "
+        "wording.\n"
+        "  GOOD: 'octopus punching fish', 'starfish eating mussel', 'eagle catching "
+        "fish', 'volcano lava fountain', 'mantis shrimp punch'\n"
+        "  BAD:  'honeybee hive vibration sensors accelerometer' (technical, no such "
+        "footage), 'cephalopod aggressive territorial behavior' (jargon), "
+        "'apoptosis cellular senescence' (microscopic/abstract)\n\n"
+        "Also give a fallback_query: a BROADER but still real version to try if the "
+        "specific one finds nothing (e.g. specific 'mantis shrimp punching snail' -> "
+        "fallback 'mantis shrimp striking'). And event_description: a plain sentence "
+        "of what a verifier must SEE on screen.\n"
+        f"Pick at most {max_picks}. If no scene has a genuinely filmable visual "
+        "payoff, return an empty list — do not force it."
     )
     try:
         llm = get_llm_service()
@@ -310,11 +322,13 @@ async def find_verified_cc_clip(
     width: int = 1080,
     height: int = 1920,
     max_candidates: int = 4,
+    fallback_query: str = "",
 ) -> MoneyShotResult | None:
     """Find, download, and VERIFY a Creative-Commons clip of a specific event.
 
     event_query:       what to search YouTube for ("octopus punching fish")
     event_description:  what the vision model must confirm is on-screen
+    fallback_query:     broader retry if the specific query finds no CC candidates
     Returns a MoneyShotResult (with attribution) only if a CC clip was found,
     downloaded, AND vision-confirmed to show the event. Otherwise None — caller
     falls back to stock.
@@ -325,6 +339,9 @@ async def find_verified_cc_clip(
     from prolific.shorts.services.clip_downloader import get_clip_downloader
 
     candidates = await _search_cc_candidates(event_query, max_results=max_candidates + 2)
+    if not candidates and fallback_query and fallback_query.strip().lower() != event_query.strip().lower():
+        logger.info(f"money-shot: retrying with broader query '{fallback_query}'")
+        candidates = await _search_cc_candidates(fallback_query, max_results=max_candidates + 2)
     if not candidates:
         return None
 

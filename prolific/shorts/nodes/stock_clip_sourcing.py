@@ -115,7 +115,7 @@ async def stock_clip_sourcing_node(state: ShortsPipelineState) -> dict:
     # a fish), vision-verified, instead of generic stock b-roll. Falls through
     # to the normal Pexels flow for everything else (and for money-shot scenes
     # where no CC clip verifies).
-    money_shot_targets: dict[int, tuple[str, str]] = {}
+    money_shot_targets: dict[int, tuple[str, str, str]] = {}
     if settings.shorts_money_shot_enabled and stock_segments:
         try:
             from prolific.shorts.services.money_shot import identify_money_shots
@@ -125,7 +125,9 @@ async def stock_clip_sourcing_node(state: ShortsPipelineState) -> dict:
             )
             for p in picks:
                 seg = stock_segments[p.scene_index]
-                money_shot_targets[seg.sequence_number] = (p.search_query, p.event_description)
+                money_shot_targets[seg.sequence_number] = (
+                    p.search_query, p.event_description, p.fallback_query,
+                )
             if money_shot_targets:
                 logger.info(f"Money-shot targets: {[(k, v[0]) for k, v in money_shot_targets.items()]}")
         except Exception as exc:
@@ -144,12 +146,13 @@ async def stock_clip_sourcing_node(state: ShortsPipelineState) -> dict:
         if asset.sequence_number in money_shot_targets:
             try:
                 from prolific.shorts.services.money_shot import find_verified_cc_clip
-                ms_query, ms_desc = money_shot_targets[asset.sequence_number]
+                ms_query, ms_desc, ms_fallback = money_shot_targets[asset.sequence_number]
                 ms = await find_verified_cc_clip(
                     event_query=ms_query, event_description=ms_desc,
                     output_dir=str(output_dir), filename=f"clip_{asset.sequence_number:02d}",
                     duration_seconds=asset.duration_seconds,
                     width=asset.width, height=asset.height,
+                    fallback_query=ms_fallback,
                 )
                 if ms:
                     result = ms.file_path

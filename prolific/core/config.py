@@ -217,6 +217,18 @@ class Settings(BaseSettings):
     # var (comma-separated ET hours). 10/15/20 = morning, afternoon, evening.
     shorts_cron_hours: str = "10,15,20"
 
+    # ---- Money-shot clip sourcing ----
+    # For the 1-2 key payload moments per short, search Creative-Commons YouTube
+    # for the SPECIFIC event ("octopus punching a fish"), vision-verify it shows
+    # the event, and splice it in over generic Pexels b-roll. ONLY CC/reuse-
+    # allowed videos are used (copyright-safe). Falls back to stock when no CC
+    # clip is verified. Added 2026-06-23.
+    shorts_money_shot_enabled: bool = True
+    shorts_money_shot_max_per_video: int = 2
+    # Optional read-only Data API key for CC search, to keep that quota off the
+    # OAuth upload credentials. If empty, the shorts OAuth creds are used.
+    youtube_data_api_key: str = ""
+
     # ---- Shorts diversity guards (post-throttle hardening) ----
     # Cluster-level dedup: extracts thematic cluster tags (e.g. "parasites",
     # "body-shock") from past scripts via LLM and blocks candidates whose cluster

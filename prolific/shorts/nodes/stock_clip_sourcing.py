@@ -108,6 +108,28 @@ async def stock_clip_sourcing_node(state: ShortsPipelineState) -> dict:
     short_id = state.get("thread_id", "")
     topic = state.get("topic", "")
     previous_thumbnail: bytes | None = None
+    money_shot_attributions: list[str] = []
+
+    # Money-shot pass: pick the 1-2 payoff scenes and source the ACTUAL
+    # Creative-Commons footage of the specific event (e.g. an octopus punching
+    # a fish), vision-verified, instead of generic stock b-roll. Falls through
+    # to the normal Pexels flow for everything else (and for money-shot scenes
+    # where no CC clip verifies).
+    money_shot_targets: dict[int, tuple[str, str]] = {}
+    if settings.shorts_money_shot_enabled and stock_segments:
+        try:
+            from prolific.shorts.services.money_shot import identify_money_shots
+            scene_texts = [a.script_text or a.search_query for a in stock_segments]
+            picks = await identify_money_shots(
+                topic, scene_texts, max_picks=settings.shorts_money_shot_max_per_video,
+            )
+            for p in picks:
+                seg = stock_segments[p.scene_index]
+                money_shot_targets[seg.sequence_number] = (p.search_query, p.event_description)
+            if money_shot_targets:
+                logger.info(f"Money-shot targets: {[(k, v[0]) for k, v in money_shot_targets.items()]}")
+        except Exception as exc:
+            logger.warning(f"Money-shot identification failed (non-fatal): {exc}")
 
     for asset in stock_segments:
         output_path = str(output_dir / f"clip_{asset.sequence_number:02d}.mp4")
@@ -118,10 +140,31 @@ async def stock_clip_sourcing_node(state: ShortsPipelineState) -> dict:
         scene_desc = asset.search_query
         narration = asset.script_text or topic
 
-        candidates, best_idx = await _search_and_select(
+        # Try the real-footage money shot first for targeted scenes.
+        if asset.sequence_number in money_shot_targets:
+            try:
+                from prolific.shorts.services.money_shot import find_verified_cc_clip
+                ms_query, ms_desc = money_shot_targets[asset.sequence_number]
+                ms = await find_verified_cc_clip(
+                    event_query=ms_query, event_description=ms_desc,
+                    output_dir=str(output_dir), filename=f"clip_{asset.sequence_number:02d}",
+                    duration_seconds=asset.duration_seconds,
+                    width=asset.width, height=asset.height,
+                )
+                if ms:
+                    result = ms.file_path
+                    clip_source = "money_shot_cc"
+                    money_shot_attributions.append(
+                        f'\n"{ms.title}" by {ms.creator} (CC BY, via YouTube)'
+                    )
+                    logger.info(f"[{asset.sequence_number}] MONEY SHOT ({ms_query}): {ms.file_path}")
+            except Exception as exc:
+                logger.warning(f"[{asset.sequence_number}] Money-shot attempt failed (non-fatal): {exc}")
+
+        candidates, best_idx = (([], 0) if result else await _search_and_select(
             pexels, asset.search_query, used_video_ids,
             scene_desc, narration, previous_thumbnail,
-        )
+        ))
 
         if candidates:
             chosen = candidates[best_idx]
@@ -209,10 +252,19 @@ async def stock_clip_sourcing_node(state: ShortsPipelineState) -> dict:
 
     all_updated = updated_assets + fallback_to_image
 
-    logger.info(f"Sourced {len(updated_assets)} stock clips, {len(fallback_to_image)} fell back to web image")
+    ms_count = len(money_shot_attributions)
+    logger.info(
+        f"Sourced {len(updated_assets)} stock clips ({ms_count} real-footage money shots), "
+        f"{len(fallback_to_image)} fell back to web image"
+    )
 
-    return {
+    out: dict = {
         "visual_assets": all_updated,
         "current_phase": "video_assembly",
-        "messages": [AIMessage(content=f"Sourced {len(updated_assets)} stock clips ({len(fallback_to_image)} fallbacks)")],
+        "messages": [AIMessage(content=f"Sourced {len(updated_assets)} clips ({ms_count} money shots, {len(fallback_to_image)} fallbacks)")],
     }
+    if money_shot_attributions:
+        # Credit the CC sources in the description (CC-BY requirement). The
+        # metadata node appends state["attribution_texts"] verbatim.
+        out["attribution_texts"] = ["\n\nFootage credits:"] + money_shot_attributions
+    return out

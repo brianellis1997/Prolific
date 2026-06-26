@@ -169,21 +169,21 @@ class Settings(BaseSettings):
     youtube_cron_minute: int = 0
     youtube_cron_timezone: str = "America/New_York"
     youtube_cron_enabled: bool = False
-    # DAILY cadence (bumped 2026-06-12 — 11Labs growing_business plan (2.9M
-    # chars/mo) was only 62% utilized at 5/week (~1.8M used last cycle); ~1.1M
-    # credits/mo were going unused. 7/week projects to ~2.5M (~87%) — fits with
-    # buffer. (2/day would be ~3.6M, over cap — do not exceed 7/week long-form.)
-    # Mix keeps the proven winner weighted: per full 2-month data (n=36) LOSTCIV
-    # avg 260 views / 25% retention / 29 subs >> IMMERSIVE 88v/22%/12 >> BIO
-    # 63v/18%/6 (BIO cut 2026-06-03). New mix: 6 LOSTCIV / 1 IMMERSIVE / 0 BIO:
-    #   Mon-Thu+Sat-Sun=LOSTCIV (6), Fri=IMMERSIVE (1 variety hedge). All 18:00 ET.
-    # Reversible by editing these strings; no migration. 11Labs cost $0 extra
-    # (flat plan under cap); OpenRouter ~+$8/mo.
+    # 5-day cadence (REVERTED to 5/week 2026-06-25 — the daily experiment
+    # 6/12-6/25 was a clean, confounded-removed loss. Matched-age first-7-day
+    # views: daily median 55 / max 117 with ZERO breakouts vs pre-daily median
+    # 67 / max 459 with regular breakouts. Channel 28d totals went DOWN on every
+    # metric despite more uploads: views -30%, watch -47%, subs +23 vs +40.
+    # Daily self-cannibalized — 7 videos/week compete for the same browse/
+    # suggested slots + subscriber attention, killing the breakouts that grow a
+    # small channel. Back to the proven 4 LOSTCIV + 1 IMMERSIVE that produced
+    # breakouts (Olmec, Sanxingdui, Copper Ghosts) and +40 subs/28d.)
+    #   Mon/Wed/Thu/Sat=LOSTCIV (4), Fri=IMMERSIVE (1). Tue/Sun dark. All 18:00 ET.
     youtube_bio_enabled: bool = False
     youtube_lostciv_enabled: bool = True
     youtube_immersive_enabled: bool = True
     youtube_bio_cron_day: str = "mon"
-    youtube_lostciv_cron_day: str = "mon,tue,wed,thu,sat,sun"
+    youtube_lostciv_cron_day: str = "mon,wed,thu,sat"
     youtube_immersive_cron_day: str = "fri"
 
     # Shorts Pipeline

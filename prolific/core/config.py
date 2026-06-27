@@ -223,7 +223,12 @@ class Settings(BaseSettings):
     # the event, and splice it in over generic Pexels b-roll. ONLY CC/reuse-
     # allowed videos are used (copyright-safe). Falls back to stock when no CC
     # clip is verified. Added 2026-06-23.
-    shorts_money_shot_enabled: bool = True
+    # DISABLED 2026-06-27: yt-dlp downloads are blocked on Railway's datacenter IP
+    # ("Sign in to confirm you're not a bot"), so 0 clips ever downloaded in prod
+    # (the Data API search finds candidates fine; the download is what fails).
+    # Cookies = maintenance treadmill; Wikimedia/Archive coverage too thin. Left
+    # the code intact; flip back to True once we have a proxy or working bypass.
+    shorts_money_shot_enabled: bool = False
     shorts_money_shot_max_per_video: int = 2
     # Optional read-only Data API key for CC search, to keep that quota off the
     # OAuth upload credentials. If empty, the shorts OAuth creds are used.

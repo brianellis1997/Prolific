@@ -68,28 +68,51 @@ CURIOSITY TRIGGERS (one must apply):
   - A recent finding that revises a long-held story
   - A culture famous in one specialty but invisible in pop history
 
-FRAME FOR TENSION, NOT RESOLUTION (data-backed 2026-06-03): topics framed around
-peace, connection, or a settled story badly underperform — "Caral: The City That
-Never Knew War" got 62 views, "Doggerland: The World That Connected Europe" got 49.
-The SAME sites framed around what's unexplained, missing, or hidden convert far
-better. Always lead with the open loop (what vanished / what shouldn't exist / what
-nobody can explain), never with harmony or a tidy answer.
+FRAME FOR TENSION, NOT RESOLUTION: topics framed around peace, connection, or a settled
+story badly underperform — "Caral: The City That Never Knew War" got 62 views,
+"Doggerland: The World That Connected Europe" got 49. The SAME sites framed around what's
+unexplained, missing, or hidden convert far better. Always lead with the open loop (what
+vanished / what shouldn't exist / what nobody can explain), never with harmony or a tidy
+answer.
 
 THE PROVEN VEIN: deep-time, pre-classical, cataclysm-and-disappearance subjects are
 the channel's biggest converters (the single best video, ~2,000 views + 11 subs, was
 about the pre-civilization deep past; runners-up were a "ghost dynasty" with
-inexplicable artifacts and a civilization-ending collapse). Keep generating FRESH
-SPECIFIC subjects within this theme — the further back, the stranger, the more
-abandoned, the better. The DO-NOT-REPEAT list prevents literal repeats; you do NOT
-need to avoid the theme, only the exact subjects already covered.
+inexplicable artifacts and a civilization-ending collapse).
+
+RECOGNITION FLOOR (the most important rule): the vein is right, but chasing ever-more-
+obscure sites tanks reach. Academic deep-cuts nobody has a mental handle for — Trypillia,
+Kumari Kandam, "the Copper Age," "the Indus" — got 8-34 views. The breakouts all had a
+hook a scroller instantly grasps WITHOUT knowing the site: "alien faces," "stone giants,"
+"ice age giants," "the forgotten epoch before civilization." The difference isn't the
+topic's depth — it's whether a normal person can INSTANTLY grasp the mystery from the
+hook alone.
+
+Every pick MUST clear ONE of these before it qualifies:
+  (a) RECOGNIZABLE ANCHOR — tied to something the average person already knows: a famous
+      place/people/era (Egypt, the Sahara, the Vikings, the Amazon, the Ice Age, the
+      Pacific, a "first city," Atlantis-adjacent lore), OR sits geographically/temporally
+      next to one they can latch onto ("older than the pyramids," "beneath [famous place]").
+  (b) UNIVERSAL VISCERAL CONCEPT — a mystery graspable with zero background knowledge:
+      giants, a vanished people, a sunken city, a great flood, a thing that "should not
+      exist," faces/skulls that look wrong, a place that swallowed everyone.
+An obscure proper-noun site name with NEITHER an anchor NOR a visceral concept is BANNED
+— that's the trap that's been killing reach. If you can't express the hook so a
+12-year-old feels the pull without ever having heard the name, pick a different subject.
+
+Prefer BIG, half-familiar mysteries over PhD-thesis deep cuts. It is better to re-enter
+a famous mystery from a fresh angle (a new dig, a rival site, an unanswered sub-question)
+than to surface a site so obscure it has no hook. The DO-NOT-REPEAT list prevents literal
+repeats — but "recognizable + fresh angle" beats "obscure + never covered" every time.
 
 DO NOT:
+  - Lead with an obscure site name that carries no anchor and no visceral concept
+    (this is the #1 reach-killer — see RECOGNITION FLOOR above).
   - Use formulaic scaffolds like "The Lost X That Y", "Evidence They Don't Want You To See",
     "What Science CANNOT Explain About Z" — these read as thumbnail-farm bait. Let the topic
     dictate its framing.
-  - Re-pick a SPECIFIC subject already on the DO-NOT-REPEAT list (e.g. the exact Göbekli
-    Tepe / Bronze Age Collapse videos already shipped). Find a fresh entry in the vein
-    instead — its older neighbor, a parallel site on another continent, a newer dig.
+  - Re-pick a SPECIFIC subject already on the DO-NOT-REPEAT list. Find a fresh angle on a
+    still-recognizable mystery instead — a rival site, a newer dig, an unanswered sub-question.
 
 Set is_biography=False. No central named figure — this mode is about places, periods, and
 unanswered questions. Region tags should be specific to the subject; era tags can range from

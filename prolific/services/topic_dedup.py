@@ -364,6 +364,10 @@ _GENERIC_CLUSTER_STOPLIST = {
     "history", "science", "topic", "topics", "video", "videos",
 }
 
+_ROTATION_CATEGORY_CLUSTER_TAGS = {
+    "animal-behavior", "history-detail", "science-curio", "horror-fact",
+}
+
 
 class _ClusterResult(__import__("pydantic").BaseModel):
     """Structured-output schema for the cluster-extraction LLM call."""
@@ -394,8 +398,11 @@ Rules:
 - AVOID generic tags like "fact", "history", "science", "story" — too broad.
 - If genuinely cross-cluster, pick the dominant one.
 - For NON-horror trivia (cool science, surprising history, animal behavior without
-  death/parasite framing), use clusters like "science-curio", "animal-behavior",
-  "history-detail", "math-trivia", "physics-trivia" — these MATTER for diversity tracking.
+  death/parasite framing), use a SPECIFIC sub-theme such as "marine-life",
+  "insect-behavior", "bird-intelligence", "timeline-overlap", "inventions",
+  "food-science", "weather", "math-trivia". Never use the broad rotation names
+  "animal-behavior", "history-detail" or "science-curio": the category rotation
+  already balances those.
 
 Content:
 \"\"\"{text}\"\"\""""
@@ -467,6 +474,7 @@ def check_cluster_overlap(
 
     cand_set = {c.lower().strip() for c in candidate_clusters if c}
     cand_set -= _GENERIC_CLUSTER_STOPLIST
+    cand_set -= _ROTATION_CATEGORY_CLUSTER_TAGS
     if not cand_set:
         return ClusterOverlapResult(is_dupe=False)
 
@@ -483,6 +491,7 @@ def check_cluster_overlap(
                 continue
         past_set = {c.lower().strip() for c in past_item.cluster_tags if c}
         past_set -= _GENERIC_CLUSTER_STOPLIST
+        past_set -= _ROTATION_CATEGORY_CLUSTER_TAGS
         overlap = cand_set & past_set
         if overlap:
             matched = sorted(overlap)[0]
@@ -578,51 +587,58 @@ SHORTS_CONTENT_CATEGORIES: list[dict[str, str]] = [
     },
     {
         "key": "science_curio",
-        "name": "Science Curiosity (non-horror)",
+        "name": "Science Curiosity (Earth, plants, food, everyday objects)",
         "description": (
-            "Surprising science facts WITHOUT death, parasites, or body horror. "
-            "Examples: 'Octopuses have 9 brains', 'Honey never spoils', 'Bananas "
-            "are slightly radioactive', 'Hot water freezes faster than cold "
-            "sometimes'. Wonder, not dread."
+            "Surprising facts about Earth, weather, plants, food, materials and "
+            "everyday objects, WITHOUT death, parasites, or body horror. NOT space "
+            "or astronomy, and NOT the human body or health: both underperform on "
+            "this channel. Examples: 'Clouds can weigh over a million pounds', "
+            "'Honey never spoils', 'Bananas are slightly radioactive', 'Hot water "
+            "can freeze faster than cold'. Wonder, not dread."
         ),
     },
     {
         "key": "history_detail",
-        "name": "Surprising History Detail",
+        "name": "Weird True History",
         "description": (
-            "Specific historical fact that flips a default belief, with NO horror "
-            "framing. Examples: 'Cleopatra lived closer to the moon landing than to "
-            "the pyramids', 'Oxford is older than the Aztec Empire', 'The Eiffel "
-            "Tower grows 6 inches in summer'."
+            "A specific, surprising true story about real people, jobs, daily life, "
+            "inventions or events from the past, with NO horror framing. Name a "
+            "person, place or object people recognize, then give the detail nobody "
+            "knows. Examples: 'The Mona Lisa had eyebrows until a restorer erased "
+            "them', 'Orville Wright lived to see the sound barrier broken', 'The "
+            "only person born in the 1700s ever caught on camera'. Never use 'X was "
+            "alive or existed when Y happened' timeline comparisons: every one died here."
         ),
     },
     {
         "key": "animal_behavior",
         "name": "Animal Behavior (non-parasite, non-death)",
         "description": (
-            "Cool animal facts about behavior, intelligence, adaptation — but "
-            "NOT involving parasitism, death, or body horror. Examples: 'Otters "
-            "hold hands while sleeping', 'Crows hold grudges and remember faces', "
-            "'Octopuses can taste through their suckers'."
+            "Cool animal facts about behavior, intelligence and adaptation, NOT "
+            "involving parasitism, death, or body horror. This is the channel's "
+            "best category. Rotate across animal groups (mammals, birds, insects, "
+            "ocean life, reptiles) and behaviors (memory and grudges, communication, "
+            "tool use, hunting tricks, teamwork, parenting, defenses, navigation). "
+            "Examples: 'Octopuses punch fish out of spite', 'Wasps remember human "
+            "faces', 'Crows hold grudges for years', 'Otters hold hands while sleeping'."
         ),
     },
 ]
 
 
-# Weighted rotation schedule (2026-06-12). The 4 categories are NOT equal: the
-# three "winner" categories (animals, history, science) consistently land
-# 500-1,150 views, while horror/body-shock both underperforms and risks
-# per-video suppression. So the cycle gives each winner 2 slots and horror 1
-# (horror ~14% vs the old 25%). Edit this list to re-weight; it references
-# category keys defined in SHORTS_CONTENT_CATEGORIES above.
+# Weighted rotation schedule (2026-10-21). Median views per short, Jun 13 to
+# Oct 14: animals 896, history 791, science 750, horror 714. So animals get 3
+# of every 7 slots, history and science 2 each, and horror is out of rotation.
+# Edit this list to re-weight; it references category keys defined in
+# SHORTS_CONTENT_CATEGORIES above.
 _SHORTS_CATEGORY_ROTATION: list[str] = [
     "animal_behavior",
     "history_detail",
-    "science_curio",
     "animal_behavior",
-    "history_detail",
     "science_curio",
-    "horror_fact",
+    "history_detail",
+    "animal_behavior",
+    "science_curio",
 ]
 
 _SHORTS_CATEGORIES_BY_KEY = {c["key"]: c for c in SHORTS_CONTENT_CATEGORIES}
@@ -632,8 +648,8 @@ def pick_current_category(total_published: int) -> dict[str, str]:
     """Return the category dict for the current short based on rotation count.
 
     Deterministic weighted rotation: walks _SHORTS_CATEGORY_ROTATION by
-    total_published modulo its length. The winners (animals/history/science)
-    appear twice as often as horror — ~29% each vs ~14% horror.
+    total_published modulo its length. Animals take 3 of every 7 runs,
+    history and science 2 each.
     """
     if not _SHORTS_CATEGORY_ROTATION or not SHORTS_CONTENT_CATEGORIES:
         return {"key": "general", "name": "General", "description": ""}

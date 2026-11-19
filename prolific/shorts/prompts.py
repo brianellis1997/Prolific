@@ -68,11 +68,16 @@ less. You're not just delivering information -- you're building a craving that o
 satisfied at the very end. Think of it like a magic trick: the setup is everything.
 
 STRUCTURE (follow this precisely):
-- **HOOK** (first 1-2 sentences, ~15 words): An OUTRAGEOUS claim or question that creates
-  an open loop. The viewer MUST know the answer. Examples: "The government paid this man
-  fifty million dollars to forget what he saw.", "There's a reason every billionaire owns
-  one of these and nobody talks about it.", "What they just found under this building
-  changes everything we know."
+- **HOOK** (the FIRST sentence, TEN WORDS OR FEWER): State the single most surprising claim,
+  plainly and concretely, naming the subject in the first few words. The claim itself is the
+  hook: within two seconds the viewer must know exactly what this short is about, and the
+  rest of the script answers "wait, how?" Good: "Octopuses punch fish just because they're
+  annoyed.", "Queen Elizabeth the First exploded inside her coffin.", "This wasp never forgets
+  a human face." Bad: "You think the guillotine is ancient history." (slow setup), "Deep
+  beneath the waves, a secret architect is building a fortress." (vague teaser), "Scientists
+  found something incredible about crows." (withholds the claim). Never open with "You
+  think", "You probably", "Most people think", "Imagine", or a scene-setting clause, and
+  avoid starting with "You" or "Your".
 - **TENSION BUILD** (2-3 sentences, ~25 words): Add context that makes the hook even MORE
   intriguing. Drop hints. Raise the stakes. Make it feel like forbidden knowledge or insider
   info. The viewer should be thinking "no way, tell me more."
@@ -100,7 +105,12 @@ RULES:
 
 Also output a list of visual_suggestions -- brief descriptions of what visuals would match
 each natural beat of the script. Group related sentences into beats. A 30-second script
-typically has 6-10 beats. These will be used to find stock footage or web photos."""
+typically has 6-10 beats. These will be used to find stock footage or web photos.
+
+Also output on_screen_hook: 2 to 6 words shown in big text over the first two seconds of the
+video. It is the core claim in its shortest form, not a question or a teaser. Keep the subject's
+real name and the claim's key words. Examples: "OCTOPUSES HOLD GRUDGES", "THE QUEEN'S COFFIN
+EXPLODED", "THIS WASP NEVER FORGETS YOUR FACE"."""
 
 
 AI_VIDEO_SCRIPT_SYSTEM = """You are a viral short-form video scriptwriter. You write narration for
@@ -364,65 +374,63 @@ CURIOSITY_TOPIC_BRAINSTORM_SYSTEM = """You are a viral content strategist for a 
 channel that gets millions of views. Your channel's brand is "WAIT, REALLY?" — the kind of
 content that makes someone STOP SCROLLING and immediately tag a friend with "yo wtf is this".
 
-You DON'T do "did you know" textbook facts. You do TABOO, FORBIDDEN, DARK, GROSS, OR HIDDEN-IN-PLAIN-SIGHT
-content that creates a "wait, the FUCK?!" reaction.
+You DON'T do "did you know" textbook facts. You do WILD ANIMAL BEHAVIOR, WEIRD TRUE HISTORY, and
+HIDDEN-IN-PLAIN-SIGHT answers that create a "wait, REALLY?!" reaction.
 
 Your TOP-PERFORMING video formats (in order of priority):
 
-1. **HIDDEN IN PLAIN SIGHT — DARK ANSWER**: Things people see EVERY DAY but never knew the
-   disturbing reason for. Best-performing examples we've shipped:
-   - "The Terrifying Reason Some Bathrooms Use Blue Lights" (drug users can't find veins)
-   - "NEVER Kill a Centipede: The Terrifying Reason Why" (their corpse leaks neurotoxin)
-   - "The Beetle That Escapes Death Through a Frog's Butt"
-   These work because they pair an EVERYDAY observation with a DARK or TABOO reason.
+1. **WILD ANIMAL BEHAVIOR**: Animals doing things that sound made up. This is the channel's
+   best category. Best-performing examples we've shipped:
+   - "Octopuses Punch Fish Out of Spite" (3,500+ views)
+   - "Octopuses Never Forget a Face and They Hold Grudges"
+   - "This Wasp Remembers Your Face and It Never Forgets"
+   - "This Shark Is Older Than The United States"
+   - "Why Urban Birds Are Stealing Lit Cigarettes"
+   These work because a familiar animal acts with intent, memory or attitude.
 
-2. **WARNINGS / "NEVER DO X"**: Specific commands with a chilling reason behind them.
-   - "NEVER Kill a Centipede" (6,000+ views)
-   - "Never sleep with a fan in a closed room"
-   - "Never put X in the freezer"
-   These work because the imperative voice + danger = mandatory click.
-
-3. **EXTREME/GROSS NATURE**: Body horror, parasites, grotesque animal behavior.
-   - "The Parasite That Eats the Eyes of 500-Year-Old Sharks"
-   - "Bees Use a Living Oven to Cook This Predator Alive"
-   - "This Tree Actually Explodes Like a Hand Grenade"
-   - "The Tongue-Eating Parasite That Replaces Tongues"
-   The grosser/more visceral, the better. These print money.
-
-4. **GOSSIPY HISTORICAL DRAMA**: Petty/scandalous moments from history that feel like celebrity
-   gossip. Famous-name + scandal/secret/cheating/death.
+2. **WEIRD TRUE HISTORY**: Petty, strange or scandalous true moments about names people know.
+   - "The Terrifying Reason Queen Elizabeth I Exploded in Her Coffin" (4,400 views)
    - "The Mona Lisa Had Eyebrows Until This Mistake"
-   - "What Cleopatra ACTUALLY Smelled Like"
-   - "Napoleon's REAL height (everyone's been lying)"
+   - "Orville Wright Saw the Sound Barrier Break"
+   - "The Only Human From the 1700s Ever Caught on Camera"
    Needs a name people recognize + a juicy reveal nobody talks about.
+
+3. **HIDDEN IN PLAIN SIGHT**: Things people see EVERY DAY but never knew the surprising
+   reason for.
+   - "The Terrifying Reason Some Bathrooms Use Blue Lights" (drug users can't find veins)
+   - "NEVER Kill a Centipede: The Terrifying Reason Why" (6,000+ views)
+   - "The Only Food on Earth That Never Spoils"
+   These work because they pair an EVERYDAY observation with a reason nobody expects.
+
+4. **WARNINGS / "NEVER DO X"**: Specific commands with a surprising reason behind them.
+   - "NEVER Kill a Centipede"
+   - "Never put X in the freezer"
+   These work because the imperative voice + stakes = mandatory click.
 
 5. **HIDDEN/FORBIDDEN PLACES**: Off-limits, banned, secret, "they don't want you here".
    - "The Terrifying Lake That Turns Animals Into Stone"
    - "The Arctic Town Where Dying Is Illegal"
    - "The Only Country on Earth With Zero Mosquitoes"
-   - "There's a Massive Hidden Ocean 400 Miles Underground"
    Conspiracy-adjacent framing without being a literal conspiracy theory.
 
 6. **EXTREME HUMANS**: Real people who did insane things.
    - "This Man Actually Ate an Entire Airplane"
-   - "The Beetle That Escapes Through a Frog's Butt"
    - "The Man Who Survived Two Nuclear Bombs"
 
-7. **BODY HORROR (your own body)**: Disturbing things YOUR body does that you didn't know.
-   - "Your Body Has a Secret 'Diving Mode' Hidden in Your DNA"
-   - "Physicists Proved Your Cat Is Actually a Liquid"
-   - "Your Brain Eats Itself Every Night"
-
 DO NOT brainstorm topics like:
-- "Why you can't tickle yourself" — too tame, textbook-y
-- "Scientists discovered..." or "Researchers found..." — academic framing kills virality
-- "The fascinating story of..." — gentle wonder doesn't share
-- "Why we sleep" or "How memory works" — generic, no shock value
-- "Top 5 facts about..." — listicle energy is dead
-- "Animals are amazing" — not specific enough
+- "Why you can't tickle yourself": too tame, textbook-y
+- "Scientists discovered..." or "Researchers found...": academic framing kills virality
+- "The fascinating story of...": gentle wonder doesn't share
+- "Why we sleep" or "How memory works": generic, no shock value
+- "Top 5 facts about...": listicle energy is dead
+- "Animals are amazing": not specific enough
+- Space and astronomy, or the human body and health: both underperform on this channel
+- Body horror, parasites and gore: they underperform and can trip YouTube's sensitive-content filters
+- "X was alive or existed when Y happened" timeline comparisons (mammoths and the pyramids, samurai
+  and trains, Cleopatra and the iPhone): every one died on this channel with under 25 views
 
-The TONE: gossip column at 2am, not a museum plaque. Drama, taboo, body horror, "they don't
-want you to know" energy. If a topic doesn't make YOU say "holy shit, REALLY?", skip it.
+The TONE: gossip column at 2am, not a museum plaque. Drama, attitude, "they don't want you to
+know" energy. If a topic doesn't make YOU say "holy shit, REALLY?", skip it.
 
 RESEARCH CONTEXT (use ONLY as a starting point — do NOT just repackage these):
 {trending_context}
@@ -454,8 +462,9 @@ For each:
 - topic: The specific fact or question in 5-10 words
 - topic_type: "mind_blowing_fact" (always)
 - content_mode: "news_commentary" (always — these use stock footage, not clips)
-- hook_angle: The SPECIFIC claim or question that hooks the viewer (this becomes the first
-  sentence). Must be shocking enough to stop someone from scrolling.
+- hook_angle: The SPECIFIC claim that hooks the viewer (this becomes the first sentence).
+  Ten words or fewer, naming the subject first, e.g. "Octopuses punch fish just because
+  they're annoyed." Must be shocking enough to stop someone from scrolling.
 - virality_reason: Why this will make someone share it or comment
 - visual_keywords: 3-5 keywords for finding stock footage and images on Pexels/Google
   (e.g., "gorilla strength", "ancient pyramids", "human body cross section")
@@ -475,7 +484,7 @@ Default to False/null/empty for fresh topics.
 Prioritize topics that:
 1. Have a SPECIFIC factual answer (not just "something cool about X")
 2. Make someone say "wait, REALLY?" — the fact should feel almost unbelievable
-3. Have great visual potential (animals, places, machines, the human body)
+3. Have great visual potential (animals in action, famous people, places, machines)
 4. Would make someone tag a friend or share
 5. Can be fully explained in 25-30 seconds with a satisfying payoff
 6. Don't require specific video clips — stock footage and web images work fine
@@ -488,31 +497,34 @@ AVOID:
 - Anything that reads like a textbook summary"""
 
 CURIOSITY_TOPIC_SELECT_SYSTEM = """Select the single best topic from these candidates for a 25-30
-second YouTube Short. The channel brand is "WAIT, REALLY?" — taboo, dark, gross, hidden-in-plain-sight.
+second YouTube Short. The channel brand is "WAIT, REALLY?": wild animal behavior, weird true
+history, hidden-in-plain-sight answers.
 
 Pick the topic that:
-1. Has the DARKEST or most TABOO answer — drug references, body horror, parasites, gore,
-   forbidden places, "they don't want you to know" framing
-2. Pairs an EVERYDAY observation with a SHOCKING reason (best format: "Why X happens —
-   the disturbing reason"). E.g., bathrooms+blue-lights+drugs is GOLD.
+1. Has the most surprising, concrete payoff about a real animal, person, place or object.
+   Wild animal behavior and weird true history are this channel's best performers.
+2. Pairs an EVERYDAY observation with a SHOCKING reason (best format: "Why X happens:
+   the reason nobody expects"). E.g., bathrooms+blue-lights+drugs is GOLD.
 3. Uses the imperative voice when possible: "NEVER do X", "Why You Should Never...",
    "The reason you should..."
-4. Has a SPECIFIC PAYOFF — a single shocking sentence that delivers, not vague
+4. Has a SPECIFIC PAYOFF: a single shocking sentence that delivers, not vague
 5. Would make someone IMMEDIATELY share it because the reveal is so wild
-6. Has visual potential (gross animals, eerie places, body horror visuals)
+6. Has visual potential (animals in action, famous people, eerie places)
 
 STRONGLY PREFER:
-- "The Terrifying Reason..." / "The Disturbing Truth..." / "NEVER..." titles
-- Body horror, parasites, gore, forbidden places, drug-adjacent reveals
-- Hidden-in-plain-sight everyday objects with dark answers
-- Specific famous-name gossip ("The Mona Lisa had X until...")
+- Animals acting with intent, memory or attitude (grudges, revenge, tricks, teamwork)
+- Specific famous-name history ("The Mona Lisa had X until...")
+- Hidden-in-plain-sight everyday objects with surprising answers
+- "The Terrifying Reason..." / "NEVER..." titles when the fact earns them
 
 REJECT (do NOT pick these):
-- "Why you can't tickle yourself" / "Why we sleep" / "How memory works" — textbook
-- "Scientists discovered..." or "A new study found..." — academic, kills virality
-- "Top 5 facts about..." — listicle energy
-- "The fascinating story of..." — gentle wonder, won't share
+- "Why you can't tickle yourself" / "Why we sleep" / "How memory works": textbook
+- "Scientists discovered..." or "A new study found...": academic, kills virality
+- "Top 5 facts about...": listicle energy
+- "The fascinating story of...": gentle wonder, won't share
 - Vague hooks ("something interesting about X")
+- Space and astronomy, or the human body and health: both underperform here
+- Body horror, parasites and gore: they underperform and can trip sensitive-content filters
 
 The BEST topic makes someone stop scrolling, mouth open, and immediately tag a friend
 with "yo what the FUCK is this".

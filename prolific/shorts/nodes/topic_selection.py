@@ -361,7 +361,13 @@ async def topic_selection_node(state: ShortsPipelineState) -> dict:
     normalized_past.discard("")
 
     trending_context, source_urls = await _get_trending_context(niche)
-    performance_context = await _get_shorts_performance_context()
+    scoreboard = ""
+    try:
+        from prolific.shorts.services.scoreboard import build_scoreboard
+        scoreboard = await build_scoreboard()
+    except Exception as exc:
+        logger.warning(f"Scoreboard failed (non-fatal): {exc}")
+    performance_context = scoreboard or await _get_shorts_performance_context()
 
     # Category cycling — deterministic rotation through content categories so
     # we can't ship a run of all-horror videos again. Position based on total
@@ -564,14 +570,17 @@ async def topic_selection_node(state: ShortsPipelineState) -> dict:
     # Hard-block any candidate whose canonical entities overlap a past short's
     # entities within shorts_continuation_cooldown_days (default 14d). Catches
     # LLM-rephrased entity-rename evasion that the cosine gate misses.
-    if settings.topic_dedup_enabled and settings.topic_dedup_entity_gate_enabled and past_records:
-        entity_filtered: list[ShortTopicCandidate] = []
-        for c in accepted:
+    entity_gate_on = bool(settings.topic_dedup_enabled and settings.topic_dedup_entity_gate_enabled and past_records)
+
+    async def _entity_gate(cands: list[ShortTopicCandidate]) -> tuple[list[ShortTopicCandidate], list[str]]:
+        kept: list[ShortTopicCandidate] = []
+        notes: list[str] = []
+        for c in cands:
             try:
                 cand_entities = await entity_extraction(f"{c.topic} | {c.hook_angle}")
             except Exception as exc:
                 logger.warning("Entity extraction failed for short '%s': %s — failing open", c.topic[:60], exc)
-                entity_filtered.append(c)
+                kept.append(c)
                 continue
             overlap = check_entity_overlap(
                 candidate_entities=cand_entities,
@@ -583,28 +592,28 @@ async def topic_selection_node(state: ShortsPipelineState) -> dict:
                     "DEDUP entity-gate REJECTED short '%s' — entities=%s, %s",
                     c.topic[:60], cand_entities, overlap.reject_reason,
                 )
+                notes.append(f"- '{c.topic}' reuses a recent subject: {overlap.reject_reason}")
                 continue
-            entity_filtered.append(c)
-
-        if entity_filtered:
-            accepted = entity_filtered
-        else:
-            logger.warning("Entity gate rejected ALL short candidates — keeping cosine-accepted set to avoid stall")
+            kept.append(c)
+        return kept, notes
 
     # ---- CLUSTER GATE ----
     # Block candidates whose thematic cluster overlaps a recent past video within
-    # shorts_cluster_cooldown_days (default 7d). Structural fix for the 5/18
+    # shorts_cluster_cooldown_days (default 3d). Structural fix for the 5/18
     # Shorts feed throttle event — entity gate let 6 different parasites through
     # in 5 days because each had a distinct entity but they all clustered as
     # "parasites".
-    if settings.shorts_cluster_gate_enabled and past_records:
-        cluster_filtered: list[ShortTopicCandidate] = []
-        for c in accepted:
+    cluster_gate_on = bool(settings.shorts_cluster_gate_enabled and past_records)
+
+    async def _cluster_gate(cands: list[ShortTopicCandidate]) -> tuple[list[ShortTopicCandidate], list[str]]:
+        kept: list[ShortTopicCandidate] = []
+        notes: list[str] = []
+        for c in cands:
             try:
                 cand_clusters = await cluster_extraction(f"{c.topic} | {c.hook_angle}")
             except Exception as exc:
                 logger.warning("Cluster extraction failed for short '%s': %s — failing open", c.topic[:60], exc)
-                cluster_filtered.append(c)
+                kept.append(c)
                 continue
             overlap = check_cluster_overlap(
                 candidate_clusters=cand_clusters,
@@ -616,13 +625,48 @@ async def topic_selection_node(state: ShortsPipelineState) -> dict:
                     "DEDUP cluster-gate REJECTED short '%s' — clusters=%s, %s",
                     c.topic[:60], cand_clusters, overlap.reject_reason,
                 )
+                notes.append(f"- '{c.topic}' repeats a recent theme: {overlap.reject_reason}")
                 continue
-            cluster_filtered.append(c)
+            kept.append(c)
+        return kept, notes
 
-        if cluster_filtered:
-            accepted = cluster_filtered
+    async def _post_gates(cands: list[ShortTopicCandidate]) -> tuple[list[ShortTopicCandidate], list[str], bool]:
+        notes: list[str] = []
+        stalled = False
+        if entity_gate_on:
+            kept, entity_notes = await _entity_gate(cands)
+            notes += entity_notes
+            if kept:
+                cands = kept
+            else:
+                stalled = True
+                logger.warning("Entity gate rejected ALL short candidates — keeping cosine-accepted set to avoid stall")
+        if cluster_gate_on:
+            kept, cluster_notes = await _cluster_gate(cands)
+            notes += cluster_notes
+            if kept:
+                cands = kept
+            else:
+                stalled = True
+                logger.warning("Cluster gate rejected ALL short candidates — keeping entity-accepted set to avoid stall")
+        return cands, notes, stalled
+
+    accepted, gate_notes, gates_stalled = await _post_gates(accepted)
+    if gates_stalled and gate_notes:
+        logger.info("GATE retry: every candidate reused a recent subject or theme, re-brainstorming with feedback")
+        retry_candidates = await _brainstorm(extra_feedback="\n".join(gate_notes[:12]))
+        if retry_candidates and settings.topic_dedup_enabled:
+            retry_accepted, _ = await _run_dedup_gate(retry_candidates, past_records, normalized_past)
         else:
-            logger.warning("Cluster gate rejected ALL short candidates — keeping entity-accepted set to avoid stall")
+            retry_accepted = retry_candidates
+        if retry_accepted:
+            retry_kept, _, retry_stalled = await _post_gates(retry_accepted)
+            if not retry_stalled:
+                accepted = retry_kept
+                candidates = candidates + retry_candidates
+                logger.info(f"GATE retry succeeded: {len(accepted)} fresh candidates")
+            else:
+                logger.warning("GATE retry still stalled, keeping the first fallback set")
 
     # ---- OPENER VARIANCE GATE ----
     # Reject candidates whose 2-word leading stem (article-stripped) already
@@ -660,7 +704,11 @@ async def topic_selection_node(state: ShortsPipelineState) -> dict:
     selection_result = await llm_service.invoke_with_structured_output(
         messages=[
             SystemMessage(content=select_prompt),
-            HumanMessage(content=f"Candidates:\n{candidates_str}\n\nSelect the best one."),
+            HumanMessage(content=(
+                f"Candidates:\n{candidates_str}\n\n"
+                + (f"{scoreboard}\n\nPrefer the candidate most like WHAT IS WORKING and least like WHAT IS DEAD.\n\n" if scoreboard else "")
+                + "Select the best one."
+            )),
         ],
         output_schema=ShortTopicSelection,
         tier="research",

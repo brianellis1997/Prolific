@@ -51,7 +51,7 @@ WORD-LEVEL TIMESTAMPS (every word with start/end time in seconds):
 {timestamps}
 
 YOUR TASK: Create a shot list where each shot:
-1. Covers a COMPLETE sentence or thought — NEVER cut mid-sentence
+1. Covers one phrase or clause: cut at commas, clause breaks or sentence ends, never mid-phrase
 2. Has start_time/end_time matching EXACTLY when those words are spoken
 3. Has a search_query (4-6 words) that will find stock footage of EXACTLY what's being discussed
 4. Flows visually from the previous shot (similar setting, related subject, smooth transition)
@@ -71,6 +71,13 @@ If the narration says "the ammonia in urine breaks down stains":
 If the narration says "this practice spread across the Roman Empire":
   GOOD: "ancient Roman Empire ruins columns"
   BAD: "world map generic"
+
+=== SUBJECT FOCUS ===
+
+At least half of the shots must show the MAIN SUBJECT of the short itself (the animal, object, person
+or place the short is about), from different angles, distances and moments. When the narration is
+abstract ("strategy", "code", "pressure", "a crisis"), show the subject again from a new angle. Never
+show a metaphor, an office prop or a random person for an abstract word.
 
 EVERY search_query must:
 - Include the SPECIFIC subject being discussed (species name, historical era, specific object)
@@ -113,19 +120,81 @@ Choose asset_type per shot:
 
 - Each shot's start_time = start of the first word spoken during this shot
 - Each shot's end_time = end of the last word spoken during this shot
-- MINIMUM 3.0 seconds per shot — if a sentence is under 3s, combine with adjacent
-- MAXIMUM ~8.0 seconds per shot — split longer segments at natural pauses
-- Aim for 5-7 shots for a 30-second short
+- Shots run 1.5 to 3.5 seconds. Aim for about 2.5 seconds: a new shot every 2-3 seconds
+  keeps viewers watching.
+- If a phrase runs longer than 3.5 seconds, split it into two shots at a word boundary and
+  show a different angle or a closer detail of the same subject in the second shot.
+- Aim for 10-16 shots for a 30-40 second short
 - First shot should be the most visually striking (pattern interrupt)
 - Vary ken_burns_direction across shots: zoom_in, zoom_out, pan_left, pan_right
 
-=== FIRST 3 SECONDS ===
+=== FIRST 2 SECONDS ===
 
-The first shot must STOP THE SCROLL. Pick the most visually arresting search query possible
-for what's being said in the opening line. If the hook mentions something shocking or gross,
-lean into it visually.
+The first shot is at most 2.5 seconds long and must STOP THE SCROLL. It shows the SUBJECT of
+the opening line itself (the animal, person, object or place it names), in action or in
+close-up. Never open on a generic establishing shot (a train, a skyline, a landscape) unless
+that is literally the subject.
 
 Return ONLY the shot list. Every shot must have all fields filled."""
+
+
+MAX_SHOT_SECONDS = 3.6
+FIRST_SHOT_MAX_SECONDS = 2.6
+MIN_SHOT_SECONDS = 1.2
+
+
+def pace_shots(
+    shots: list[ClipShot],
+    word_starts: list[float],
+    audio_duration: float,
+    max_len: float = MAX_SHOT_SECONDS,
+    first_max_len: float = FIRST_SHOT_MAX_SECONDS,
+    min_len: float = MIN_SHOT_SECONDS,
+) -> list[ClipShot]:
+    shots = sorted(shots, key=lambda s: s.start_time)
+    if not shots:
+        return []
+    timeline_end = audio_duration + 0.3
+    shots[0].start_time = 0.0
+    for i, shot in enumerate(shots):
+        shot.start_time = max(0.0, shot.start_time)
+        next_start = shots[i + 1].start_time if i + 1 < len(shots) else timeline_end
+        shot.end_time = max(shot.start_time, next_start)
+    shots = [s for s in shots if s.end_time - s.start_time > 0.05]
+
+    merged: list[ClipShot] = []
+    for shot in shots:
+        if merged and shot.end_time - shot.start_time < min_len:
+            merged[-1].end_time = shot.end_time
+        else:
+            merged.append(shot)
+    if len(merged) >= 2 and merged[0].end_time - merged[0].start_time < min_len:
+        merged[1].start_time = 0.0
+        merged.pop(0)
+
+    paced: list[ClipShot] = []
+    queue = list(merged)
+    while queue:
+        shot = queue.pop(0)
+        length = shot.end_time - shot.start_time
+        limit = first_max_len if shot.start_time == 0.0 else max_len
+        if shot.asset_type != "stock_clip" or length <= limit:
+            paced.append(shot)
+            continue
+        midpoint = shot.start_time + length / 2
+        cuts = [t for t in word_starts if shot.start_time + min_len <= t <= shot.end_time - min_len]
+        if not cuts:
+            paced.append(shot)
+            continue
+        cut = min(cuts, key=lambda t: abs(t - midpoint))
+        queue[0:0] = [
+            shot.model_copy(update={"end_time": cut}),
+            shot.model_copy(update={"start_time": cut, "narration_text": ""}),
+        ]
+
+    for i, shot in enumerate(paced, 1):
+        shot.sequence_number = i
+    return paced
 
 
 def _format_timestamps(caption_segments: list) -> str:
@@ -190,32 +259,21 @@ async def clip_director_node(state: ShortsPipelineState) -> dict:
     if not shots:
         return {"errors": ["Clip director produced no shots"], "current_phase": "failed"}
 
-    for shot in shots:
-        shot.start_time = max(0.0, shot.start_time)
-        shot.end_time = min(audio_duration + 0.5, shot.end_time)
-        if shot.end_time <= shot.start_time:
-            shot.end_time = shot.start_time + 3.0
-
-    if shots:
-        for i in range(len(shots) - 1):
-            next_start = shots[i + 1].start_time
-            if next_start > shots[i].end_time:
-                gap = next_start - shots[i].end_time
-                shots[i].end_time = next_start
-                if gap > 0.5:
-                    logger.info(f"  Shot {shots[i].sequence_number}: extended {gap:.1f}s to fill gap")
-
-        last = shots[-1]
-        if last.end_time < audio_duration:
-            last.end_time = audio_duration + 0.3
-            logger.info(f"Extended last shot to {last.end_time:.1f}s")
+    planned_count = len(shots)
+    shots = pace_shots(shots, [seg.start_time for seg in caption_segments], audio_duration)
+    if not shots:
+        return {"errors": ["Clip director produced no usable shots"], "current_phase": "failed"}
+    lengths = [s.end_time - s.start_time for s in shots]
+    logger.info(
+        f"Paced {planned_count} planned shots into {len(shots)}: "
+        f"avg {sum(lengths) / len(lengths):.1f}s, max {max(lengths):.1f}s, first {lengths[0]:.1f}s"
+    )
 
     kb_directions = ["zoom_in", "zoom_out", "pan_left", "pan_right"]
 
     visual_assets = []
     for i, shot in enumerate(shots):
-        duration = round(shot.end_time - shot.start_time, 1)
-        duration = max(2.5, duration)
+        duration = round(shot.end_time - shot.start_time, 3)
 
         if not shot.ken_burns_direction or shot.ken_burns_direction not in kb_directions:
             shot.ken_burns_direction = kb_directions[i % len(kb_directions)]

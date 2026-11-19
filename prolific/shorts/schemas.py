@@ -40,6 +40,7 @@ class ShortScript(BaseModel):
     full_text: str = ""
     word_count: int = 0
     visual_suggestions: list[str] = Field(default_factory=list)
+    on_screen_hook: str = ""
 
     class Config:
         frozen = False
@@ -80,6 +81,7 @@ class VisualAsset(BaseModel):
     width: int = 1080
     height: int = 1920
     duration_seconds: float = 2.5
+    credit: str = ""
     ken_burns_direction: str = "zoom_in"
     script_text: str = ""
 

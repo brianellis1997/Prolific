@@ -2,6 +2,7 @@
 
 import asyncio
 import logging
+import re
 import shutil
 from pathlib import Path
 
@@ -9,7 +10,7 @@ from langchain_core.messages import AIMessage
 
 from prolific.core.config import settings
 from prolific.services.video import VideoAssemblyService
-from prolific.shorts.services.caption import get_caption_service
+from prolific.shorts.services.caption import get_caption_service, hook_display_end
 from prolific.shorts.state import ShortsPipelineState
 
 logger = logging.getLogger(__name__)
@@ -173,8 +174,48 @@ def _find_best_match(words_with_times: list, segment_words: list, start_from: in
     return start_from if start_from < len(words_with_times) else -1
 
 
-MAX_IMAGE_DURATION = 4.0
+MAX_IMAGE_DURATION = 3.6
 KB_DIRECTIONS = ["zoom_in", "zoom_out", "pan_left", "pan_right"]
+CROSSFADE_SECONDS = 0.15
+
+
+def planned_clip_seconds(durations: list[float], crossfade: float = CROSSFADE_SECONDS, tail: float = 0.5) -> list[float]:
+    if not durations:
+        return []
+    return [d + crossfade for d in durations[:-1]] + [durations[-1] + tail]
+
+
+def motion_filter(seconds: float, direction: str | None, strength: float = 0.08) -> str:
+    if direction not in ("in", "out"):
+        return ""
+    progress = f"min(t/{max(seconds, 0.1):.3f}\\,1)"
+    factor = f"(1+{strength}*{progress})" if direction == "in" else f"(1+{strength}*(1-{progress}))"
+    return (
+        f",scale=w='trunc(1080*{factor}/2)*2':h='trunc(1920*{factor}/2)*2':eval=frame,"
+        "crop=1080:1920"
+    )
+
+
+async def _fit_clip_duration(input_path: str, output_path: str, seconds: float, motion: str | None = None) -> str:
+    ffmpeg_bin = shutil.which("ffmpeg")
+    if not ffmpeg_bin:
+        return input_path
+    cmd = [
+        ffmpeg_bin, "-i", input_path,
+        "-vf", f"tpad=stop_mode=clone:stop_duration={seconds:.3f}" + motion_filter(seconds, motion),
+        "-t", f"{seconds:.3f}",
+        "-r", "30",
+        "-c:v", "libx264", "-preset", "veryfast", "-crf", "20",
+        "-pix_fmt", "yuv420p", "-an", "-y", output_path,
+    ]
+    proc = await asyncio.create_subprocess_exec(
+        *cmd, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE,
+    )
+    _, stderr = await proc.communicate()
+    if proc.returncode != 0:
+        logger.warning(f"Clip fit failed, using untrimmed clip: {stderr.decode()[-200:]}")
+        return input_path
+    return output_path
 
 
 def _split_long_segments(visual_assets: list) -> list:
@@ -928,6 +969,13 @@ async def video_assembly_node(state: ShortsPipelineState) -> dict:
     durations = [f"{a.duration_seconds:.1f}s" for a in visual_assets if a.file_path]
     logger.info(f"Duration budget: {audio_duration:.1f}s audio, segment durations: {durations}")
 
+    fit_targets: dict[int, float] = {}
+    if director_planned:
+        filed = [a for a in visual_assets if a.file_path]
+        targets = planned_clip_seconds([a.duration_seconds for a in filed])
+        fit_targets = {id(a): t for a, t in zip(filed, targets)}
+        logger.info(f"Fitting {len(fit_targets)} clips to planned durations (crossfade-compensated)")
+
     content_mode = state.get("content_mode", "news_commentary")
     is_compilation = content_mode == "clip_compilation"
     compilation_items = state.get("compilation_items", [])
@@ -997,13 +1045,17 @@ async def video_assembly_node(state: ShortsPipelineState) -> dict:
                                 )
                                 continue
                     clip_paths.append(asset.file_path)
+                elif asset.asset_type == "stock_clip" and id(asset) in fit_targets:
+                    fitted_path = str(output_dir / f"fit_{asset.sequence_number:03d}.mp4")
+                    motion = ("in" if len(clip_paths) % 2 == 0 else "out") if settings.shorts_clip_motion_enabled else None
+                    clip_paths.append(await _fit_clip_duration(asset.file_path, fitted_path, fit_targets[id(asset)], motion))
                 else:
                     clip_paths.append(asset.file_path)
         else:
             kb_path = str(output_dir / f"kb_{asset.sequence_number:02d}.mp4")
             await video_service.create_ken_burns_clip(
                 image_path=asset.file_path,
-                duration=asset.duration_seconds,
+                duration=fit_targets.get(id(asset), asset.duration_seconds),
                 output_path=kb_path,
                 direction=asset.ken_burns_direction,
                 width=1080,
@@ -1028,6 +1080,19 @@ async def video_assembly_node(state: ShortsPipelineState) -> dict:
         await _concat_clips(clip_paths, effective_audio, raw_video)
     else:
         effective_audio = audio_path
+        if director_planned and settings.shorts_sound_design_enabled:
+            try:
+                from prolific.shorts.services.audio_mix import mix_short_audio, payoff_time_from_script
+                planned = [a.duration_seconds for a in visual_assets if a.file_path]
+                cut_times = [sum(planned[:k]) for k in range(1, len(planned))]
+                mixed = await mix_short_audio(
+                    audio_path, str(output_dir / "mixed_audio.m4a"), seed=state["thread_id"],
+                    cut_times=cut_times, payoff_time=payoff_time_from_script(state.get("script"), caption_segments),
+                )
+                if mixed:
+                    effective_audio = mixed
+            except Exception as e:
+                logger.warning(f"Sound design skipped: {e}")
         raw_video = str(output_dir / "raw_assembled.mp4")
         if director_planned and len(clip_paths) >= 2:
             await _concat_clips_with_crossfade(clip_paths, effective_audio, raw_video)
@@ -1053,18 +1118,41 @@ async def video_assembly_node(state: ShortsPipelineState) -> dict:
         segments = caption_segments if caption_segments else await caption_service.generate_word_timestamps(caption_audio)
 
         subtitle_path = str(output_dir / "captions.ass")
-        caption_service.generate_ass_subtitles(
-            segments=segments,
-            output_path=subtitle_path,
-            video_width=1080,
-            video_height=1920,
-        )
+        fonts_dir = None
+        if director_planned and settings.shorts_dynamic_captions:
+            from prolific.shorts.services.caption import FONTS_DIR
+            credits = []
+            offset = 0.0
+            for a in visual_assets:
+                if not a.file_path:
+                    continue
+                if a.credit:
+                    credits.append((offset, offset + a.duration_seconds, f"Video: {a.credit}"))
+                offset += a.duration_seconds
+            caption_service.generate_dynamic_ass(
+                segments=segments, output_path=subtitle_path, video_width=1080, video_height=1920, credits=credits,
+            )
+            fonts_dir = str(FONTS_DIR) if FONTS_DIR.exists() else None
+        else:
+            script_obj = state.get("script")
+            hook_text = (getattr(script_obj, "on_screen_hook", "") or "") if director_planned else ""
+            opening_words = len(re.split(r"(?<=[.!?])\s+", (getattr(script_obj, "full_text", "") or "").strip(), maxsplit=1)[0].split())
+            caption_service.generate_ass_subtitles(
+                segments=segments,
+                output_path=subtitle_path,
+                video_width=1080,
+                video_height=1920,
+                hook_text=hook_text,
+                hook_end=hook_display_end(segments, opening_words) if hook_text else 0.0,
+            )
+            if hook_text:
+                logger.info(f"On-screen hook: '{hook_text}' for 0-{hook_display_end(segments, opening_words):.1f}s")
 
         srt_path = str(output_dir / "captions.srt")
         caption_service.generate_srt_subtitles(segments=segments, output_path=srt_path)
 
         final_video = str(output_dir / "final_short.mp4")
-        await caption_service.burn_captions(raw_video, subtitle_path, final_video)
+        await caption_service.burn_captions(raw_video, subtitle_path, final_video, fonts_dir=fonts_dir)
 
         Path(raw_video).unlink(missing_ok=True)
         logger.info(f"Final video with captions: {final_video}")

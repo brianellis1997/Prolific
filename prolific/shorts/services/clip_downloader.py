@@ -17,10 +17,50 @@ class ClipDownloader:
         if not self.yt_dlp:
             raise RuntimeError("yt-dlp not found. Install with: pip install yt-dlp")
 
+    def _proxy_args(self) -> list[str]:
+        proxy = getattr(settings, "ytdlp_proxy", "") or ""
+        return ["--proxy", proxy] if proxy else []
+
+    async def download_source(
+        self,
+        url: str,
+        output_dir: str,
+        filename: str,
+        max_height: int = 720,
+        max_seconds: int = 300,
+        timeout: int = 120,
+    ) -> str | None:
+        out_dir = Path(output_dir)
+        out_dir.mkdir(parents=True, exist_ok=True)
+        template = str(out_dir / f"{filename}_src.%(ext)s")
+        cmd = [
+            self.yt_dlp, *self._proxy_args(),
+            "-f", f"bv*[height<={max_height}][ext=mp4]/bv*[height<={max_height}]/b[height<={max_height}]",
+            "--no-playlist", "--no-warnings", "--max-filesize", "80M",
+            "--match-filter", f"duration<{max_seconds}",
+            "-o", template, url,
+        ]
+        try:
+            proc = await asyncio.create_subprocess_exec(
+                *cmd, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE,
+            )
+            _, stderr = await asyncio.wait_for(proc.communicate(), timeout=timeout)
+        except asyncio.TimeoutError:
+            logger.warning(f"yt-dlp source download timed out for {url}")
+            return None
+        files = sorted(out_dir.glob(f"{filename}_src.*"))
+        if proc.returncode != 0 or not files:
+            logger.warning(f"yt-dlp source download failed for {url}: {stderr.decode()[-300:]}")
+            return None
+        size_mb = files[0].stat().st_size / 1_000_000
+        logger.info(f"Downloaded source {url} ({size_mb:.1f} MB)")
+        return str(files[0])
+
     async def get_clip_info(self, url: str) -> dict | None:
         """Get clip metadata without downloading."""
         cmd = [
             self.yt_dlp,
+            *self._proxy_args(),
             "--dump-json",
             "--no-download",
             "--no-warnings",
@@ -103,6 +143,7 @@ class ClipDownloader:
         else:
             cmd = [
                 self.yt_dlp,
+                *self._proxy_args(),
                 "-f", "bestvideo[height<=1080]+bestaudio/best[height<=1080]",
                 "--merge-output-format", "mp4",
                 "--no-playlist",

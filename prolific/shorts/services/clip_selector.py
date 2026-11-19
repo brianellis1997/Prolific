@@ -116,6 +116,10 @@ async def select_best_clip(
         f"{flow_context}\n\n"
         f"I'm showing you {len(valid_thumbs)} candidate clip thumbnails. "
         f"Pick the one that BEST matches what the narration is describing AND flows well visually.\n\n"
+        f"SUBJECT RULE: when the scene names a specific subject (an animal, a person, an object or an era), "
+        f"a clip whose main subject is something else scores 0.2 or lower, even if it matches a word in the "
+        f"narration (a snail for a shrimp's 'shell', a modern truck for a 'covered wagon'). A plain clip of the "
+        f"right subject beats a striking clip of the wrong one.\n\n"
         f"Score each clip 0.0-1.0 on relevance to the scene/narration. "
         f"Return the 1-based index of the best clip."
     )

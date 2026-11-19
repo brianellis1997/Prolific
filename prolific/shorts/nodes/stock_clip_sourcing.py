@@ -109,6 +109,7 @@ async def stock_clip_sourcing_node(state: ShortsPipelineState) -> dict:
     topic = state.get("topic", "")
     previous_thumbnail: bytes | None = None
     money_shot_attributions: list[str] = []
+    money_shot_credits: dict[int, str] = {}
 
     # Money-shot pass: pick the 1-2 payoff scenes and source the ACTUAL
     # Creative-Commons footage of the specific event (e.g. an octopus punching
@@ -133,7 +134,22 @@ async def stock_clip_sourcing_node(state: ShortsPipelineState) -> dict:
         except Exception as exc:
             logger.warning(f"Money-shot identification failed (non-fatal): {exc}")
 
+    held_shots: dict[int, VisualAsset] = {}
+    for k, seg in enumerate(stock_segments[:-1]):
+        nxt = stock_segments[k + 1]
+        if (
+            seg.sequence_number in money_shot_targets
+            and nxt.sequence_number == seg.sequence_number + 1
+            and nxt.sequence_number not in money_shot_targets
+            and seg.duration_seconds + nxt.duration_seconds <= 6.0
+        ):
+            held_shots[seg.sequence_number] = nxt
+    consumed: set[int] = set()
+
     for asset in stock_segments:
+        if asset.sequence_number in consumed:
+            logger.info(f"[{asset.sequence_number}] Held by the previous real clip")
+            continue
         output_path = str(output_dir / f"clip_{asset.sequence_number:02d}.mp4")
         clip_source = "pexels"
         result = None
@@ -145,20 +161,25 @@ async def stock_clip_sourcing_node(state: ShortsPipelineState) -> dict:
         # Try the real-footage money shot first for targeted scenes.
         if asset.sequence_number in money_shot_targets:
             try:
-                from prolific.shorts.services.money_shot import find_verified_cc_clip
+                from prolific.shorts.services.money_shot import find_verified_clip
                 ms_query, ms_desc, ms_fallback = money_shot_targets[asset.sequence_number]
-                ms = await find_verified_cc_clip(
+                held = held_shots.get(asset.sequence_number)
+                ms = await find_verified_clip(
                     event_query=ms_query, event_description=ms_desc,
                     output_dir=str(output_dir), filename=f"clip_{asset.sequence_number:02d}",
-                    duration_seconds=asset.duration_seconds,
-                    width=asset.width, height=asset.height,
+                    duration_seconds=asset.duration_seconds + (held.duration_seconds if held else 0.0),
                     fallback_query=ms_fallback,
                 )
                 if ms:
                     result = ms.file_path
-                    clip_source = "money_shot_cc"
+                    if held:
+                        asset.duration_seconds = round(asset.duration_seconds + held.duration_seconds, 3)
+                        asset.narration_end = held.narration_end
+                        consumed.add(held.sequence_number)
+                    clip_source = f"money_shot_{ms.license_kind}"
+                    money_shot_credits[asset.sequence_number] = ms.creator
                     money_shot_attributions.append(
-                        f'\n"{ms.title}" by {ms.creator} (CC BY, via YouTube)'
+                        f'\n"{ms.title}" by {ms.creator}, {ms.source_url} ({ms.license})'
                     )
                     logger.info(f"[{asset.sequence_number}] MONEY SHOT ({ms_query}): {ms.file_path}")
             except Exception as exc:
@@ -218,6 +239,7 @@ async def stock_clip_sourcing_node(state: ShortsPipelineState) -> dict:
                 narration_start=asset.narration_start,
                 narration_end=asset.narration_end,
                 script_text=asset.script_text,
+                credit=money_shot_credits.get(asset.sequence_number, ""),
             )
             updated_assets.append(updated)
             logger.info(f"[{asset.sequence_number}] Stock clip: {asset.search_query} -> {result}")

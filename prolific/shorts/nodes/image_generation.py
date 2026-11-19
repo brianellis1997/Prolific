@@ -16,6 +16,17 @@ logger = logging.getLogger(__name__)
 MAX_CONCURRENT = 3
 
 
+_WATERMARKED_HOSTS = (
+    "shutterstock", "gettyimages", "istockphoto", "alamy", "dreamstime", "depositphotos",
+    "123rf", "adobestock", "stock.adobe", "vecteezy", "canstockphoto", "bigstockphoto", "pond5",
+)
+
+
+def is_watermarked_source(url: str) -> bool:
+    lowered = (url or "").lower()
+    return any(host in lowered for host in _WATERMARKED_HOSTS)
+
+
 async def _search_web_images(query: str, max_results: int = 5) -> list[str]:
     """Search for real photos using Tavily image search."""
     try:
@@ -27,7 +38,7 @@ async def _search_web_images(query: str, max_results: int = 5) -> list[str]:
             include_images=True,
             max_results=max_results,
         )
-        image_urls = results.get("images", [])[:max_results]
+        image_urls = [u for u in results.get("images", []) if not is_watermarked_source(u)][:max_results]
         logger.info(f"Web image search '{query}': found {len(image_urls)} images")
         return image_urls
     except Exception as e:

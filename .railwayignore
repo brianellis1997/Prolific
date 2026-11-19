@@ -15,3 +15,5 @@ node_modules/
 !character_concepts/*.png
 youtube_credentials*.json
 client_secrets.json
+!prolific/shorts/media/music/*.mp3
+!prolific/shorts/media/sfx/*.mp3

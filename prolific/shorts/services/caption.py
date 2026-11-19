@@ -2,6 +2,7 @@
 
 import asyncio
 import logging
+import re
 import shutil
 from pathlib import Path
 
@@ -11,6 +12,81 @@ from prolific.core.config import settings
 from prolific.shorts.schemas import CaptionSegment
 
 logger = logging.getLogger(__name__)
+
+HOOK_FONT_SIZE = 88
+FONTS_DIR = Path(__file__).resolve().parent.parent / "media" / "fonts"
+DYN_FONT_NAME = "Poppins SemiBold"
+DYN_FONT_SIZE = 118
+DYN_MAX_CHARS = 16
+DYN_WORDS_PER_GROUP = 3
+DYN_ACTIVE_COLOUR = "&H0000E1FF&"
+DYN_GROUP_GAP_SECONDS = 0.6
+
+
+def caption_groups(segments: list[CaptionSegment], max_words: int = DYN_WORDS_PER_GROUP) -> list[list[CaptionSegment]]:
+    groups: list[list[CaptionSegment]] = []
+    current: list[CaptionSegment] = []
+    for seg in segments:
+        if not seg.word.strip():
+            continue
+        if current and seg.start_time - current[-1].end_time > DYN_GROUP_GAP_SECONDS:
+            groups.append(current)
+            current = []
+        if current and len(" ".join(s.word.strip() for s in current + [seg])) > DYN_MAX_CHARS:
+            groups.append(current)
+            current = []
+        current.append(seg)
+        if len(current) >= max_words or seg.word.strip().endswith((".", "!", "?", ",")):
+            groups.append(current)
+            current = []
+    if current:
+        groups.append(current)
+    return groups
+
+
+def _display_word(word: str) -> str:
+    cleaned = re.sub(r"[{}\\]", "", word.strip()).upper()
+    return cleaned.rstrip(".,!?;:") or cleaned
+
+
+def dynamic_caption_events(
+    segments: list[CaptionSegment],
+    to_ass_time,
+    max_words: int = DYN_WORDS_PER_GROUP,
+) -> list[str]:
+    events: list[str] = []
+    last_end = 0.0
+    groups = caption_groups(segments, max_words)
+    for g_idx, group in enumerate(groups):
+        words = [_display_word(s.word) for s in group]
+        next_group_start = groups[g_idx + 1][0].start_time if g_idx + 1 < len(groups) else None
+        for i, seg in enumerate(group):
+            start = seg.start_time
+            if i + 1 < len(group):
+                end = group[i + 1].start_time
+            elif next_group_start is not None and next_group_start - seg.end_time < 0.3:
+                end = next_group_start
+            else:
+                end = seg.end_time + 0.15
+            start = max(start, last_end)
+            end = max(end, start + 0.05)
+            last_end = end
+            shown = [
+                f"{{\\c{DYN_ACTIVE_COLOUR}}}{w}{{\\c&H00FFFFFF&}}" if j == i else w
+                for j, w in enumerate(words)
+            ]
+            pop = "{\\fscx86\\fscy86\\t(0,90,\\fscx100\\fscy100)}" if i == 0 else ""
+            events.append(f"Dialogue: 0,{to_ass_time(start)},{to_ass_time(end)},Dyn,,0,0,0,,{pop}{' '.join(shown)}")
+    return events
+HOOK_MIN_SECONDS = 2.0
+HOOK_MAX_SECONDS = 3.2
+
+
+def hook_display_end(segments: list[CaptionSegment], opening_word_count: int) -> float:
+    if not segments or opening_word_count <= 0:
+        return HOOK_MAX_SECONDS
+    end = segments[min(opening_word_count, len(segments)) - 1].end_time
+    return min(max(end, HOOK_MIN_SECONDS), HOOK_MAX_SECONDS)
 
 
 class CaptionService:
@@ -54,6 +130,8 @@ class CaptionService:
         font_size: int | None = None,
         video_width: int = 1080,
         video_height: int = 1920,
+        hook_text: str = "",
+        hook_end: float = 0.0,
     ) -> str:
         """Generate ASS subtitle file from word segments."""
         if words_per_group is None:
@@ -73,12 +151,19 @@ WrapStyle: 0
 [V4+ Styles]
 Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding
 Style: Default,Arial,{font_size},&H00FFFFFF,&H000000FF,&H00000000,&H80000000,-1,0,0,0,100,100,0,0,1,4,2,2,40,40,{margin_bottom},1
+Style: Hook,Arial,{HOOK_FONT_SIZE},&H0000FFFF,&H000000FF,&H00000000,&H96000000,-1,0,0,0,100,100,0,0,1,7,3,8,70,70,{int(video_height * 0.16)},1
 
 [Events]
 Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
 """
 
         events = []
+        clean_hook = " ".join(hook_text.replace("{", "").replace("}", "").replace("\\", "").split())
+        if clean_hook and hook_end > 0:
+            events.append(
+                f"Dialogue: 1,{self._seconds_to_ass_time(0.0)},{self._seconds_to_ass_time(hook_end)},"
+                f"Hook,,0,0,0,,{{\\fad(0,250)}}{clean_hook}"
+            )
         for i in range(0, len(segments), words_per_group):
             group = segments[i : i + words_per_group]
             if not group:
@@ -104,6 +189,7 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
         video_path: str,
         subtitle_path: str,
         output_path: str,
+        fonts_dir: str | None = None,
     ) -> str:
         """Burn ASS subtitles into video using ffmpeg."""
         if not self.ffmpeg:
@@ -119,7 +205,7 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
         cmd = [
             self.ffmpeg,
             "-i", video_path,
-            "-vf", f"ass={tmp_sub}",
+            "-vf", f"ass={tmp_sub}:fontsdir={fonts_dir}" if fonts_dir else f"ass={tmp_sub}",
             "-c:v", "libx264",
             "-preset", "medium",
             "-crf", "23",
@@ -152,6 +238,41 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
         s = int(seconds % 60)
         cs = int((seconds % 1) * 100)
         return f"{h}:{m:02d}:{s:02d}.{cs:02d}"
+
+    def generate_dynamic_ass(
+        self,
+        segments: list[CaptionSegment],
+        output_path: str,
+        video_width: int = 1080,
+        video_height: int = 1920,
+        credits: list[tuple[float, float, str]] | None = None,
+    ) -> str:
+        header = f"""[Script Info]
+Title: Shorts Dynamic Captions
+ScriptType: v4.00+
+PlayResX: {video_width}
+PlayResY: {video_height}
+WrapStyle: 0
+
+[V4+ Styles]
+Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding
+Style: Dyn,{DYN_FONT_NAME},{DYN_FONT_SIZE},&H00FFFFFF,&H000000FF,&H00000000,&H80000000,0,0,0,0,100,100,0,0,1,9,4,2,50,50,{int(video_height * 0.30)},1
+Style: Credit,{DYN_FONT_NAME},34,&H30FFFFFF,&H000000FF,&H00000000,&H80000000,0,0,0,0,100,100,0,0,1,3,1,8,60,60,{int(video_height * 0.12)},1
+
+[Events]
+Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
+"""
+        events = dynamic_caption_events(segments, self._seconds_to_ass_time)
+        for start, end, text in credits or []:
+            clean = re.sub(r"[{}\\]", "", text).strip()
+            if clean and end > start:
+                events.append(
+                    f"Dialogue: 1,{self._seconds_to_ass_time(start)},{self._seconds_to_ass_time(end)},Credit,,0,0,0,,{clean}"
+                )
+        Path(output_path).parent.mkdir(parents=True, exist_ok=True)
+        Path(output_path).write_text(header + "\n".join(events), encoding="utf-8")
+        logger.info(f"Generated dynamic captions: {output_path} ({len(events)} events)")
+        return output_path
 
     def generate_srt_subtitles(
         self,

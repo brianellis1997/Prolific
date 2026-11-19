@@ -159,6 +159,7 @@ class Settings(BaseSettings):
     youtube_credentials_path: str = "./youtube_credentials_slumber.json"
     youtube_client_secrets_path: str = "./client_secrets.json"
     shorts_credentials_path: str = "./youtube_credentials.json"
+    askgrim_credentials_path: str = "./youtube_credentials_askgrim.json"
     youtube_default_privacy: str = "public"
     youtube_category_id: str = "27"
 
@@ -197,6 +198,9 @@ class Settings(BaseSettings):
     shorts_crossfade_duration: float = 0.3
     shorts_caption_font_size: int = 48
     shorts_caption_words_per_group: int = 4
+    shorts_dynamic_captions: bool = True
+    shorts_sound_design_enabled: bool = True
+    shorts_clip_motion_enabled: bool = True
 
     # Shorts TTS (separate energetic voice)
     elevenlabs_shorts_voice_id: str = ""
@@ -230,6 +234,8 @@ class Settings(BaseSettings):
     # the code intact; flip back to True once we have a proxy or working bypass.
     shorts_money_shot_enabled: bool = False
     shorts_money_shot_max_per_video: int = 2
+    shorts_money_shot_license: str = "fair_use"
+    ytdlp_proxy: str = ""
     # Optional read-only Data API key for CC search, to keep that quota off the
     # OAuth upload credentials. If empty, the shorts OAuth creds are used.
     youtube_data_api_key: str = ""
@@ -242,7 +248,7 @@ class Settings(BaseSettings):
     # distinct entity ("toxoplasma" / "screwworm" / "tongue-eating louse") but
     # the cluster was identical.
     shorts_cluster_gate_enabled: bool = True
-    shorts_cluster_cooldown_days: int = 7
+    shorts_cluster_cooldown_days: int = 3
     shorts_cluster_max_per_video: int = 2
 
     # Title-opener variance: count how many recent shorts start with the same

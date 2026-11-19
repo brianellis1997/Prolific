@@ -1,6 +1,7 @@
 """Script writing node - creates mode-aware short-form scripts."""
 
 import logging
+import re
 
 from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
 from pydantic import BaseModel, Field
@@ -18,6 +19,36 @@ class ScriptOutput(BaseModel):
     value_body: str
     cta_loop: str
     visual_suggestions: list[str] = Field(default_factory=list)
+    on_screen_hook: str = ""
+
+
+HOOK_MAX_WORDS = 10
+_SLOW_OPENERS = ("you think", "you probably", "most people", "imagine")
+
+
+def first_sentence(text: str) -> str:
+    return re.split(r"(?<=[.!?])\s+", text.strip(), maxsplit=1)[0].strip()
+
+
+def hook_problem(text: str) -> str:
+    opening = first_sentence(text)
+    words = opening.split()
+    if len(words) > HOOK_MAX_WORDS:
+        return (
+            f"The first sentence has {len(words)} words. Cut it to {HOOK_MAX_WORDS} or fewer "
+            "and state the claim directly, naming the subject first."
+        )
+    if opening.lower().startswith(_SLOW_OPENERS):
+        return "The first sentence opens with a slow setup. Start with the subject and the claim."
+    return ""
+
+
+def clean_on_screen_hook(raw: str, full_text: str) -> str:
+    text = re.sub(r"[{}\\]", "", (raw or "")).strip().strip('"').strip()
+    if not text:
+        opening = first_sentence(full_text).rstrip(".!?")
+        text = opening if len(opening.split()) <= HOOK_MAX_WORDS else ""
+    return " ".join(text.split()[:7]).upper()
 
 
 async def script_writing_node(state: ShortsPipelineState) -> dict:
@@ -38,18 +69,43 @@ async def script_writing_node(state: ShortsPipelineState) -> dict:
 
     prompt = _build_prompt(state, content_mode, hook_angle)
 
+    messages = [
+        SystemMessage(content=prompt),
+        HumanMessage(content="Write the script now."),
+    ]
     result = await llm_service.invoke_with_structured_output(
-        messages=[
-            SystemMessage(content=prompt),
-            HumanMessage(content="Write the script now."),
-        ],
+        messages=messages,
         output_schema=ScriptOutput,
         tier="research",
         temperature=0.7,
     )
 
-    full_text = f"{result.hook} {result.setup} {result.value_body} {result.cta_loop}".strip()
+    from prolific.shorts.nodes.topic_selection import _is_ai_video_run
+    uses_hook_rules = content_mode == "news_commentary" and not _is_ai_video_run()
+
+    def _full(r: ScriptOutput) -> str:
+        return f"{r.hook} {r.setup} {r.value_body} {r.cta_loop}".strip()
+
+    problem = hook_problem(_full(result)) if uses_hook_rules else ""
+    if problem:
+        logger.info(f"Hook rewrite requested: {problem} Was: {first_sentence(_full(result))[:120]}")
+        retry = await llm_service.invoke_with_structured_output(
+            messages=messages + [HumanMessage(
+                content=f"Rewrite the whole script. {problem} Keep the 75-85 word length and every other rule."
+            )],
+            output_schema=ScriptOutput,
+            tier="research",
+            temperature=0.7,
+        )
+        if not hook_problem(_full(retry)):
+            result = retry
+            logger.info(f"Hook rewritten: {first_sentence(_full(result))[:120]}")
+        else:
+            logger.warning("Hook rewrite still breaks the rules, keeping the first draft")
+
+    full_text = _full(result)
     word_count = len(full_text.split())
+    on_screen_hook = clean_on_screen_hook(result.on_screen_hook, full_text) if uses_hook_rules else ""
 
     script = ShortScript(
         hook=result.hook,
@@ -59,10 +115,12 @@ async def script_writing_node(state: ShortsPipelineState) -> dict:
         full_text=full_text,
         word_count=word_count,
         visual_suggestions=result.visual_suggestions[:10],
+        on_screen_hook=on_screen_hook,
     )
 
     logger.info(f"Script written: {word_count} words")
     logger.info(f"Hook: {result.hook[:80]}...")
+    logger.info(f"On-screen hook: {on_screen_hook or '(none)'}")
 
     return {
         "script": script,

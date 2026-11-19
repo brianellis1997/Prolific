@@ -11,7 +11,7 @@ from google.oauth2.credentials import Credentials
 from googleapiclient.discovery import build
 
 ET = ZoneInfo("America/New_York")
-EXPERIMENT_START: datetime | None = datetime(2026, 10, 22, 18, 55, tzinfo=ET)
+EXPERIMENT_START: datetime | None = datetime(2026, 11, 19, 0, 13, tzinfo=ET)
 BASELINE_START = datetime(2026, 8, 1, tzinfo=ET)
 MATURE_DAYS = 7
 PASS_MEDIAN = 1200

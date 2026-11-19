@@ -50,7 +50,7 @@ Crons that fire long-form runs at **16:00 America/New_York**:
 - `youtube_thu_lostciv` — Thursday (LOST_CIVILIZATION mode)
 - `youtube_sat_immersive` — Saturday (IMMERSIVE_DAILY_LIFE mode)
 
-Shorts cron fires daily at **9/12/16/20 ET** (~3 min runtime each).
+Shorts cron fires daily at **10/15/20 ET** (~3-5 min runtime each).
 
 Comment-reply runs every 2h (cheap, fine to overlap).
 

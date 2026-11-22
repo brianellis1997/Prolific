@@ -94,12 +94,14 @@ Really check-ins" and Claude re-creates the job with this prompt:
 ## State (each check-in updates this)
 
 - Check-in job: fceecc18, created Nov 22 2026 at 11:16 AM PT. Re-create it on Nov 28.
-- One-shot 4d2ae36a: Nov 22 12:23 PM PT, checks the first real-clip short (15:00 ET run).
+- One-shot 6059470d: Nov 22 5:23 PM PT (8:23 PM ET), checks the first fair-use short (20:00 ET run).
+  (4d2ae36a was cancelled: the 15:00 short was checked at once, before the redeploy reset the logs.)
 - Last check-in: Nov 22 14:47 ET (10 of 10 slots, no status problems, no copyright email, no new
   comments). Last full review: Nov 22.
-- Experiment under test: Round 2 (since Nov 19 00:13 ET) plus real clips, CC only, live since
-  Nov 22 14:14 ET (commit c4f53b7). First real-clip short: the 15:00 ET run on Nov 22.
-- Railway variables: SHORTS_MONEY_SHOT_ENABLED=true, SHORTS_MONEY_SHOT_LICENSE=cc_only, YTDLP_PROXY
+- Experiment under test: Round 2 (since Nov 19 00:13 ET) plus real clips: CC only from Nov 22 14:14 ET
+  (commit c4f53b7), fair-use test from Nov 22 15:04 ET (commit 3b194cc, first short at 20:00 ET).
+- Railway variables: SHORTS_MONEY_SHOT_ENABLED=true, SHORTS_MONEY_SHOT_LICENSE=fair_use,
+  SHORTS_MONEY_SHOT_MAX_PER_VIDEO=4 (max fair use 2 per short is the code default), YTDLP_PROXY
   (template with a `{port}` slot; the value holds the proxy login, never print it).
 - Proxy: DataImpulse residential, plan "Wait Really real clips", $5 for 5 GB bought Nov 22 (invoice
   in_1UefnsAWZZJCgSrYQn7Td34n, Chase Sapphire 4733 through Stripe Link). Traffic never expires. Login in
@@ -117,6 +119,10 @@ Really check-ins" and Claude re-creates the job with this prompt:
   shorts without, same age, plus any copyright claim). Doc rev 22 after the Nov 22 update.
 
 ## Results log (newest first)
+
+- Nov 22 15:03 ET, first real-clip short (CC mode, 2 picks): "Peppers Evolved Spice Specifically to
+  Torture You" (YLMa60DH_Yg). 1 of 2 picks used: chickens eating hot peppers (THEBOKBOKSISTERS, CC,
+  own footage), credited. "horse chewing close up" found no verified clip.
 
 - Nov 22 15:00 ET, outlier check: without blue raspberry, Round 2's median is 1.3x the old normal
   (n=6), against 1.45x with it. Blue raspberry is 67% of all Round 2 views (23,741 of 35,337) and

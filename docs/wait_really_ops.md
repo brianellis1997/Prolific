@@ -102,7 +102,8 @@ Really check-ins" and Claude re-creates the job with this prompt:
 
 - [ ] Nov 26: Round 2 one-week checkpoint row in the tracking doc.
 - [ ] Dec 3: Round 2 two-week checkpoint row in the tracking doc.
-- [ ] Real clips readout after 9 shorts with a real clip.
+- [ ] Nov 29: "Real clips, first read" row in the tracking doc (shorts with a real clip against
+  shorts without, same age, plus any copyright claim). Doc rev 22 after the Nov 22 update.
 
 ## Results log (newest first)
 

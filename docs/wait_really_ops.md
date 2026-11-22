@@ -53,7 +53,10 @@ Round 2 sections with checkpoint rows).
 4. Double down on winners: the scoreboard already steers topics. On each full review, look at the top 5
    and bottom 5 by same-age ratio and move the rotation toward the winners. So far: weird food and
    everyday-object origins won (blue raspberry 23.7k, stop signs 1.3k), word origins lost (buck, 87).
-5. Slot test: Ask Grim found its 7 PM ET short beat noon on 5 of 6 days. Compare our 10 / 15 / 20
+5. Fact check on the hook claim. The blue raspberry short said a 1970s dye ban forced the flavor;
+   a viewer replied that ICEE made it blue because cherry was already red. Add a source check on the
+   one claim the hook makes before the script is final.
+6. Slot test: Ask Grim found its 7 PM ET short beat noon on 5 of 6 days. Compare our 10 / 15 / 20
    slots on same-age ratio before you move them.
 
 ## The check-in job
@@ -100,12 +103,18 @@ Really check-ins" and Claude re-creates the job with this prompt:
 
 ## Pending
 
+- [ ] Nov 24: Analytics should reach Nov 20 to 21. Report where the blue raspberry views came from
+  (traffic source, subscribed or not, country) and its engaged views and average % viewed.
 - [ ] Nov 26: Round 2 one-week checkpoint row in the tracking doc.
 - [ ] Dec 3: Round 2 two-week checkpoint row in the tracking doc.
 - [ ] Nov 29: "Real clips, first read" row in the tracking doc (shorts with a real clip against
   shorts without, same age, plus any copyright claim). Doc rev 22 after the Nov 22 update.
 
 ## Results log (newest first)
+
+- Nov 22 15:00 ET, outlier check: without blue raspberry, Round 2's median is 1.3x the old normal
+  (n=6), against 1.45x with it. Blue raspberry is 67% of all Round 2 views (23,741 of 35,337) and
+  stopped at about 23.7k. Analytics data ends at Nov 19, so its traffic split is not in yet.
 
 - Nov 22 14:14 ET, real clips live (CC only). Dry run on 4 recent scripts: 7 of 7 picks found real
   footage of the actual animal (3 showed the exact event, 4 the animal itself), about 35 MB per short.

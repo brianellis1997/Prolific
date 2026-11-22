@@ -145,6 +145,8 @@ async def stock_clip_sourcing_node(state: ShortsPipelineState) -> dict:
         ):
             held_shots[seg.sequence_number] = nxt
     consumed: set[int] = set()
+    used_source_urls: set[str] = set()
+    fair_use_used = 0
 
     for asset in stock_segments:
         if asset.sequence_number in consumed:
@@ -169,8 +171,13 @@ async def stock_clip_sourcing_node(state: ShortsPipelineState) -> dict:
                     output_dir=str(output_dir), filename=f"clip_{asset.sequence_number:02d}",
                     duration_seconds=asset.duration_seconds + (held.duration_seconds if held else 0.0),
                     fallback_query=ms_fallback, subject=ms_subject,
+                    allow_fair_use=fair_use_used < settings.shorts_money_shot_max_fair_use,
+                    exclude_urls=used_source_urls,
                 )
                 if ms:
+                    used_source_urls.add(ms.source_url)
+                    if ms.license_kind == "fair_use":
+                        fair_use_used += 1
                     result = ms.file_path
                     if held:
                         asset.duration_seconds = round(asset.duration_seconds + held.duration_seconds, 3)

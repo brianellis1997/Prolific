@@ -68,9 +68,11 @@ async def identify_money_shots(
 
     numbered = "\n".join(f"[{i}] {t}" for i, t in enumerate(scene_texts))
     system = (
-        "You pick the 'money shot' moments for a short video — the 1-2 scenes "
-        "where showing the ACTUAL real-world footage of the specific event (not "
-        "generic stock b-roll) would most make the video pop.\n\n"
+        "You pick the scenes of a short video where ACTUAL real-world footage of the "
+        "specific subject or event (not generic stock b-roll) would most make the video "
+        "pop. Viewers want to see the real thing the narration names. First pick the "
+        "payoff scenes that show the event, then scenes that name the subject itself "
+        "(the animal, object, place or event), so real footage covers most of the short.\n\n"
         "ONLY pick a scene whose payoff is something you could literally SEE on "
         "camera: an animal visibly doing a thing, a physical event, a real place. "
         "SKIP anything that is a SOUND, a statistic, a sensor reading, an internal/"
@@ -91,8 +93,8 @@ async def identify_money_shots(
         "of what a verifier must SEE on screen. And subject: the exact animal, object or "
         "place the whole short is about (e.g. 'naked mole rat'), even when the scene "
         "shows something else.\n"
-        f"Pick at most {max_picks}. If no scene has a genuinely filmable visual "
-        "payoff, return an empty list — do not force it."
+        f"Pick up to {max_picks} scenes, each a different scene. If no scene has a "
+        "genuinely filmable visual payoff, return an empty list — do not force it."
     )
     try:
         llm = get_llm_service()
@@ -492,6 +494,17 @@ class _UploaderVerdict(__import__("pydantic").BaseModel):
 
 
 _UPLOADER_CACHE: dict[str, bool] = {}
+_OWN_CHANNEL: dict[str, str] = {}
+
+
+def _own_channel_id() -> str:
+    if "id" not in _OWN_CHANNEL:
+        try:
+            items = _get_search_client().channels().list(part="id", mine=True).execute().get("items", [])
+            _OWN_CHANNEL["id"] = items[0]["id"] if items else ""
+        except Exception:
+            _OWN_CHANNEL["id"] = ""
+    return _OWN_CHANNEL["id"]
 
 
 async def _uploader_films_own_footage(cand: dict) -> bool:
@@ -708,6 +721,40 @@ async def _cut_portrait(src: str, out: str, start: float, seconds: float, width:
     return Path(out).exists()
 
 
+def _sources_file() -> Path:
+    return Path(getattr(settings, "shorts_history_db_path", "./shorts_history.sqlite")).parent / "money_shot_sources.json"
+
+
+def recent_fair_use_channels(now: "datetime | None" = None) -> set[str]:
+    from datetime import datetime, timedelta
+
+    now = now or datetime.utcnow()
+    days = int(getattr(settings, "shorts_money_shot_source_cooldown_days", 30))
+    try:
+        used = json.loads(_sources_file().read_text())
+    except (OSError, ValueError):
+        return set()
+    return {ch for ch, when in used.items() if now - datetime.fromisoformat(when) < timedelta(days=days)}
+
+
+def record_fair_use_source(channel_id: str, now: "datetime | None" = None) -> None:
+    from datetime import datetime
+
+    if not channel_id:
+        return
+    path = _sources_file()
+    try:
+        used = json.loads(path.read_text())
+    except (OSError, ValueError):
+        used = {}
+    used[channel_id] = (now or datetime.utcnow()).isoformat()
+    try:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(json.dumps(used, indent=1))
+    except OSError as exc:
+        logger.warning(f"money-shot: could not record fair-use source {channel_id}: {exc}")
+
+
 async def find_verified_clip(
     event_query: str,
     event_description: str,
@@ -717,14 +764,19 @@ async def find_verified_clip(
     fallback_query: str = "",
     max_candidates: int = 3,
     subject: str = "",
+    allow_fair_use: bool = True,
+    exclude_urls: set[str] | None = None,
 ) -> MoneyShotResult | None:
     if not settings.shorts_money_shot_enabled:
         return None
     from prolific.shorts.services.clip_downloader import get_clip_downloader
 
     licenses = ["creativeCommon"]
-    if getattr(settings, "shorts_money_shot_license", "cc_only") == "fair_use":
+    if getattr(settings, "shorts_money_shot_license", "cc_only") == "fair_use" and allow_fair_use:
         licenses.append("any")
+    exclude_urls = exclude_urls or set()
+    cooling = recent_fair_use_channels()
+    own_channel = await asyncio.get_event_loop().run_in_executor(None, _own_channel_id)
 
     async def _gather(query: str) -> list[dict]:
         found, seen = [], set()
@@ -747,6 +799,11 @@ async def find_verified_clip(
     for i, cand in enumerate(candidates):
         if tried >= max_candidates:
             break
+        if cand["url"] in exclude_urls or (own_channel and cand.get("channel_id") == own_channel):
+            continue
+        if cand["license_kind"] == "fair_use" and cand.get("channel_id") in cooling:
+            logger.info(f"money-shot: skipped {cand['url']}, fair-use source '{cand['creator']}' used in the last 30 days")
+            continue
         if not await _uploader_films_own_footage(cand):
             continue
         tried += 1
@@ -794,6 +851,8 @@ async def _cut_money_shot(
     if not await _cut_portrait(src, out, start, seconds):
         return None
     cc = cand["license_kind"] == "cc"
+    if not cc:
+        record_fair_use_source(cand.get("channel_id", ""))
     logger.info(f"money-shot USED ({cand['license_kind']}, {match}): {cand['creator']} {cand['url']} @ {start:.1f}s")
     return MoneyShotResult(
         file_path=out, source_url=cand["url"], title=cand["title"], creator=cand["creator"],

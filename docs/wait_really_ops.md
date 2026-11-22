@@ -40,14 +40,19 @@ Round 2 sections with checkpoint rows).
 - Copyright kill switch: at the first claim, strike, takedown, region block or copyright email, set
   `SHORTS_MONEY_SHOT_ENABLED=false` on Railway, log it here and push Brian. Wait Really and Ask Grim
   share Brian's Google account, so 3 strikes in 90 days could end both channels.
-- Fair use (non-CC excerpts) stays off until CC clips have run 7 days with no claim. Then at most one
-  fair-use excerpt per short, never the same source channel twice in 30 days.
+- Fair-use test (Brian, Nov 22: competitors show the actual footage and he is "willing to test it"):
+  up to 4 real clips per short, at most 2 of them fair use, never the same fair-use source channel twice
+  in 30 days (/app/data/money_shot_sources.json), never a Content ID partner video
+  (`licensedContent`), an agency, a network, a re-poster or another creator's watermark. Every source is
+  credited in the description. The kill switch above applies at the first claim, strike or email.
 
 ## Experiment backlog (top first)
 
-1. Real clips, CC only (started Nov 22, see State). Readout after 9 shorts with a real clip: compare
-   with and without (the check-in script splits them).
-2. Fair-use excerpts under the rules above, if CC finds a clip for fewer than half the shorts.
+1. Real clips with the fair-use test (CC only from 14:14 ET Nov 22, fair use from the 20:00 ET run).
+   Readout after 9 shorts: compare with and without real clips (the check-in script splits them).
+2. Competitor check, Nov 22: the top Shorts on our own topics show the real subject in almost every
+   frame (jacana dad 3.5M views, stop signs 4.1M, Britney pirates 330k). Ours on the same topics got
+   1.0k to 1.4k. Real footage for most of the runtime is the gap to close.
 3. Subject accuracy: check that stock clips show the named animal; else use real photos of the exact
    species (Wikimedia Commons, iNaturalist). Viewer ask Nov 22: "Please show the actual animal".
 4. Double down on winners: the scoreboard already steers topics. On each full review, look at the top 5
@@ -90,7 +95,8 @@ Really check-ins" and Claude re-creates the job with this prompt:
 
 - Check-in job: fceecc18, created Nov 22 2026 at 11:16 AM PT. Re-create it on Nov 28.
 - One-shot 4d2ae36a: Nov 22 12:23 PM PT, checks the first real-clip short (15:00 ET run).
-- Last check-in: Nov 22 13:41 ET. Last full review: Nov 22.
+- Last check-in: Nov 22 14:47 ET (10 of 10 slots, no status problems, no copyright email, no new
+  comments). Last full review: Nov 22.
 - Experiment under test: Round 2 (since Nov 19 00:13 ET) plus real clips, CC only, live since
   Nov 22 14:14 ET (commit c4f53b7). First real-clip short: the 15:00 ET run on Nov 22.
 - Railway variables: SHORTS_MONEY_SHOT_ENABLED=true, SHORTS_MONEY_SHOT_LICENSE=cc_only, YTDLP_PROXY

@@ -287,6 +287,7 @@ def test_money_shot_skips_reposters_and_falls_back_to_the_subject(monkeypatch, t
 
     monkeypatch.setattr(ms.settings, "shorts_money_shot_enabled", True)
     monkeypatch.setattr(ms.settings, "shorts_money_shot_license", "cc_only")
+    monkeypatch.setattr(ms, "_own_channel_id", lambda: "own")
     monkeypatch.setattr(ms, "_search_candidates", search)
     monkeypatch.setattr(ms, "_uploader_films_own_footage", own)
     monkeypatch.setattr(ms, "_frames_strip", lambda path, num_frames=6: ("strip", [1.0, 2.0, 3.0, 4.0, 5.0, 6.0]))
@@ -329,3 +330,65 @@ def test_letterbox_bars_are_detected(tmp_path):
         check=True,
     )
     assert asyncio.run(_detect_crop(shutil.which("ffmpeg"), str(src), 0.0, 2.0)) == (640, 360, 0, 60)
+
+
+def test_fair_use_guardrails_cooldown_cap_and_no_repeat(monkeypatch, tmp_path):
+    import asyncio
+    from datetime import datetime, timedelta
+
+    from prolific.shorts.services import money_shot as ms
+
+    monkeypatch.setattr(ms.settings, "shorts_history_db_path", str(tmp_path / "shorts_history.sqlite"))
+    monkeypatch.setattr(ms, "_own_channel_id", lambda: "")
+    ms.record_fair_use_source("old", now=datetime.utcnow() - timedelta(days=40))
+    ms.record_fair_use_source("recent", now=datetime.utcnow() - timedelta(days=3))
+    assert ms.recent_fair_use_channels() == {"recent"}
+
+    searched = []
+
+    async def search(query, video_license):
+        searched.append(video_license)
+        if video_license == "creativeCommon":
+            return []
+        return [
+            {"url": "f1", "title": "t", "creator": "Recent", "channel_id": "recent", "license_kind": "fair_use"},
+            {"url": "f2", "title": "t", "creator": "Used Here", "channel_id": "c2", "license_kind": "fair_use"},
+            {"url": "f3", "title": "t", "creator": "Fresh", "channel_id": "c3", "license_kind": "fair_use"},
+        ]
+
+    async def own(cand):
+        return True
+
+    downloads = []
+
+    class Downloader:
+        async def download_source(self, url, output_dir, filename):
+            downloads.append(url)
+            path = tmp_path / f"{filename}.mp4"
+            path.write_bytes(b"x")
+            return str(path)
+
+    async def locate(desc, strip, n, subject=""):
+        return True, 1, True, ""
+
+    async def cut(src, out, start, seconds):
+        return True
+
+    monkeypatch.setattr(ms.settings, "shorts_money_shot_enabled", True)
+    monkeypatch.setattr(ms.settings, "shorts_money_shot_license", "fair_use")
+    monkeypatch.setattr(ms, "_search_candidates", search)
+    monkeypatch.setattr(ms, "_uploader_films_own_footage", own)
+    monkeypatch.setattr(ms, "_frames_strip", lambda path, num_frames=6: ("strip", [1.0, 2.0]))
+    monkeypatch.setattr(ms, "_locate_event", locate)
+    monkeypatch.setattr(ms, "_probe_duration", lambda path: 30.0)
+    monkeypatch.setattr(ms, "_cut_portrait", cut)
+    import prolific.shorts.services.clip_downloader as cd
+    monkeypatch.setattr(cd, "get_clip_downloader", lambda: Downloader())
+
+    result = asyncio.run(ms.find_verified_clip("q", "e", str(tmp_path), "clip_01", 3.0, exclude_urls={"f2"}))
+    assert downloads == ["f3"] and result.creator == "Fresh" and result.license_kind == "fair_use"
+    assert "c3" in ms.recent_fair_use_channels()
+
+    searched.clear()
+    assert asyncio.run(ms.find_verified_clip("q", "e", str(tmp_path), "clip_02", 3.0, allow_fair_use=False)) is None
+    assert searched == ["creativeCommon"]

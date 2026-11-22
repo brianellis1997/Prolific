@@ -218,3 +218,114 @@ def test_web_images_skip_watermarked_stock_sites():
     assert is_watermarked_source("https://image.shutterstock.com/image-vector/germs-260nw-123.jpg")
     assert is_watermarked_source("https://media.gettyimages.com/id/1/photo.jpg")
     assert not is_watermarked_source("https://upload.wikimedia.org/wikipedia/commons/a/ab/Toilet.jpg")
+
+
+def test_candidate_vetting_skips_reuploads_and_managed_content():
+    from prolific.shorts.services.money_shot import is_reupload, vet_candidate
+
+    def item(title="Octopus hunting at night", description="Filmed on a night dive in Bali.", channel="Reef Diver",
+             license="creativeCommon", licensed=False):
+        return {"snippet": {"title": title, "description": description, "channelTitle": channel},
+                "status": {"license": license}, "contentDetails": {"licensedContent": licensed}}
+
+    assert vet_candidate(item(), "creativeCommon") == ""
+    assert vet_candidate(item(license="youtube"), "creativeCommon") == "license is not creativeCommon"
+    assert vet_candidate(item(licensed=True), "creativeCommon") == "managed by a Content ID partner"
+    assert vet_candidate(item(channel="BBC Earth"), "creativeCommon") == "blocked source"
+    assert vet_candidate(item(description="Planet Earth II clip, all credit to the BBC"), "creativeCommon") == "looks like a re-upload"
+    assert vet_candidate(item(license="youtube"), "any") == ""
+    assert is_reupload("Top 10 craziest octopus moments", "")
+    assert is_reupload("Octopus", "I do not own this footage")
+    assert is_reupload("Octopus", "Credit: @someone")
+    assert is_reupload("Octopus", "© 2024 Ocean Films")
+    assert not is_reupload("A new discovery: octopus throws shells", "Filmed by our lab team in Sydney")
+
+
+def test_proxy_port_is_picked_per_download(monkeypatch):
+    from prolific.shorts.services import clip_downloader as cd
+
+    monkeypatch.setattr(cd.settings, "ytdlp_proxy", "http://u:p@gw.example.com:{port}")
+    monkeypatch.setattr(cd.settings, "ytdlp_proxy_ports", "10000-10002")
+    downloader = cd.ClipDownloader.__new__(cd.ClipDownloader)
+    seen = {downloader._proxy_args()[1] for _ in range(60)}
+    assert seen <= {f"http://u:p@gw.example.com:{p}" for p in (10000, 10001, 10002)} and len(seen) > 1
+    monkeypatch.setattr(cd.settings, "ytdlp_proxy", "")
+    assert downloader._proxy_args() == []
+
+
+def test_money_shot_skips_reposters_and_falls_back_to_the_subject(monkeypatch, tmp_path):
+    import asyncio
+
+    from prolific.shorts.services import money_shot as ms
+
+    cands = [
+        {"url": "u1", "title": "t1", "creator": "Daily Funny Pets", "channel_id": "c1", "license_kind": "cc"},
+        {"url": "u2", "title": "t2", "creator": "Zoo A", "channel_id": "c2", "license_kind": "cc"},
+        {"url": "u3", "title": "t3", "creator": "Zoo B", "channel_id": "c3", "license_kind": "cc"},
+    ]
+    downloads, cuts = [], []
+
+    async def search(query, video_license):
+        return cands if video_license == "creativeCommon" else []
+
+    async def own(cand):
+        return cand["channel_id"] != "c1"
+
+    class Downloader:
+        async def download_source(self, url, output_dir, filename):
+            downloads.append(url)
+            path = tmp_path / f"{filename}.mp4"
+            path.write_bytes(b"x")
+            return str(path)
+
+    async def locate(desc, strip, n, subject=""):
+        return False, 2, True, "© Zoo A"
+
+    async def cut(src, out, start, seconds):
+        cuts.append((src, start))
+        return True
+
+    monkeypatch.setattr(ms.settings, "shorts_money_shot_enabled", True)
+    monkeypatch.setattr(ms.settings, "shorts_money_shot_license", "cc_only")
+    monkeypatch.setattr(ms, "_search_candidates", search)
+    monkeypatch.setattr(ms, "_uploader_films_own_footage", own)
+    monkeypatch.setattr(ms, "_frames_strip", lambda path, num_frames=6: ("strip", [1.0, 2.0, 3.0, 4.0, 5.0, 6.0]))
+    monkeypatch.setattr(ms, "_locate_event", locate)
+    monkeypatch.setattr(ms, "_probe_duration", lambda path: 30.0)
+    monkeypatch.setattr(ms, "_cut_portrait", cut)
+    import prolific.shorts.services.clip_downloader as cd
+    monkeypatch.setattr(cd, "get_clip_downloader", lambda: Downloader())
+
+    result = asyncio.run(ms.find_verified_clip("q", "jacana fighting", str(tmp_path), "clip_03", 3.0, max_candidates=2))
+    assert downloads == ["u2", "u3"]
+    assert result is not None and result.match == "subject" and result.creator == "Zoo A"
+    assert len(cuts) == 1 and cuts[0][0].endswith("clip_03_ms1.mp4")
+    assert not (tmp_path / "clip_03_ms1.mp4").exists() and not (tmp_path / "clip_03_ms2.mp4").exists()
+
+
+def test_burned_in_marks_must_name_the_uploader():
+    from prolific.shorts.services.money_shot import same_owner
+
+    assert same_owner("", "Anyone")
+    assert same_owner("Elizabeth II NP, January 2025 © Pascal Vagner", "Pascal Vagner")
+    assert same_owner("@reefdiver", "Reef Diver")
+    assert same_owner("Elephant Listening Project", "ElephantListenProj")
+    assert not same_owner("African Jacana (Actophilornis africanus)", "Pascal Vagner")
+    assert not same_owner("@THEFISHINGMUTTS", "Stella & Chewy's")
+    assert not same_owner("ViralHog", "Bob Smith")
+
+
+def test_letterbox_bars_are_detected(tmp_path):
+    import asyncio
+    import shutil
+    import subprocess
+
+    from prolific.shorts.services.money_shot import _detect_crop
+
+    src = tmp_path / "boxed.mp4"
+    subprocess.run(
+        ["ffmpeg", "-v", "error", "-f", "lavfi", "-i", "testsrc2=size=640x360:rate=30", "-t", "2",
+         "-vf", "pad=640:480:0:60:black", "-pix_fmt", "yuv420p", "-y", str(src)],
+        check=True,
+    )
+    assert asyncio.run(_detect_crop(shutil.which("ffmpeg"), str(src), 0.0, 2.0)) == (640, 360, 0, 60)

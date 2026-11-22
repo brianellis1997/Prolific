@@ -7,7 +7,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 ENV TZ=America/New_York
 
-RUN pip install --no-cache-dir yt-dlp
+COPY --from=denoland/deno:bin-2.9.8 /deno /usr/local/bin/deno
+
+RUN pip install --no-cache-dir "yt-dlp[default]"
 
 WORKDIR /app
 

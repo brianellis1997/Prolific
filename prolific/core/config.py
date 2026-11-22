@@ -236,6 +236,7 @@ class Settings(BaseSettings):
     shorts_money_shot_max_per_video: int = 2
     shorts_money_shot_license: str = "fair_use"
     ytdlp_proxy: str = ""
+    ytdlp_proxy_ports: str = "10000-20000"
     # Optional read-only Data API key for CC search, to keep that quota off the
     # OAuth upload credentials. If empty, the shorts OAuth creds are used.
     youtube_data_api_key: str = ""

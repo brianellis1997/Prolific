@@ -2,6 +2,7 @@
 
 import asyncio
 import logging
+import random
 import shutil
 from pathlib import Path
 
@@ -19,6 +20,9 @@ class ClipDownloader:
 
     def _proxy_args(self) -> list[str]:
         proxy = getattr(settings, "ytdlp_proxy", "") or ""
+        if "{port}" in proxy:
+            low, high = (int(p) for p in (getattr(settings, "ytdlp_proxy_ports", "") or "10000-20000").split("-"))
+            proxy = proxy.replace("{port}", str(random.randint(low, high)))
         return ["--proxy", proxy] if proxy else []
 
     async def download_source(
@@ -33,24 +37,39 @@ class ClipDownloader:
         out_dir = Path(output_dir)
         out_dir.mkdir(parents=True, exist_ok=True)
         template = str(out_dir / f"{filename}_src.%(ext)s")
-        cmd = [
-            self.yt_dlp, *self._proxy_args(),
-            "-f", f"bv*[height<={max_height}][ext=mp4]/bv*[height<={max_height}]/b[height<={max_height}]",
-            "--no-playlist", "--no-warnings", "--max-filesize", "80M",
-            "--match-filter", f"duration<{max_seconds}",
-            "-o", template, url,
-        ]
-        try:
+        stderr, proc = b"", None
+        attempts = 3
+        for attempt in range(attempts):
+            cmd = [
+                self.yt_dlp, *self._proxy_args(),
+                "-f", "bv*/b", "-S", f"res:{max_height}",
+                "--no-playlist", "--no-warnings", "--max-filesize", "50M", "--socket-timeout", "20",
+                "--match-filter", f"duration<{max_seconds}",
+                "-o", template, url,
+            ]
             proc = await asyncio.create_subprocess_exec(
                 *cmd, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE,
             )
-            _, stderr = await asyncio.wait_for(proc.communicate(), timeout=timeout)
-        except asyncio.TimeoutError:
-            logger.warning(f"yt-dlp source download timed out for {url}")
-            return None
+            try:
+                _, stderr = await asyncio.wait_for(proc.communicate(), timeout=timeout)
+            except asyncio.TimeoutError:
+                proc.kill()
+                await proc.wait()
+                for partial in out_dir.glob(f"{filename}_src.*"):
+                    partial.unlink(missing_ok=True)
+                logger.warning(f"yt-dlp source download timed out for {url}")
+                return None
+            blocked = any(m in stderr.decode(errors="ignore") for m in ("confirm you", "HTTP Error 403", "HTTP Error 429"))
+            if proc.returncode == 0 or not blocked or "{port}" not in (getattr(settings, "ytdlp_proxy", "") or ""):
+                break
+            if attempt + 1 == attempts:
+                break
+            logger.info(f"yt-dlp blocked on attempt {attempt + 1} for {url}, retrying on a new proxy IP")
+            for partial in out_dir.glob(f"{filename}_src.*"):
+                partial.unlink(missing_ok=True)
         files = sorted(out_dir.glob(f"{filename}_src.*"))
-        if proc.returncode != 0 or not files:
-            logger.warning(f"yt-dlp source download failed for {url}: {stderr.decode()[-300:]}")
+        if proc is None or proc.returncode != 0 or not files:
+            logger.warning(f"yt-dlp source download failed for {url}: {stderr.decode(errors='ignore')[-300:]}")
             return None
         size_mb = files[0].stat().st_size / 1_000_000
         logger.info(f"Downloaded source {url} ({size_mb:.1f} MB)")

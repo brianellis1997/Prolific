@@ -38,6 +38,7 @@ class MoneyShotResult:
     creator: str
     license: str = "Creative Commons (YouTube reuse-allowed)"
     license_kind: str = "cc"
+    match: str = "event"
 
 
 class _MoneyShotPick(__import__("pydantic").BaseModel):
@@ -45,6 +46,7 @@ class _MoneyShotPick(__import__("pydantic").BaseModel):
     search_query: str       # simple literal visual search, e.g. "octopus punching fish"
     fallback_query: str = ""  # broader retry if the specific search finds nothing
     event_description: str  # what the vision model must confirm is on-screen
+    subject: str = ""
 
 
 class _MoneyShotPlan(__import__("pydantic").BaseModel):
@@ -86,7 +88,9 @@ async def identify_money_shots(
         "Also give a fallback_query: a BROADER but still real version to try if the "
         "specific one finds nothing (e.g. specific 'mantis shrimp punching snail' -> "
         "fallback 'mantis shrimp striking'). And event_description: a plain sentence "
-        "of what a verifier must SEE on screen.\n"
+        "of what a verifier must SEE on screen. And subject: the exact animal, object or "
+        "place the whole short is about (e.g. 'naked mole rat'), even when the scene "
+        "shows something else.\n"
         f"Pick at most {max_picks}. If no scene has a genuinely filmable visual "
         "payoff, return an empty list — do not force it."
     )
@@ -153,11 +157,42 @@ _BLOCKED_DESCRIPTION_PATTERN = __import__("re").compile(
 )
 
 
+_NETWORK_IN_TEXT_PATTERN = __import__("re").compile(
+    r"\b(bbc|national geographic|nat ?geo|discovery channel|animal planet|pbs|smithsonian channel|netflix|"
+    r"disney|nbc|cbs|abc news|fox news|cnn|sky news|reuters|associated press|ap archive|bloomberg|"
+    r"attenborough|planet earth|blue planet|frozen planet|our planet|seven worlds|dynasties)\b"
+)
+_REUPLOAD_PATTERN = __import__("re").compile(
+    r"\b(compilation|re-?upload(?:ed)?|all rights reserved|copyright|courtesy of|fair use|"
+    r"i do not own|i don'?t own|not my (?:video|footage)|top \d+)\b"
+    r"|\bcredits?\b\s*(?:to|goes|go|:)|\bfootage (?:by|from)\b|\bvideo (?:by|credit)\b|©"
+)
+
+
 def is_blocked_source(channel: str, description: str) -> bool:
     return bool(
         _BLOCKED_SOURCE_PATTERN.search((channel or "").lower())
         or _BLOCKED_DESCRIPTION_PATTERN.search((description or "").lower())
     )
+
+
+def is_reupload(title: str, description: str) -> bool:
+    text = f"{title or ''}\n{description or ''}".lower()
+    return bool(_NETWORK_IN_TEXT_PATTERN.search(text) or _REUPLOAD_PATTERN.search(text))
+
+
+def vet_candidate(item: dict, video_license: str) -> str:
+    snippet, status = item.get("snippet", {}), item.get("status", {})
+    details = item.get("contentDetails", {})
+    if video_license == "creativeCommon" and status.get("license") != "creativeCommon":
+        return "license is not creativeCommon"
+    if details.get("licensedContent"):
+        return "managed by a Content ID partner"
+    if is_blocked_source(snippet.get("channelTitle", ""), snippet.get("description", "")):
+        return "blocked source"
+    if is_reupload(snippet.get("title", ""), snippet.get("description", "")):
+        return "looks like a re-upload"
+    return ""
 
 
 async def _search_candidates(query: str, video_license: str, max_results: int = 5) -> list[dict]:
@@ -167,16 +202,25 @@ async def _search_candidates(query: str, video_license: str, max_results: int = 
             part="snippet", q=query, type="video", videoLicense=video_license,
             videoDuration="short", safeSearch="moderate", maxResults=max_results, order="relevance",
         ).execute()
+        ids = [it["id"]["videoId"] for it in resp.get("items", [])]
+        if not ids:
+            return []
+        details = yt.videos().list(part="snippet,status,contentDetails", id=",".join(ids)).execute()
+        by_id = {it["id"]: it for it in details.get("items", [])}
         out = []
-        for it in resp.get("items", []):
-            snippet = it["snippet"]
-            if is_blocked_source(snippet.get("channelTitle", ""), snippet.get("description", "")):
-                logger.info(f"money-shot: skipped blocked source '{snippet.get('channelTitle', '')}'")
+        for vid in ids:
+            item = by_id.get(vid)
+            if not item:
+                continue
+            reason = vet_candidate(item, video_license)
+            if reason:
+                logger.info(f"money-shot: skipped {vid} '{item['snippet'].get('channelTitle', '')}': {reason}")
                 continue
             out.append({
-                "url": f"https://www.youtube.com/watch?v={it['id']['videoId']}",
-                "title": snippet["title"],
-                "creator": snippet["channelTitle"],
+                "url": f"https://www.youtube.com/watch?v={vid}",
+                "title": item["snippet"]["title"],
+                "creator": item["snippet"]["channelTitle"],
+                "channel_id": item["snippet"].get("channelId", ""),
                 "license_kind": "cc" if video_license == "creativeCommon" else "fair_use",
             })
         return out
@@ -422,8 +466,94 @@ async def find_verified_cc_clip(
 
 class _MoneyShotLocate(__import__("pydantic").BaseModel):
     shows_event: bool
+    shows_subject: bool = False
     best_frame: int = 0
+    burned_in_mark: str = ""
     what_is_actually_shown: str = ""
+
+
+def same_owner(mark: str, creator: str) -> bool:
+    norm = lambda t: __import__("re").sub(r"[^a-z0-9]", "", (t or "").lower())
+    mark_n, creator_n = norm(mark), norm(creator)
+    if not mark_n:
+        return True
+    if creator_n and (creator_n in mark_n or mark_n in creator_n):
+        return True
+    words = [norm(w) for w in (creator or "").split() if len(norm(w)) >= 4]
+    if any(w in mark_n for w in words):
+        return True
+    overlap = __import__("difflib").SequenceMatcher(None, creator_n, mark_n).find_longest_match(0, len(creator_n), 0, len(mark_n))
+    return overlap.size >= min(10, len(creator_n)) > 0
+
+
+class _UploaderVerdict(__import__("pydantic").BaseModel):
+    films_own_footage: bool
+    reason: str = ""
+
+
+_UPLOADER_CACHE: dict[str, bool] = {}
+
+
+async def _uploader_films_own_footage(cand: dict) -> bool:
+    channel_id = cand.get("channel_id", "")
+    if not channel_id:
+        return False
+    if channel_id in _UPLOADER_CACHE:
+        return _UPLOADER_CACHE[channel_id]
+
+    def _fetch():
+        yt = _get_search_client()
+        items = yt.channels().list(part="snippet,statistics,contentDetails", id=channel_id).execute().get("items", [])
+        if not items:
+            return None
+        ch = items[0]
+        playlist = ch["contentDetails"]["relatedPlaylists"]["uploads"]
+        recent = yt.playlistItems().list(part="snippet", playlistId=playlist, maxResults=15).execute().get("items", [])
+        return {
+            "title": ch["snippet"]["title"],
+            "description": ch["snippet"].get("description", "")[:400],
+            "videos": ch["statistics"].get("videoCount", "?"),
+            "subscribers": ch["statistics"].get("subscriberCount", "?"),
+            "recent": [r["snippet"]["title"] for r in recent],
+        }
+
+    try:
+        info = await asyncio.get_event_loop().run_in_executor(None, _fetch)
+    except Exception as exc:
+        logger.warning(f"money-shot uploader lookup failed for {channel_id}: {exc}")
+        return False
+    if not info:
+        _UPLOADER_CACHE[channel_id] = False
+        return False
+    from langchain_core.messages import HumanMessage, SystemMessage
+    from prolific.services.llm import get_llm_service
+
+    system = (
+        "You decide whether a YouTube channel films its own footage or re-posts other people's footage. "
+        "OWN FOOTAGE: a zoo, sanctuary, park, farm, lab, researcher, museum, wildlife filmmaker, diver, hobbyist "
+        "or vlogger whose uploads read like their own camera work in their own places. "
+        "RE-POSTS: facts or trivia channels, compilations, 'funny animals' or 'daily clips' channels, viral or news "
+        "reposts, narrated explainer channels, AI channels, or a channel whose titles jump between unrelated "
+        "viral topics. When unsure, answer false."
+    )
+    human = (
+        f"Channel: {info['title']}\nChannel description: {info['description']}\n"
+        f"Videos: {info['videos']}, subscribers: {info['subscribers']}\n"
+        "Recent upload titles:\n- " + "\n- ".join(info["recent"]) +
+        f"\n\nCandidate video title: {cand.get('title', '')}"
+    )
+    try:
+        verdict = await get_llm_service().invoke_with_structured_output(
+            messages=[SystemMessage(content=system), HumanMessage(content=human)],
+            output_schema=_UploaderVerdict, tier="research", temperature=0.0,
+        )
+        own = bool(verdict.films_own_footage)
+        logger.info(f"money-shot uploader '{info['title']}': {'own footage' if own else 're-posts'} ({verdict.reason[:80]})")
+    except Exception as exc:
+        logger.warning(f"money-shot uploader check failed for {channel_id}: {exc}")
+        own = False
+    _UPLOADER_CACHE[channel_id] = own
+    return own
 
 
 def _frames_strip(video_path: str, num_frames: int = 6) -> tuple[str | None, list[float]]:
@@ -471,17 +601,31 @@ def _frames_strip(video_path: str, num_frames: int = 6) -> tuple[str | None, lis
         return None, []
 
 
-async def _locate_event(event_description: str, strip_b64: str, frame_count: int) -> tuple[bool, int]:
+async def _locate_event(
+    event_description: str, strip_b64: str, frame_count: int, subject: str = "",
+) -> tuple[bool, int, bool, str]:
     from prolific.services.llm import get_llm_service
 
+    subject_line = (
+        f"THE SHORT IS ABOUT: \"{subject}\". Set shows_subject=true only if {subject} itself is clearly "
+        "visible and large in at least one frame (that exact species or thing, not a similar one, and not "
+        "another animal from the scene), even if it is not doing the event."
+        if subject else
+        "Set shows_subject=true if the main animal, object or place of the event is clearly visible and "
+        "large in at least one frame (the same species or thing, not a similar one), even if it is not "
+        "doing the event."
+    )
     prompt = (
         "You check whether a downloaded video shows a specific event. The image is a strip of "
         f"{frame_count} frames from the video in time order, numbered 1 to {frame_count} from left to right. "
         "Be strict about the event: the frames must show the specific action or thing, not only the "
         "subject resting, a title card, a person talking to the camera, or text on screen.\n\n"
-        f"THE EVENT WE NEED TO SEE: \"{event_description}\"\n\n"
-        "Set shows_event=true only if at least one frame clearly shows the event. Set best_frame to the "
-        "number of the frame that shows it most clearly. Describe what_is_actually_shown."
+        f"THE EVENT WE NEED TO SEE: \"{event_description}\"\n{subject_line}\n\n"
+        "Set shows_event=true only if at least one frame clearly shows the event. Set best_frame "
+        "to the frame that shows the event most clearly, or else the subject most clearly. Set "
+        "burned_in_mark to the exact text of any watermark, @handle, logo or channel name burned into "
+        "the frames (not subtitles or captions of what is said), or leave it empty. Describe "
+        "what_is_actually_shown."
     )
     try:
         verdict = await get_llm_service().invoke_with_image_structured(
@@ -490,12 +634,14 @@ async def _locate_event(event_description: str, strip_b64: str, frame_count: int
         )
     except Exception as exc:
         logger.warning(f"money-shot locate failed: {exc}")
-        return False, 0
+        return False, 0, False, ""
+    status = "VERIFIED" if verdict.shows_event else ("subject only" if verdict.shows_subject else "rejected")
+    mark = (verdict.burned_in_mark or "").strip()
     logger.info(
-        f"money-shot {'VERIFIED' if verdict.shows_event else 'rejected'} (frame {verdict.best_frame}): "
+        f"money-shot {status} (frame {verdict.best_frame}){' mark=' + repr(mark[:40]) if mark else ''}: "
         f"{verdict.what_is_actually_shown[:90]}"
     )
-    return bool(verdict.shows_event), int(verdict.best_frame or 0)
+    return bool(verdict.shows_event), int(verdict.best_frame or 0), bool(verdict.shows_subject), mark
 
 
 def excerpt_window(best_time: float, source_seconds: float, window_seconds: float) -> tuple[float, float]:
@@ -504,6 +650,20 @@ def excerpt_window(best_time: float, source_seconds: float, window_seconds: floa
     if start + window > source_seconds:
         start = max(0.0, source_seconds - window)
     return round(start, 2), round(window, 2)
+
+
+async def _detect_crop(ffmpeg: str, src: str, start: float, seconds: float) -> tuple[int, int, int, int] | None:
+    proc = await asyncio.create_subprocess_exec(
+        ffmpeg, "-hide_banner", "-ss", f"{start:.2f}", "-t", f"{min(seconds, 3.0):.2f}", "-i", src,
+        "-vf", "cropdetect=24:2:0", "-f", "null", "-",
+        stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE,
+    )
+    _, err = await proc.communicate()
+    found = __import__("re").findall(r"crop=(\d+):(\d+):(\d+):(\d+)", err.decode(errors="ignore"))
+    if not found:
+        return None
+    w, h, x, y = (int(v) for v in found[-1])
+    return w, h, x, y
 
 
 async def _cut_portrait(src: str, out: str, start: float, seconds: float, width: int = 1080, height: int = 1920) -> bool:
@@ -521,12 +681,17 @@ async def _cut_portrait(src: str, out: str, start: float, seconds: float, width:
         src_w, src_h = (int(v) for v in raw.decode().strip().split(",")[:2])
     except ValueError:
         return False
+    pre = ""
+    crop = await _detect_crop(ffmpeg, src, start, seconds)
+    if crop and crop[0] * crop[1] < 0.92 * src_w * src_h and crop[0] >= src_w * 0.5 and crop[1] >= src_h * 0.5:
+        pre = f"crop={crop[0]}:{crop[1]}:{crop[2]}:{crop[3]},"
+        src_w, src_h = crop[0], crop[1]
     if src_h >= src_w * 1.5:
-        graph = f"[0:v]scale={width}:{height}:force_original_aspect_ratio=increase,crop={width}:{height}[v]"
+        graph = f"[0:v]{pre}scale={width}:{height}:force_original_aspect_ratio=increase,crop={width}:{height}[v]"
     else:
         fg = width
         graph = (
-            f"[0:v]split[a][b];[a]scale={width}:{height}:force_original_aspect_ratio=increase,"
+            f"[0:v]{pre}split[a][b];[a]scale={width}:{height}:force_original_aspect_ratio=increase,"
             f"crop={width}:{height},boxblur=24:4,eq=brightness=-0.08[bg];"
             f"[b]scale=-2:{fg},crop='min(iw,{width})':{fg}[fg];[bg][fg]overlay=(W-w)/2:(H-h)/2[v]"
         )
@@ -551,6 +716,7 @@ async def find_verified_clip(
     duration_seconds: float,
     fallback_query: str = "",
     max_candidates: int = 3,
+    subject: str = "",
 ) -> MoneyShotResult | None:
     if not settings.shorts_money_shot_enabled:
         return None
@@ -576,26 +742,61 @@ async def find_verified_clip(
         return None
 
     downloader = get_clip_downloader()
-    for i, cand in enumerate(candidates[:max_candidates]):
+    subject_only: tuple[str, float, dict] | None = None
+    tried = 0
+    for i, cand in enumerate(candidates):
+        if tried >= max_candidates:
+            break
+        if not await _uploader_films_own_footage(cand):
+            continue
+        tried += 1
         src = await downloader.download_source(cand["url"], output_dir, f"{filename}_ms{i}")
         if not src:
             continue
         strip, times = _frames_strip(src, num_frames=6)
-        shows, best = await _locate_event(event_description, strip, len(times)) if strip else (False, 0)
+        shows, best, has_subject, mark = (
+            await _locate_event(event_description, strip, len(times), subject) if strip else (False, 0, False, "")
+        )
+        best_time = (times[best - 1] if 1 <= best <= len(times) else times[len(times) // 2]) if times else 0.0
+        if not same_owner(mark, cand["creator"]):
+            logger.info(f"money-shot: skipped {cand['url']}, burned-in mark {mark[:40]!r} is not the uploader")
+            Path(src).unlink(missing_ok=True)
+            continue
         if shows:
-            best_time = times[best - 1] if 1 <= best <= len(times) else times[len(times) // 2]
-            start, seconds = excerpt_window(best_time, _probe_duration(src), duration_seconds + 3.0)
-            out = str(Path(output_dir) / f"{filename}.mp4")
-            if await _cut_portrait(src, out, start, seconds):
-                Path(src).unlink(missing_ok=True)
-                cc = cand["license_kind"] == "cc"
-                logger.info(f"money-shot USED ({cand['license_kind']}): {cand['creator']} {cand['url']} @ {start:.1f}s")
-                return MoneyShotResult(
-                    file_path=out, source_url=cand["url"], title=cand["title"], creator=cand["creator"],
-                    license="Creative Commons (YouTube reuse-allowed)" if cc else "Short excerpt, used for commentary (fair use)",
-                    license_kind=cand["license_kind"],
-                )
+            result = await _cut_money_shot(src, cand, best_time, output_dir, filename, duration_seconds, "event")
+            Path(src).unlink(missing_ok=True)
+            if result:
+                if subject_only:
+                    Path(subject_only[0]).unlink(missing_ok=True)
+                return result
+            continue
+        if has_subject and subject_only is None:
+            subject_only = (src, best_time, cand)
+            continue
         Path(src).unlink(missing_ok=True)
+
+    if subject_only:
+        src, best_time, cand = subject_only
+        result = await _cut_money_shot(src, cand, best_time, output_dir, filename, duration_seconds, "subject")
+        Path(src).unlink(missing_ok=True)
+        if result:
+            return result
 
     logger.info(f"money-shot: no candidate verified for '{event_query}'")
     return None
+
+
+async def _cut_money_shot(
+    src: str, cand: dict, best_time: float, output_dir: str, filename: str, duration_seconds: float, match: str,
+) -> MoneyShotResult | None:
+    start, seconds = excerpt_window(best_time, _probe_duration(src), duration_seconds + 3.0)
+    out = str(Path(output_dir) / f"{filename}.mp4")
+    if not await _cut_portrait(src, out, start, seconds):
+        return None
+    cc = cand["license_kind"] == "cc"
+    logger.info(f"money-shot USED ({cand['license_kind']}, {match}): {cand['creator']} {cand['url']} @ {start:.1f}s")
+    return MoneyShotResult(
+        file_path=out, source_url=cand["url"], title=cand["title"], creator=cand["creator"],
+        license="Creative Commons (YouTube reuse-allowed)" if cc else "Short excerpt, used for commentary (fair use)",
+        license_kind=cand["license_kind"], match=match,
+    )

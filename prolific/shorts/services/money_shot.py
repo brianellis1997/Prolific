@@ -762,7 +762,7 @@ async def find_verified_clip(
     filename: str,
     duration_seconds: float,
     fallback_query: str = "",
-    max_candidates: int = 3,
+    max_candidates: int = 4,
     subject: str = "",
     allow_fair_use: bool = True,
     exclude_urls: set[str] | None = None,
@@ -792,6 +792,10 @@ async def find_verified_clip(
         candidates = await _gather(fallback_query)
     if not candidates:
         return None
+
+    cc_cands = [c for c in candidates if c["license_kind"] == "cc"]
+    fair_cands = [c for c in candidates if c["license_kind"] != "cc"]
+    candidates = [c for pair in __import__("itertools").zip_longest(cc_cands, fair_cands) for c in pair if c]
 
     downloader = get_clip_downloader()
     subject_only: tuple[str, float, dict] | None = None
@@ -827,7 +831,11 @@ async def find_verified_clip(
                     Path(subject_only[0]).unlink(missing_ok=True)
                 return result
             continue
-        if has_subject and subject_only is None:
+        if has_subject and (
+            subject_only is None or (subject_only[2]["license_kind"] != "cc" and cand["license_kind"] == "cc")
+        ):
+            if subject_only:
+                Path(subject_only[0]).unlink(missing_ok=True)
             subject_only = (src, best_time, cand)
             continue
         Path(src).unlink(missing_ok=True)

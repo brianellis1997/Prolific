@@ -392,3 +392,52 @@ def test_fair_use_guardrails_cooldown_cap_and_no_repeat(monkeypatch, tmp_path):
     searched.clear()
     assert asyncio.run(ms.find_verified_clip("q", "e", str(tmp_path), "clip_02", 3.0, allow_fair_use=False)) is None
     assert searched == ["creativeCommon"]
+
+
+def test_fair_use_event_beats_cc_subject_only(monkeypatch, tmp_path):
+    import asyncio
+
+    from prolific.shorts.services import money_shot as ms
+
+    async def search(query, video_license):
+        if video_license == "creativeCommon":
+            return [{"url": "cc1", "title": "t", "creator": "Birder", "channel_id": "a", "license_kind": "cc"},
+                    {"url": "cc2", "title": "t", "creator": "Zoo", "channel_id": "b", "license_kind": "cc"}]
+        return [{"url": "fu1", "title": "t", "creator": "Filmer", "channel_id": "c", "license_kind": "fair_use"}]
+
+    async def own(cand):
+        return True
+
+    downloads = []
+
+    class Downloader:
+        async def download_source(self, url, output_dir, filename):
+            downloads.append(url)
+            path = tmp_path / f"{filename}.mp4"
+            path.write_bytes(b"x")
+            return str(path)
+
+    async def locate(desc, strip, n, subject=""):
+        shows = downloads[-1] == "fu1"
+        return shows, 1, True, ""
+
+    async def cut(src, out, start, seconds):
+        return True
+
+    monkeypatch.setattr(ms.settings, "shorts_money_shot_enabled", True)
+    monkeypatch.setattr(ms.settings, "shorts_money_shot_license", "fair_use")
+    monkeypatch.setattr(ms.settings, "shorts_history_db_path", str(tmp_path / "shorts_history.sqlite"))
+    monkeypatch.setattr(ms, "_own_channel_id", lambda: "")
+    monkeypatch.setattr(ms, "_search_candidates", search)
+    monkeypatch.setattr(ms, "_uploader_films_own_footage", own)
+    monkeypatch.setattr(ms, "_frames_strip", lambda path, num_frames=6: ("strip", [1.0, 2.0]))
+    monkeypatch.setattr(ms, "_locate_event", locate)
+    monkeypatch.setattr(ms, "_probe_duration", lambda path: 30.0)
+    monkeypatch.setattr(ms, "_cut_portrait", cut)
+    import prolific.shorts.services.clip_downloader as cd
+    monkeypatch.setattr(cd, "get_clip_downloader", lambda: Downloader())
+
+    result = asyncio.run(ms.find_verified_clip("q", "crows gather around a dead crow", str(tmp_path), "clip_05", 3.0))
+    assert downloads == ["cc1", "fu1"]
+    assert result.match == "event" and result.license_kind == "fair_use" and result.creator == "Filmer"
+    assert not list(tmp_path.glob("clip_05_ms*"))

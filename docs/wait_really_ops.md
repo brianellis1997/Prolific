@@ -61,7 +61,9 @@ Round 2 sections with checkpoint rows).
 5. Fact check on the hook claim. The blue raspberry short said a 1970s dye ban forced the flavor;
    a viewer replied that ICEE made it blue because cherry was already red. Add a source check on the
    one claim the hook makes before the script is final.
-6. Slot test: Ask Grim found its 7 PM ET short beat noon on 5 of 6 days. Compare our 10 / 15 / 20
+6. People topics: the vision check accepted an Einstein lookalike from a Movember ad as "Einstein
+   writing on a chalkboard" (Nov 23). For a real person, reject actors, costumes, statues and lookalikes.
+7. Slot test: Ask Grim found its 7 PM ET short beat noon on 5 of 6 days. Compare our 10 / 15 / 20
    slots on same-age ratio before you move them.
 
 ## The check-in job
@@ -96,8 +98,10 @@ Really check-ins" and Claude re-creates the job with this prompt:
 - Check-in job: fceecc18, created Nov 22 2026 at 11:16 AM PT. Re-create it on Nov 28.
 - One-shots: none open (6059470d ran Nov 22 20:23 ET; 4d2ae36a was cancelled after the 15:00 short was
   checked at once, before the redeploy reset the logs).
-- Last check-in: Nov 22 14:47 ET (10 of 10 slots, no status problems, no copyright email, no new
-  comments). Last full review: Nov 22.
+- Last check-in: Nov 23 14:47 ET (13 of 13 slots, no real status problem, no copyright email, no
+  repeated viewer complaint). Last full review: Nov 22. Next full review: Nov 25.
+- Fair-use source log (/app/data/money_shot_sources.json): Movember (UCuISjZcTmzLbBQ6OEAoUSqA) since
+  Nov 23 10:07 ET.
 - Experiment under test: Round 2 (since Nov 19 00:13 ET) plus real clips: CC only from Nov 22 14:14 ET
   (commit c4f53b7), fair-use test from Nov 22 15:04 ET (commit 3b194cc). Candidate order fix live from
   Nov 22 20:25 ET (commit 1d45ee5): CC and fair use alternate, the first event clip wins. First short
@@ -121,6 +125,14 @@ Really check-ins" and Claude re-creates the job with this prompt:
   shorts without, same age, plus any copyright claim). Doc rev 22 after the Nov 22 update.
 
 ## Results log (newest first)
+
+- Nov 23 14:47 ET check-in: 13 of 13 slots. Median 1.52x the old normal (n=10), hook rate 46.8% (n=6)
+  against 45.7%. Real clips since Nov 22 14:47: peppers 1 of 2 picks (CC, event), crows 4 of 4 (CC,
+  subject), Einstein's eyes 2 of 4 (Empire Safe CC event, Movember fair use event: the first fair-use
+  clip, and a lookalike, see backlog 6). Early views: crows 115 at 0.8 days (typical 605, weak),
+  Einstein 1,144 at 0.2 days (typical 247, strong). The script flagged 3 July videos as "missing": a
+  false alarm from its 400-video window (the channel has 754). They are public; the script now looks
+  up each missing ID before it reports a problem.
 
 - Nov 22 20:06 ET, first fair-use-mode short: "Crows Solve Murders: The Terrifying Truth (Part 2)"
   (SEfUhFCLAbw, 33 s). 4 of 4 picks got real crow footage, about 18.5 s of the 33 s, all CC and all

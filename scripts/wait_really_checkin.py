@@ -136,9 +136,18 @@ def main() -> None:
     current = [v for v in videos if v["published"] >= start]
     state = json.loads(STATE_FILE.read_text()) if STATE_FILE.exists() else {}
     public_ids = {v["id"] for v in videos}
-    for vid in state.get("public_ids", []):
-        if vid not in public_ids and not any(p["id"] == vid for p in problems):
-            problems.append({"id": vid, "title": "", "issue": "was public at the last check-in, now missing"})
+    gone = [vid for vid in state.get("public_ids", []) if vid not in public_ids and not any(p["id"] == vid for p in problems)]
+    for i in range(0, len(gone), 50):
+        chunk = gone[i:i + 50]
+        found = {it["id"]: it for it in yt.videos().list(part="snippet,status,contentDetails", id=",".join(chunk)).execute(num_retries=4).get("items", [])}
+        for vid in chunk:
+            it = found.get(vid)
+            if not it:
+                problems.append({"id": vid, "title": "", "issue": "was public at the last check-in, now removed"})
+                continue
+            status = it["status"]
+            if status["privacyStatus"] != "public" or status.get("uploadStatus") != "processed" or it.get("contentDetails", {}).get("regionRestriction"):
+                problems.append({"id": vid, "title": it["snippet"]["title"], "issue": f"was public, now {status['privacyStatus']} / {status.get('uploadStatus')} {status.get('rejectionReason', '')}".strip()})
 
     expected = 0
     slots = [int(h) for h in args.slots.split(",")]

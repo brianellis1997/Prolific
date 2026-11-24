@@ -35,7 +35,11 @@ Round 2 sections with checkpoint rows).
 - Deploy only under the deploy skill: pipeline idle, never within 10 minutes of 10:00, 15:00 or
   20:00 ET. Commit only the files you changed, never `git add -A` (other sessions keep uncommitted
   work in this repo).
-- Never delete, hide or edit a published short. Comments are read only: never reply, like or pin.
+- Never delete, hide or edit a published short. Comments are read only for Claude: never reply, like or
+  pin (the pipeline's own reply bot answers comments every 2 hours).
+- Viewer feedback (Brian, Nov 23): one viewer is enough. Log every specific, reasonable request or
+  complaint in "Viewer requests" below with the action taken, and act on it when it fits the goal. Skip
+  only requests that are off topic or would replace the whole approach, and write down why.
 - Spend: the proxy is pay as you go. Any new cost over $20 a month needs Brian's OK.
 - Copyright kill switch: at the first claim, strike, takedown, region block or copyright email, set
   `SHORTS_MONEY_SHOT_ENABLED=false` on Railway, log it here and push Brian. Wait Really and Ask Grim
@@ -84,7 +88,8 @@ Really check-ins" and Claude re-creates the job with this prompt:
 >    Wait Really, apply the kill switch in Rules at once.
 > 4. Real clips: from the Railway logs since the last check-in, count `money-shot USED` lines against
 >    the shorts made, and note the proxy traffic used (State has the provider).
-> 5. Comments: note any request or complaint that 2 or more viewers repeat. Read only.
+> 5. Comments: log every specific, reasonable request or complaint, even from one viewer, in the
+>    "Viewer requests" table with the action taken, and act on it when it fits the goal. Read only.
 > 6. Full review when the last one is 3 or more days old: judge the current experiment by the Rules,
 >    start the next backlog item if it is judged, add a line to the Results log, and fill any due
 >    checkpoint row in the tracking doc.
@@ -95,7 +100,8 @@ Really check-ins" and Claude re-creates the job with this prompt:
 
 ## State (each check-in updates this)
 
-- Check-in job: fceecc18, created Nov 22 2026 at 11:16 AM PT. Re-create it on Nov 28.
+- Check-in job: e1c8030c, created Nov 23 2026 at about 7:50 PM PT with the new comment rule (replaced
+  fceecc18). Re-create it on Nov 29.
 - One-shots: none open (6059470d ran Nov 22 20:23 ET; 4d2ae36a was cancelled after the 15:00 short was
   checked at once, before the redeploy reset the logs).
 - Last check-in: Nov 23 14:47 ET (13 of 13 slots, no real status problem, no copyright email, no
@@ -123,7 +129,19 @@ Really check-ins" and Claude re-creates the job with this prompt:
   11 GB (about $11) a month. Auto-recharge is OFF: top up by hand when under 1 GB (expected near Dec 1),
   and tell Brian.
 
+## Viewer requests (newest first)
+
+| Date | Viewer | Short | Request | Action | Status |
+| --- | --- | --- | --- | --- | --- |
+| Nov 21 | @ronettviljoen9449 | Jacana dads (ZtZUPTzqfUo, Nov 19) | "Please show the actual animal in question... they just need more footage of the animal or objects" | The short showed stock of a lapwing, not a jacana. Real clips of the actual subject since Nov 22; matched to the spoken words and long videos since Nov 23. Next: check that stock shots show the right species (Pending, Nov 24). | In progress |
+| Nov 22 | (comment) | Blue raspberry | The origin story is wrong: ICEE made it blue because cherry was already red | Backlog 5: fact check on the hook claim | Open |
+
 ## Pending
+
+- [ ] Nov 24, after the 10:00 ET short: stock shots must show the right species (the jacana short showed a
+  lapwing). Measure how much of the 10:00 short is still stock, then check each stock pick against the
+  short's subject with the vision model and use a real clip of the subject (or a photo of the exact
+  species) when the stock clip shows something else.
 
 - [ ] Nov 24: Analytics should reach Nov 20 to 21. Report where the blue raspberry views came from
   (traffic source, subscribed or not, country) and its engaged views and average % viewed.

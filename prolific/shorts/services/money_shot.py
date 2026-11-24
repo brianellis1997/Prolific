@@ -39,6 +39,10 @@ class MoneyShotResult:
     license: str = "Creative Commons (YouTube reuse-allowed)"
     license_kind: str = "cc"
     match: str = "event"
+    source_path: str = ""
+    source_seconds: float = 0.0
+    source_start: float = 0.0
+    source_window: float = 0.0
 
 
 class _MoneyShotPick(__import__("pydantic").BaseModel):
@@ -171,6 +175,10 @@ _NETWORK_IN_TEXT_PATTERN = __import__("re").compile(
     r"disney|nbc|cbs|abc news|fox news|cnn|sky news|reuters|associated press|ap archive|bloomberg|"
     r"attenborough|planet earth|blue planet|frozen planet|our planet|seven worlds|dynasties)\b"
 )
+_EXPLAINER_TITLE_PATTERN = __import__("re").compile(
+    r"^\s*(why|how|what|this is why|here'?s why|the (real|secret|hidden|true|actual) reason)\b"
+    r"|\bexplained\b|\bfacts?\b|\bdid you know\b|\bthe truth about\b|\byou won'?t believe\b"
+)
 _REUPLOAD_PATTERN = __import__("re").compile(
     r"\b(compilation|re-?upload(?:ed)?|all rights reserved|copyright|courtesy of|fair use|"
     r"i do not own|i don'?t own|not my (?:video|footage)|top \d+)\b"
@@ -201,6 +209,8 @@ def vet_candidate(item: dict, video_license: str) -> str:
         return "blocked source"
     if is_reupload(snippet.get("title", ""), snippet.get("description", "")):
         return "looks like a re-upload"
+    if _EXPLAINER_TITLE_PATTERN.search((snippet.get("title") or "").lower()):
+        return "explainer title (another facts channel)"
     return ""
 
 
@@ -555,6 +565,7 @@ def same_owner(mark: str, creator: str) -> bool:
 
 class _UploaderVerdict(__import__("pydantic").BaseModel):
     films_own_footage: bool
+    public_domain_archive: bool = False
     reason: str = ""
 
 
@@ -611,8 +622,13 @@ async def _uploader_films_own_footage(cand: dict) -> bool:
         "OWN FOOTAGE: a zoo, sanctuary, park, farm, lab, researcher, museum, wildlife filmmaker, diver, hobbyist "
         "or vlogger whose uploads read like their own camera work in their own places. "
         "RE-POSTS: facts or trivia channels, compilations, 'funny animals' or 'daily clips' channels, viral or news "
-        "reposts, narrated explainer channels, AI channels, or a channel whose titles jump between unrelated "
-        "viral topics. When unsure, answer false."
+        "reposts, AI channels, or a channel whose titles jump between unrelated viral topics. Also answer false "
+        "for any narrated or animated explainer, facts, history or educational channel, even when it makes its "
+        "own animation: those are competitors and their videos carry their own text and voice. "
+        "Separately, set public_domain_archive=true only when the channel mainly posts US government films "
+        "(military, NASA, NOAA, USGS, National Archives, Department of Energy) or other public domain archive "
+        "films, and not newsreels or footage owned by companies (Pathé, Movietone, Getty, AP, Reuters). "
+        "When unsure, answer false to both."
     )
     human = (
         f"Channel: {info['title']}\nChannel description: {info['description']}\n"
@@ -625,8 +641,9 @@ async def _uploader_films_own_footage(cand: dict) -> bool:
             messages=[SystemMessage(content=system), HumanMessage(content=human)],
             output_schema=_UploaderVerdict, tier="research", temperature=0.0,
         )
-        own = bool(verdict.films_own_footage)
-        logger.info(f"money-shot uploader '{info['title']}': {'own footage' if own else 're-posts'} ({verdict.reason[:80]})")
+        own = bool(verdict.films_own_footage or verdict.public_domain_archive)
+        kind = "own footage" if verdict.films_own_footage else ("public domain archive" if verdict.public_domain_archive else "re-posts")
+        logger.info(f"money-shot uploader '{info['title']}': {kind} ({verdict.reason[:80]})")
     except Exception as exc:
         logger.warning(f"money-shot uploader check failed for {channel_id}: {exc}")
         own = False
@@ -940,6 +957,7 @@ async def find_verified_clip(
     subject: str = "",
     allow_fair_use: bool = True,
     exclude_urls: set[str] | None = None,
+    keep_source: bool = False,
 ) -> MoneyShotResult | None:
     if not settings.shorts_money_shot_enabled:
         return None
@@ -996,7 +1014,7 @@ async def find_verified_clip(
             continue
         if shows:
             result = await _cut_money_shot(src, cand, best_time, output_dir, filename, duration_seconds, "event")
-            Path(src).unlink(missing_ok=True)
+            _keep_or_delete(src, result, keep_source)
             if result:
                 if subject_only:
                     Path(subject_only[0]).unlink(missing_ok=True)
@@ -1027,7 +1045,7 @@ async def find_verified_clip(
     if subject_only:
         src, best_time, cand = subject_only
         result = await _cut_money_shot(src, cand, best_time, output_dir, filename, duration_seconds, "subject")
-        Path(src).unlink(missing_ok=True)
+        _keep_or_delete(src, result, keep_source)
         if result:
             return result
 
@@ -1043,6 +1061,7 @@ async def _cut_money_shot(
     if not await _cut_portrait(src, out, start, seconds):
         return None
     cc = cand["license_kind"] == "cc"
+    source_seconds = _probe_duration(src)
     if not cc:
         record_fair_use_source(cand.get("channel_id", ""))
     logger.info(f"money-shot USED ({cand['license_kind']}, {match}): {cand['creator']} {cand['url']} @ {start:.1f}s")
@@ -1050,4 +1069,36 @@ async def _cut_money_shot(
         file_path=out, source_url=cand["url"], title=cand["title"], creator=cand["creator"],
         license="Creative Commons (YouTube reuse-allowed)" if cc else "Short excerpt, used for commentary (fair use)",
         license_kind=cand["license_kind"], match=match,
+        source_seconds=source_seconds, source_start=start, source_window=seconds,
     )
+
+
+def _keep_or_delete(src: str, result: MoneyShotResult | None, keep: bool) -> None:
+    if keep and result:
+        result.source_path = src
+    else:
+        Path(src).unlink(missing_ok=True)
+
+
+def pool_windows(source_seconds: float, shot_seconds: float, used: list[tuple[float, float]], margin: float = 0.5) -> list[float]:
+    starts = []
+    span = max(0.0, source_seconds - shot_seconds)
+    for frac in (0.12, 0.3, 0.48, 0.66, 0.84, 0.95):
+        start = round(span * frac, 2)
+        if all(start + shot_seconds + margin <= a or start >= a + w + margin for a, w in used):
+            starts.append(start)
+    return starts
+
+
+async def cut_pool_window(src: str, out: str, start: float, seconds: float, subject: str) -> bool:
+    if not await _cut_portrait(src, out, start, seconds):
+        return False
+    strip, times = _frames_strip(out, num_frames=3)
+    if not strip:
+        Path(out).unlink(missing_ok=True)
+        return False
+    shows, _, has_subject, _ = await _locate_event(f"a clear view of {subject}", strip, len(times), subject)
+    if not (shows or has_subject):
+        Path(out).unlink(missing_ok=True)
+        return False
+    return True

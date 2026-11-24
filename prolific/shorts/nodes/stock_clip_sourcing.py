@@ -82,6 +82,30 @@ async def _search_and_select(
     return [], 0
 
 
+def mentions_subject(text: str, subject: str) -> bool:
+    import re
+
+    words = re.findall(r"[a-z]+", (subject or "").lower())
+    if not words:
+        return False
+    head = words[-1].rstrip("s") if len(words[-1]) > 3 else words[-1]
+    found = {w.rstrip("s") if len(w) > 3 else w for w in re.findall(r"[a-z]+", (text or "").lower())}
+    return head in found
+
+
+async def _cut_from_pool(pool: list[dict], output_path: str, seconds: float, subject: str) -> str:
+    from prolific.shorts.services.money_shot import cut_pool_window, pool_windows
+
+    for entry in sorted(pool, key=lambda e: len(e["used"])):
+        if len(entry["used"]) >= 3:
+            continue
+        for start in pool_windows(entry["seconds"], seconds + 0.4, entry["used"])[:2]:
+            if await cut_pool_window(entry["path"], output_path, start, seconds + 0.4, subject):
+                entry["used"].append((start, seconds + 0.4))
+                return entry["creator"]
+    return ""
+
+
 def spoken_words(caption_segments: list, asset: VisualAsset) -> str:
     words = []
     for seg in caption_segments:
@@ -158,6 +182,48 @@ async def stock_clip_sourcing_node(state: ShortsPipelineState) -> dict:
     consumed: set[int] = set()
     used_source_urls: set[str] = set()
     fair_use_used = 0
+    money_shots: dict[int, tuple[str, str]] = {}
+    subject_pool: list[dict] = []
+    short_subject = next((t[3] for t in money_shot_targets.values() if len(t) > 3 and t[3]), "")
+
+    for asset in stock_segments:
+        if asset.sequence_number not in money_shot_targets or asset.sequence_number in consumed:
+            continue
+        try:
+            from prolific.shorts.services.money_shot import find_verified_clip
+            ms_query, ms_desc, ms_fallback, ms_subject = money_shot_targets[asset.sequence_number]
+            held = held_shots.get(asset.sequence_number)
+            ms = await find_verified_clip(
+                event_query=ms_query, event_description=ms_desc,
+                output_dir=str(output_dir), filename=f"clip_{asset.sequence_number:02d}",
+                duration_seconds=asset.duration_seconds + (held.duration_seconds if held else 0.0),
+                fallback_query=ms_fallback, subject=ms_subject,
+                allow_fair_use=fair_use_used < settings.shorts_money_shot_max_fair_use,
+                exclude_urls=used_source_urls, keep_source=True,
+            )
+            if ms:
+                used_source_urls.add(ms.source_url)
+                if ms.license_kind == "fair_use":
+                    fair_use_used += 1
+                if held:
+                    asset.duration_seconds = round(asset.duration_seconds + held.duration_seconds, 3)
+                    asset.narration_end = held.narration_end
+                    consumed.add(held.sequence_number)
+                money_shots[asset.sequence_number] = (ms.file_path, f"money_shot_{ms.license_kind}")
+                money_shot_credits[asset.sequence_number] = ms.creator
+                money_shot_attributions.append(
+                    f'\n"{ms.title}" by {ms.creator}, {ms.source_url} ({ms.license})'
+                )
+                if ms.source_path:
+                    subject_pool.append({
+                        "path": ms.source_path, "seconds": ms.source_seconds, "creator": ms.creator,
+                        "used": [(ms.source_start, ms.source_window)],
+                    })
+                logger.info(f"[{asset.sequence_number}] MONEY SHOT ({ms_query}): {ms.file_path}")
+        except Exception as exc:
+            logger.warning(f"[{asset.sequence_number}] Money-shot attempt failed (non-fatal): {exc}")
+    if subject_pool:
+        logger.info(f"Subject pool for '{short_subject}': {len(subject_pool)} source videos")
 
     for asset in stock_segments:
         if asset.sequence_number in consumed:
@@ -171,37 +237,19 @@ async def stock_clip_sourcing_node(state: ShortsPipelineState) -> dict:
         scene_desc = asset.search_query
         narration = asset.script_text or topic
 
-        # Try the real-footage money shot first for targeted scenes.
-        if asset.sequence_number in money_shot_targets:
+        if asset.sequence_number in money_shots:
+            result, clip_source = money_shots[asset.sequence_number]
+        elif short_subject and subject_pool and mentions_subject(
+            f"{asset.search_query} {spoken_words(state.get('caption_segments') or [], asset)}", short_subject,
+        ):
             try:
-                from prolific.shorts.services.money_shot import find_verified_clip
-                ms_query, ms_desc, ms_fallback, ms_subject = money_shot_targets[asset.sequence_number]
-                held = held_shots.get(asset.sequence_number)
-                ms = await find_verified_clip(
-                    event_query=ms_query, event_description=ms_desc,
-                    output_dir=str(output_dir), filename=f"clip_{asset.sequence_number:02d}",
-                    duration_seconds=asset.duration_seconds + (held.duration_seconds if held else 0.0),
-                    fallback_query=ms_fallback, subject=ms_subject,
-                    allow_fair_use=fair_use_used < settings.shorts_money_shot_max_fair_use,
-                    exclude_urls=used_source_urls,
-                )
-                if ms:
-                    used_source_urls.add(ms.source_url)
-                    if ms.license_kind == "fair_use":
-                        fair_use_used += 1
-                    result = ms.file_path
-                    if held:
-                        asset.duration_seconds = round(asset.duration_seconds + held.duration_seconds, 3)
-                        asset.narration_end = held.narration_end
-                        consumed.add(held.sequence_number)
-                    clip_source = f"money_shot_{ms.license_kind}"
-                    money_shot_credits[asset.sequence_number] = ms.creator
-                    money_shot_attributions.append(
-                        f'\n"{ms.title}" by {ms.creator}, {ms.source_url} ({ms.license})'
-                    )
-                    logger.info(f"[{asset.sequence_number}] MONEY SHOT ({ms_query}): {ms.file_path}")
+                pooled = await _cut_from_pool(subject_pool, output_path, asset.duration_seconds, short_subject)
+                if pooled:
+                    result, clip_source = output_path, "money_shot_pool"
+                    money_shot_credits[asset.sequence_number] = pooled
+                    logger.info(f"[{asset.sequence_number}] SUBJECT POOL ({short_subject}) from {pooled}")
             except Exception as exc:
-                logger.warning(f"[{asset.sequence_number}] Money-shot attempt failed (non-fatal): {exc}")
+                logger.warning(f"[{asset.sequence_number}] Subject pool cut failed (non-fatal): {exc}")
 
         candidates, best_idx = (([], 0) if result else await _search_and_select(
             pexels, asset.search_query, used_video_ids,
@@ -295,8 +343,12 @@ async def stock_clip_sourcing_node(state: ShortsPipelineState) -> dict:
 
     all_updated = updated_assets + fallback_to_image
 
+    for entry in subject_pool:
+        Path(entry["path"]).unlink(missing_ok=True)
+    pooled_count = sum(len(entry["used"]) - 1 for entry in subject_pool)
     ms_count = len(money_shot_attributions)
     logger.info(
+        f"Subject pool shots: {pooled_count}. "
         f"Sourced {len(updated_assets)} stock clips ({ms_count} real-footage money shots), "
         f"{len(fallback_to_image)} fell back to web image"
     )

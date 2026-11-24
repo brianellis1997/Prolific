@@ -143,14 +143,27 @@ Really check-ins" and Claude re-creates the job with this prompt:
   short's subject with the vision model and use a real clip of the subject (or a photo of the exact
   species) when the stock clip shows something else.
 
-- [ ] Nov 24: Analytics should reach Nov 20 to 21. Report where the blue raspberry views came from
-  (traffic source, subscribed or not, country) and its engaged views and average % viewed.
+- [x] Nov 24: blue raspberry source report (see the Results log, Nov 24).
 - [ ] Nov 26: Round 2 one-week checkpoint row in the tracking doc.
 - [ ] Dec 3: Round 2 two-week checkpoint row in the tracking doc.
 - [ ] Nov 29: "Real clips, first read" row in the tracking doc (shorts with a real clip against
   shorts without, same age, plus any copyright claim). Doc rev 22 after the Nov 22 update.
 
 ## Results log (newest first)
+
+- Nov 24 14:47 ET check-in: 16 of 16 slots, median 1.46x the old normal (n=13), hook rate 48.4% (n=9)
+  against 45.7%. Real clips: with 1.43x (n=3), without 1.47x (n=10), too early. Bat bomb short (10:00):
+  1 of 4 picks real (bat swarm, CC); history searches are mostly other history explainer channels
+  (rejected), and the uploader check also rejected public domain archives (atomcentral,
+  PublicResourceOrg). Square windows short (Nov 23 20:00) used two competitor explainers (StickQuirk,
+  Break Even Math). Fixes built: explainer-title filter, competitor explainers count as re-posts, a
+  public_domain_archive verdict, and the subject pool (see State).
+- Nov 24, blue raspberry (vc3wJY8cd7M) from Analytics: 24,421 views, 14,114 engaged (58%), average
+  36 s of 38 s (96% viewed). Day 1 4,982, day 2 16,869, day 3 2,570. Traffic: Shorts feed 97%, search
+  3%. Non-subscribers 100%. US 59%, India 12%, UK 9%, Philippines 9%, Canada 6%, Australia 5%. Mobile
+  60%, tablet 21%, TV 14%. Only 6 subscribers gained. Channel views Nov 21: 23,310 (baseline about
+  2,700). Lesson: a near-full watch (96%) is what makes the feed push a short; the channel turns almost
+  no viewers into subscribers.
 
 - Nov 23 22:16 ET, Brian's review of the cow short (czPrmrjhyK0): at 12.4 to 17.5 s the voice says cows
   are pulled apart while a lone cow walks (query "cow running to fence"); the reunion used stock; one

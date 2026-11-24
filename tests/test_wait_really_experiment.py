@@ -648,3 +648,56 @@ def test_candidate_search_uses_web_results_and_one_vetting_call(monkeypatch):
     monkeypatch.setattr(ms, "_web_search", web_down)
     fallback = asyncio.run(ms._search_candidates("q", "any"))
     assert [c["url"][-1] for c in fallback] == ["d"] and calls["search"] == 1
+
+
+def test_explainer_titles_and_subject_pool_helpers(monkeypatch, tmp_path):
+    import asyncio
+
+    from prolific.shorts.nodes import stock_clip_sourcing as scs
+    from prolific.shorts.services import money_shot as ms
+
+    def item(title):
+        return {"snippet": {"title": title, "description": "", "channelTitle": "Somebody"},
+                "status": {"license": "youtube"}, "contentDetails": {"licensedContent": False}}
+
+    assert ms.vet_candidate(item("Why Plane Windows Are Never Square"), "any") == "explainer title (another facts channel)"
+    assert ms.vet_candidate(item("This Is Why Airplane Windows Look Round"), "any") == "explainer title (another facts channel)"
+    assert ms.vet_candidate(item("Fatigue test and sample failure"), "any") == ""
+    assert ms.vet_candidate(item("Karma's Reunion at the sanctuary"), "any") == ""
+
+    assert scs.mentions_subject("jacana walking on lily pads", "African jacana")
+    assert scs.mentions_subject("naked mole rats huddling in a tunnel", "naked mole rat")
+    assert not scs.mentions_subject("people separate the herd", "naked mole rat")
+    assert not scs.mentions_subject("generic river sunset", "jacana")
+
+    windows = ms.pool_windows(60.0, 3.0, [(10.0, 6.0)])
+    assert windows and all(w + 3.5 <= 10.0 or w >= 16.5 for w in windows)
+    assert ms.pool_windows(4.0, 3.0, [(0.0, 4.0)]) == []
+
+    cuts = []
+
+    async def fake_cut(src, out, start, seconds, subject):
+        cuts.append((src, start))
+        return start > 20
+
+    monkeypatch.setattr(ms, "cut_pool_window", fake_cut)
+    pool = [{"path": "a.mp4", "seconds": 60.0, "creator": "Birder", "used": [(5.0, 6.0)]}]
+    creator = asyncio.run(scs._cut_from_pool(pool, str(tmp_path / "clip_09.mp4"), 2.0, "jacana"))
+    assert creator == "Birder" and len(pool[0]["used"]) == 2 and pool[0]["used"][-1][0] > 20
+    assert len(cuts) == 2
+
+
+def test_subject_pool_rotates_sources(monkeypatch, tmp_path):
+    import asyncio
+
+    from prolific.shorts.nodes import stock_clip_sourcing as scs
+    from prolific.shorts.services import money_shot as ms
+
+    async def fake_cut(src, out, start, seconds, subject):
+        return True
+
+    monkeypatch.setattr(ms, "cut_pool_window", fake_cut)
+    pool = [{"path": "a.mp4", "seconds": 60.0, "creator": "A", "used": [(5.0, 6.0)]},
+            {"path": "b.mp4", "seconds": 60.0, "creator": "B", "used": [(5.0, 6.0)]}]
+    got = [asyncio.run(scs._cut_from_pool(pool, str(tmp_path / f"c{i}.mp4"), 2.0, "cow")) for i in range(5)]
+    assert got == ["A", "B", "A", "B", ""]

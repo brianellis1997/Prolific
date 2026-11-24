@@ -70,26 +70,33 @@ async def identify_money_shots(
     system = (
         "You pick the scenes of a short video where ACTUAL real-world footage of the "
         "specific subject or event (not generic stock b-roll) would most make the video "
-        "pop. Viewers want to see the real thing the narration names. First pick the "
-        "payoff scenes that show the event, then scenes that name the subject itself "
-        "(the animal, object, place or event), so real footage covers most of the short.\n\n"
+        "pop. Each scene line is the exact words the voice says while that clip is on "
+        "screen, and the clip must show what those words describe at that moment.\n\n"
+        "Rank scenes by how specific and visual the spoken words are. A scene that names "
+        "an action or event (a cow pulled away from her friend, two cows reunited, an "
+        "octopus punching a fish) comes before a scene that only names the animal, and a "
+        "scene that only names the animal comes before nothing. Never pick a generic scene "
+        "('cows grazing in a field') while a scene with a specific action is unpicked.\n\n"
         "ONLY pick a scene whose payoff is something you could literally SEE on "
         "camera: an animal visibly doing a thing, a physical event, a real place. "
         "SKIP anything that is a SOUND, a statistic, a sensor reading, an internal/"
         "microscopic process, or an abstract concept — there is no footage of "
         "'bees whooping' (a sound) or 'a lobster being biologically immortal'.\n\n"
-        "The search_query is the SINGLE most important thing. Write it the way a "
-        "normal person would type it into YouTube to find the clip — 2 to 5 simple, "
-        "common words describing what you'd SEE. NOT scientific or technical "
-        "wording.\n"
+        "The search_query is the SINGLE most important thing. Write it the way an "
+        "uploader would title a video of that exact moment, 2 to 6 simple, common words, "
+        "using the event words from the narration: 'cow reunited with best friend', "
+        "'calf separated from mother', 'crows gather around dead crow'. Never swap the "
+        "event for a weaker stand-in ('cow running to fence' is wrong for a scene about "
+        "separation). NOT scientific or technical wording.\n"
         "  GOOD: 'octopus punching fish', 'starfish eating mussel', 'eagle catching "
         "fish', 'volcano lava fountain', 'mantis shrimp punch'\n"
         "  BAD:  'honeybee hive vibration sensors accelerometer' (technical, no such "
         "footage), 'cephalopod aggressive territorial behavior' (jargon), "
         "'apoptosis cellular senescence' (microscopic/abstract)\n\n"
-        "Also give a fallback_query: a BROADER but still real version to try if the "
-        "specific one finds nothing (e.g. specific 'mantis shrimp punching snail' -> "
-        "fallback 'mantis shrimp striking'). And event_description: a plain sentence "
+        "Also give a fallback_query: another title for the SAME moment in different "
+        "words, a little broader (e.g. 'mantis shrimp punching snail' -> 'mantis shrimp "
+        "strike'; 'cow separated from friend' -> 'cows crying for each other'). And "
+        "event_description: a plain sentence "
         "of what a verifier must SEE on screen. And subject: the exact animal, object or "
         "place the whole short is about (e.g. 'naked mole rat'), even when the scene "
         "shows something else.\n"
@@ -197,7 +204,7 @@ def vet_candidate(item: dict, video_license: str) -> str:
     return ""
 
 
-async def _search_candidates(query: str, video_license: str, max_results: int = 5) -> list[dict]:
+async def _search_candidates(query: str, video_license: str, max_results: int = 8) -> list[dict]:
     def _search():
         yt = _get_search_client()
         resp = yt.search().list(
@@ -721,6 +728,12 @@ async def _cut_portrait(src: str, out: str, start: float, seconds: float, width:
     return Path(out).exists()
 
 
+def interleave_licenses(candidates: list[dict]) -> list[dict]:
+    cc_cands = [c for c in candidates if c["license_kind"] == "cc"]
+    fair_cands = [c for c in candidates if c["license_kind"] != "cc"]
+    return [c for pair in __import__("itertools").zip_longest(cc_cands, fair_cands) for c in pair if c]
+
+
 def _sources_file() -> Path:
     return Path(getattr(settings, "shorts_history_db_path", "./shorts_history.sqlite")).parent / "money_shot_sources.json"
 
@@ -762,7 +775,7 @@ async def find_verified_clip(
     filename: str,
     duration_seconds: float,
     fallback_query: str = "",
-    max_candidates: int = 4,
+    max_candidates: int = 5,
     subject: str = "",
     allow_fair_use: bool = True,
     exclude_urls: set[str] | None = None,
@@ -788,14 +801,13 @@ async def find_verified_clip(
         return found
 
     candidates = await _gather(event_query)
-    if not candidates and fallback_query and fallback_query.strip().lower() != event_query.strip().lower():
-        candidates = await _gather(fallback_query)
+    if fallback_query and fallback_query.strip().lower() != event_query.strip().lower():
+        seen_urls = {c["url"] for c in candidates}
+        candidates += [c for c in await _gather(fallback_query) if c["url"] not in seen_urls]
     if not candidates:
         return None
 
-    cc_cands = [c for c in candidates if c["license_kind"] == "cc"]
-    fair_cands = [c for c in candidates if c["license_kind"] != "cc"]
-    candidates = [c for pair in __import__("itertools").zip_longest(cc_cands, fair_cands) for c in pair if c]
+    candidates = interleave_licenses(candidates)
 
     downloader = get_clip_downloader()
     subject_only: tuple[str, float, dict] | None = None

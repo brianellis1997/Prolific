@@ -13,7 +13,6 @@ MUSIC_TRACKS = [
 ]
 MUSIC_GAIN = 0.16
 WHOOSH_GAIN = 0.30
-RISER_GAIN = 0.28
 IMPACT_GAIN = 0.45
 
 
@@ -28,18 +27,16 @@ def plan_sfx(
     cut_times: list[float],
     payoff_time: float | None,
     duration: float,
-    riser_seconds: float = 1.6,
 ) -> list[tuple[str, float, float]]:
     events: list[tuple[str, float, float]] = []
     has_payoff = payoff_time is not None and 2.0 < payoff_time < duration - 1.0
     for i, t in enumerate(cut_times):
         if i % 2 == 0 or not (0.8 < t < duration - 0.8):
             continue
-        if has_payoff and payoff_time - riser_seconds - 0.4 <= t <= payoff_time + 0.6:
+        if has_payoff and payoff_time - 0.4 <= t <= payoff_time + 0.6:
             continue
         events.append(("whoosh", max(0.0, t - 0.12), WHOOSH_GAIN))
     if has_payoff:
-        events.append(("riser", max(0.0, payoff_time - riser_seconds), RISER_GAIN))
         events.append(("impact", payoff_time, IMPACT_GAIN))
     return sorted(events, key=lambda e: e[1])
 
@@ -85,10 +82,8 @@ async def mix_short_audio(
     if voice_seconds <= 0:
         return None
     total = voice_seconds + tail_seconds
-    riser = MEDIA_DIR / "sfx" / "riser.mp3"
-    riser_seconds = await _probe_seconds(riser) if riser.exists() else 1.6
     events = [
-        e for e in plan_sfx(cut_times, payoff_time, voice_seconds, riser_seconds or 1.6)
+        e for e in plan_sfx(cut_times, payoff_time, voice_seconds)
         if (MEDIA_DIR / "sfx" / f"{e[0]}.mp3").exists()
     ]
 

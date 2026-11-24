@@ -143,13 +143,13 @@ def test_scoreboard_ranks_winners_duds_and_themes():
     assert "WHAT IS WORKING" in text and "WHAT IS DEAD" in text and "timeline comparisons" in text
 
 
-def test_sound_design_places_whooshes_riser_and_impact():
+def test_sound_design_places_whooshes_and_impact_without_riser():
     from prolific.shorts.services.audio_mix import payoff_time_from_script, plan_sfx
     from prolific.shorts.schemas import ShortScript
 
-    events = plan_sfx([2.0, 4.0, 6.0, 8.0, 10.0, 12.0, 14.0], payoff_time=10.5, duration=30.0, riser_seconds=1.6)
+    events = plan_sfx([2.0, 4.0, 6.0, 8.0, 10.0, 12.0, 14.0], payoff_time=10.5, duration=30.0)
     names = [(n, round(s, 2)) for n, s, _ in events]
-    assert ("riser", 8.9) in names and ("impact", 10.5) in names
+    assert ("impact", 10.5) in names and not any(n == "riser" for n, _ in names)
     whooshes = [s for n, s in names if n == "whoosh"]
     assert whooshes == [3.88, 7.88, 11.88]
     script = ShortScript(hook="Octopuses punch fish.", setup="Scientists filmed it.")
@@ -441,3 +441,66 @@ def test_fair_use_event_beats_cc_subject_only(monkeypatch, tmp_path):
     assert downloads == ["cc1", "fu1"]
     assert result.match == "event" and result.license_kind == "fair_use" and result.creator == "Filmer"
     assert not list(tmp_path.glob("clip_05_ms*"))
+
+
+def test_scene_text_is_the_words_spoken_during_the_shot():
+    from prolific.shorts.nodes.stock_clip_sourcing import spoken_words
+    from prolific.shorts.schemas import VisualAsset
+
+    words = [CaptionSegment(word=w, start_time=i * 0.5, end_time=i * 0.5 + 0.4)
+             for i, w in enumerate("Cows have best friends and panic when farmers pull them apart".split())]
+    shot = VisualAsset(sequence_number=6, narration_start=3.0, narration_end=5.5, search_query="cow running to fence")
+    assert spoken_words(words, shot) == "when farmers pull them apart"
+    dict_words = [{"word": "hello", "start_time": 0.0}]
+    empty_shot = VisualAsset(sequence_number=1, narration_start=9.0, narration_end=10.0, search_query="stock query")
+    assert spoken_words(dict_words, empty_shot) == "stock query"
+
+
+def test_fallback_query_is_searched_before_settling_for_the_subject(monkeypatch, tmp_path):
+    import asyncio
+
+    from prolific.shorts.services import money_shot as ms
+
+    async def search(query, video_license):
+        if video_license != "creativeCommon":
+            return []
+        if query == "cow separated from friend":
+            return [{"url": "m1", "title": "t", "creator": "Farm", "channel_id": "a", "license_kind": "cc"}]
+        return [{"url": "f1", "title": "t", "creator": "Sanctuary", "channel_id": "b", "license_kind": "cc"}]
+
+    async def own(cand):
+        return True
+
+    downloads = []
+
+    class Downloader:
+        async def download_source(self, url, output_dir, filename):
+            downloads.append(url)
+            path = tmp_path / f"{filename}.mp4"
+            path.write_bytes(b"x")
+            return str(path)
+
+    async def locate(desc, strip, n, subject=""):
+        return downloads[-1] == "f1", 1, True, ""
+
+    async def cut(src, out, start, seconds):
+        return True
+
+    monkeypatch.setattr(ms.settings, "shorts_money_shot_enabled", True)
+    monkeypatch.setattr(ms.settings, "shorts_money_shot_license", "cc_only")
+    monkeypatch.setattr(ms.settings, "shorts_history_db_path", str(tmp_path / "shorts_history.sqlite"))
+    monkeypatch.setattr(ms, "_own_channel_id", lambda: "")
+    monkeypatch.setattr(ms, "_search_candidates", search)
+    monkeypatch.setattr(ms, "_uploader_films_own_footage", own)
+    monkeypatch.setattr(ms, "_frames_strip", lambda path, num_frames=6: ("strip", [1.0, 2.0]))
+    monkeypatch.setattr(ms, "_locate_event", locate)
+    monkeypatch.setattr(ms, "_probe_duration", lambda path: 30.0)
+    monkeypatch.setattr(ms, "_cut_portrait", cut)
+    import prolific.shorts.services.clip_downloader as cd
+    monkeypatch.setattr(cd, "get_clip_downloader", lambda: Downloader())
+
+    result = asyncio.run(ms.find_verified_clip(
+        "cow separated from friend", "a cow is led away while her friend calls", str(tmp_path), "clip_06", 3.0,
+        fallback_query="cows crying for each other",
+    ))
+    assert downloads == ["m1", "f1"] and result.match == "event" and result.creator == "Sanctuary"

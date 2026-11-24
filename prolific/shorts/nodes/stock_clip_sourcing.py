@@ -82,6 +82,17 @@ async def _search_and_select(
     return [], 0
 
 
+def spoken_words(caption_segments: list, asset: VisualAsset) -> str:
+    words = []
+    for seg in caption_segments:
+        word = seg.word if hasattr(seg, "word") else seg.get("word", "")
+        start = seg.start_time if hasattr(seg, "start_time") else seg.get("start_time", 0.0)
+        if asset.narration_start - 0.05 <= start < asset.narration_end:
+            words.append(word.strip())
+    said = " ".join(w for w in words if w)
+    return said or asset.script_text or asset.search_query
+
+
 async def stock_clip_sourcing_node(state: ShortsPipelineState) -> dict:
     """Search, evaluate with vision, and download the best stock clips."""
     logger.info("=== SHORTS: STOCK CLIP SOURCING ===")
@@ -120,7 +131,7 @@ async def stock_clip_sourcing_node(state: ShortsPipelineState) -> dict:
     if settings.shorts_money_shot_enabled and stock_segments:
         try:
             from prolific.shorts.services.money_shot import identify_money_shots
-            scene_texts = [a.script_text or a.search_query for a in stock_segments]
+            scene_texts = [spoken_words(state.get("caption_segments") or [], a) for a in stock_segments]
             picks = await identify_money_shots(
                 topic, scene_texts, max_picks=settings.shorts_money_shot_max_per_video,
             )

@@ -104,16 +104,24 @@ Really check-ins" and Claude re-creates the job with this prompt:
   Nov 23 10:07 ET.
 - Experiment under test: Round 2 (since Nov 19 00:13 ET) plus real clips: CC only from Nov 22 14:14 ET
   (commit c4f53b7), fair-use test from Nov 22 15:04 ET (commit 3b194cc). Candidate order fix live from
-  Nov 22 20:25 ET (commit 1d45ee5): CC and fair use alternate, the first event clip wins. First short
-  with it: 10:00 ET Nov 23. A shorts run now takes about 6 minutes (was 3).
+  Nov 22 20:25 ET (commit 1d45ee5): CC and fair use alternate, the first event clip wins.
+  Nov 23 22:16 ET (commits 05aab81, e15efae), first short 10:00 ET Nov 24: picks read the words spoken
+  during each shot and rank action scenes first; both queries are searched for the event; medium
+  videos are searched through their storyboard thumbnails and only the needed seconds are pulled;
+  search runs through yt-dlp (0 API units); the riser sound is gone (Brian: "rocket ship" sound).
+  SHORTS_MONEY_SHOT_MAX_PER_VIDEO=5. A run now takes about 8 to 10 minutes.
+- API quota: Wait Really, Ask Grim and Slumber use ONE Google Cloud project (same OAuth client), so
+  every Data API search (100 units) competes with Ask Grim's uploads. Never add search.list calls; the
+  money-shot search only falls back to it when yt-dlp search fails 3 times.
 - Railway variables: SHORTS_MONEY_SHOT_ENABLED=true, SHORTS_MONEY_SHOT_LICENSE=fair_use,
   SHORTS_MONEY_SHOT_MAX_PER_VIDEO=4 (max fair use 2 per short is the code default), YTDLP_PROXY
   (template with a `{port}` slot; the value holds the proxy login, never print it).
 - Proxy: DataImpulse residential, plan "Wait Really real clips", $5 for 5 GB bought Nov 22 (invoice
   in_1UefnsAWZZJCgSrYQn7Td34n, Chase Sapphire 4733 through Stripe Link). Traffic never expires. Login in
   ~/.claude/secrets/passwords.txt under "DataImpulse". US exit IPs (`__cr.us` on the login), sticky
-  ports 10000 to 20000. Dry run: about 35 MB per short, so about 3 GB a month. Auto-recharge is OFF:
-  top up by hand when under 1 GB, and tell Brian.
+  ports 10000 to 20000. Nov 23 dry run with 5 picks and long videos: about 125 MB per short, so about
+  11 GB (about $11) a month. Auto-recharge is OFF: top up by hand when under 1 GB (expected near Dec 1),
+  and tell Brian.
 
 ## Pending
 
@@ -125,6 +133,14 @@ Really check-ins" and Claude re-creates the job with this prompt:
   shorts without, same age, plus any copyright claim). Doc rev 22 after the Nov 22 update.
 
 ## Results log (newest first)
+
+- Nov 23 22:16 ET, Brian's review of the cow short (czPrmrjhyK0): at 12.4 to 17.5 s the voice says cows
+  are pulled apart while a lone cow walks (query "cow running to fence"); the reunion used stock; one
+  shot was "microscopic cell" stock. Causes: the picker read stock phrases, not the spoken words; it
+  picked generic scenes; the real moments live in longer farm and sanctuary videos or with The Dodo
+  (Content ID, skipped). Re-run of the cow script with the new code: 4 of 4 scenes real, 3 events
+  (AnimalPlace reunion, mooing, herd); separation still subject only. Long-video live test: The Gentle
+  Barn "Karma's Reunion" gave the cow and calf reunion for 1.5 MB.
 
 - Nov 23 14:47 ET check-in: 13 of 13 slots. Median 1.52x the old normal (n=10), hook rate 46.8% (n=6)
   against 45.7%. Real clips since Nov 22 14:47: peppers 1 of 2 picks (CC, event), crows 4 of 4 (CC,

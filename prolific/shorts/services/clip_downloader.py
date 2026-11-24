@@ -1,6 +1,7 @@
 """yt-dlp wrapper for downloading clips from YouTube/Twitch/Reddit."""
 
 import asyncio
+import json
 import logging
 import random
 import shutil
@@ -74,6 +75,65 @@ class ClipDownloader:
         size_mb = files[0].stat().st_size / 1_000_000
         logger.info(f"Downloaded source {url} ({size_mb:.1f} MB)")
         return str(files[0])
+
+    async def video_info(self, url: str, timeout: int = 60) -> tuple[dict | None, str]:
+        err = b""
+        for attempt in range(3):
+            proxy = proxy_url()
+            proc = await asyncio.create_subprocess_exec(
+                self.yt_dlp, *(["--proxy", proxy] if proxy else []), "-J", "--skip-download", "--no-warnings", "--no-playlist", url,
+                stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE,
+            )
+            try:
+                out, err = await asyncio.wait_for(proc.communicate(), timeout=timeout)
+            except asyncio.TimeoutError:
+                proc.kill()
+                await proc.wait()
+                return None, ""
+            if proc.returncode == 0:
+                try:
+                    return json.loads(out.decode()), proxy
+                except ValueError:
+                    return None, ""
+            blocked = any(m in err.decode(errors="ignore") for m in ("confirm you", "HTTP Error 403", "HTTP Error 429"))
+            if not blocked or not proxy:
+                break
+        logger.warning(f"yt-dlp info failed for {url}: {err.decode(errors='ignore')[-200:]}")
+        return None, ""
+
+    async def download_section(
+        self, info: dict, proxy: str, output_dir: str, filename: str, start: float, end: float,
+        max_side: int = 720, timeout: int = 90,
+    ) -> str | None:
+        formats = [
+            f for f in info.get("formats", [])
+            if f.get("vcodec") not in (None, "none") and f.get("acodec") in (None, "none")
+            and f.get("url") and f.get("protocol") in ("https", "http")
+            and 0 < min(f.get("width") or 0, f.get("height") or 0) <= max_side
+        ]
+        if not formats or not self.ffmpeg:
+            return None
+        best = max(formats, key=lambda f: (min(f.get("width") or 0, f.get("height") or 0), f.get("tbr") or 0))
+        out = Path(output_dir) / f"{filename}_sec.mkv"
+        out.parent.mkdir(parents=True, exist_ok=True)
+        proc = await asyncio.create_subprocess_exec(
+            self.ffmpeg, "-hide_banner", "-loglevel", "error", *(["-http_proxy", proxy] if proxy else []),
+            "-ss", f"{max(0.0, start):.2f}", "-i", best["url"], "-t", f"{max(1.0, end - start):.2f}", "-an", "-c", "copy", "-y", str(out),
+            stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE,
+        )
+        try:
+            _, err = await asyncio.wait_for(proc.communicate(), timeout=timeout)
+        except asyncio.TimeoutError:
+            proc.kill()
+            await proc.wait()
+            out.unlink(missing_ok=True)
+            return None
+        if proc.returncode != 0 or not out.exists() or out.stat().st_size == 0:
+            logger.warning(f"section download failed for {info.get('webpage_url', '')}: {err.decode(errors='ignore')[-160:]}")
+            out.unlink(missing_ok=True)
+            return None
+        logger.info(f"Downloaded section {start:.1f}-{end:.1f}s of {info.get('webpage_url', '')} ({out.stat().st_size / 1_000_000:.1f} MB)")
+        return str(out)
 
     async def get_clip_info(self, url: str) -> dict | None:
         """Get clip metadata without downloading."""
@@ -340,6 +400,14 @@ def _detect_platform(url: str) -> str:
 
 
 _clip_downloader: ClipDownloader | None = None
+
+
+def proxy_url() -> str:
+    proxy = getattr(settings, "ytdlp_proxy", "") or ""
+    if "{port}" in proxy:
+        low, high = (int(p) for p in (getattr(settings, "ytdlp_proxy_ports", "") or "10000-20000").split("-"))
+        proxy = proxy.replace("{port}", str(random.randint(low, high)))
+    return proxy
 
 
 def get_clip_downloader() -> ClipDownloader:

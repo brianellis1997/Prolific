@@ -237,6 +237,7 @@ class Settings(BaseSettings):
     shorts_money_shot_license: str = "fair_use"
     shorts_money_shot_max_fair_use: int = 2
     shorts_money_shot_source_cooldown_days: int = 30
+    shorts_money_shot_long_video_tries: int = 2
     ytdlp_proxy: str = ""
     ytdlp_proxy_ports: str = "10000-20000"
     # Optional read-only Data API key for CC search, to keep that quota off the

@@ -265,7 +265,9 @@ def test_money_shot_skips_reposters_and_falls_back_to_the_subject(monkeypatch, t
     ]
     downloads, cuts = [], []
 
-    async def search(query, video_license):
+    async def search(query, video_license, video_duration="short"):
+        if video_duration != "short":
+            return []
         return cands if video_license == "creativeCommon" else []
 
     async def own(cand):
@@ -346,7 +348,9 @@ def test_fair_use_guardrails_cooldown_cap_and_no_repeat(monkeypatch, tmp_path):
 
     searched = []
 
-    async def search(query, video_license):
+    async def search(query, video_license, video_duration="short"):
+        if video_duration != "short":
+            return []
         searched.append(video_license)
         if video_license == "creativeCommon":
             return []
@@ -399,7 +403,9 @@ def test_fair_use_event_beats_cc_subject_only(monkeypatch, tmp_path):
 
     from prolific.shorts.services import money_shot as ms
 
-    async def search(query, video_license):
+    async def search(query, video_license, video_duration="short"):
+        if video_duration != "short":
+            return []
         if video_license == "creativeCommon":
             return [{"url": "cc1", "title": "t", "creator": "Birder", "channel_id": "a", "license_kind": "cc"},
                     {"url": "cc2", "title": "t", "creator": "Zoo", "channel_id": "b", "license_kind": "cc"}]
@@ -461,7 +467,9 @@ def test_fallback_query_is_searched_before_settling_for_the_subject(monkeypatch,
 
     from prolific.shorts.services import money_shot as ms
 
-    async def search(query, video_license):
+    async def search(query, video_license, video_duration="short"):
+        if video_duration != "short":
+            return []
         if video_license != "creativeCommon":
             return []
         if query == "cow separated from friend":
@@ -504,3 +512,139 @@ def test_fallback_query_is_searched_before_settling_for_the_subject(monkeypatch,
         fallback_query="cows crying for each other",
     ))
     assert downloads == ["m1", "f1"] and result.match == "event" and result.creator == "Sanctuary"
+
+
+def test_storyboard_grid_reads_tiles_at_the_right_times(tmp_path):
+    from PIL import Image
+
+    from prolific.shorts.services.money_shot import _storyboard_grid
+
+    sprite = Image.new("RGB", (3 * 48, 3 * 27))
+    for k in range(9):
+        r, c = divmod(k, 3)
+        sprite.paste((k * 25, 0, 0), (c * 48, r * 27, (c + 1) * 48, (r + 1) * 27))
+    urls = []
+    for j in range(2):
+        path = tmp_path / f"sprite{j}.jpg"
+        sprite.save(path)
+        urls.append({"url": path.as_uri(), "duration": 18.0})
+    info = {"duration": 36.0, "formats": [
+        {"format_id": "sb0", "width": 48, "height": 27, "rows": 3, "columns": 3, "fps": 0.5, "fragments": urls},
+        {"format_id": "137", "width": 1920},
+    ]}
+    grid, times = _storyboard_grid(info, num_frames=6, per_row=3)
+    assert grid and len(times) == 6
+    assert times == sorted(times) and all(0 <= t <= 36 for t in times)
+    assert all(abs((t % 18) % 2) < 1e-6 for t in times)
+
+
+def test_long_video_moment_is_found_from_thumbnails_and_cut(monkeypatch, tmp_path):
+    import asyncio
+
+    from prolific.shorts.services import money_shot as ms
+
+    async def search(query, video_license, video_duration="short"):
+        if video_duration == "medium" and video_license == "creativeCommon":
+            return [{"url": "long1", "title": "Karma's Reunion", "creator": "Gentle Barn", "channel_id": "g", "license_kind": "cc"}]
+        return []
+
+    async def own(cand):
+        return True
+
+    sections = []
+
+    class Downloader:
+        async def video_info(self, url):
+            return {"duration": 281.0, "formats": [], "webpage_url": url}, "http://proxy:1"
+
+        async def download_section(self, info, proxy, output_dir, filename, start, end):
+            sections.append((info["webpage_url"], round(start, 1), round(end, 1)))
+            path = tmp_path / f"{filename}_sec.mp4"
+            path.write_bytes(b"x")
+            return str(path)
+
+    async def locate(desc, strip, n, subject=""):
+        return True, 2, True, ""
+
+    cuts = []
+
+    async def cut(src, out, start, seconds):
+        cuts.append((start, seconds))
+        return True
+
+    monkeypatch.setattr(ms.settings, "shorts_money_shot_enabled", True)
+    monkeypatch.setattr(ms.settings, "shorts_money_shot_license", "cc_only")
+    monkeypatch.setattr(ms.settings, "shorts_history_db_path", str(tmp_path / "shorts_history.sqlite"))
+    monkeypatch.setattr(ms, "_own_channel_id", lambda: "")
+    monkeypatch.setattr(ms, "_search_candidates", search)
+    monkeypatch.setattr(ms, "_uploader_films_own_footage", own)
+    monkeypatch.setattr(ms, "_storyboard_grid", lambda info, proxy="": ("grid", [10.0, 120.0, 200.0]))
+    monkeypatch.setattr(ms, "_frames_strip", lambda path, num_frames=6: ("strip", [1.0, 3.0, 5.0]))
+    monkeypatch.setattr(ms, "_locate_event", locate)
+    monkeypatch.setattr(ms, "_probe_duration", lambda path: 8.0)
+    monkeypatch.setattr(ms, "_cut_portrait", cut)
+    import prolific.shorts.services.clip_downloader as cd
+    monkeypatch.setattr(cd, "get_clip_downloader", lambda: Downloader())
+
+    result = asyncio.run(ms.find_verified_clip("cows reunited", "two cows run to each other", str(tmp_path), "clip_14", 3.0))
+    assert result is not None and result.match == "event" and result.creator == "Gentle Barn"
+    assert sections == [("long1", 116.85, 125.85)] or sections == [("long1", 116.8, 125.8)] or sections == [("long1", 116.9, 125.9)]
+    assert not (tmp_path / "clip_14_lv1_sec.mp4").exists()
+
+
+def test_candidate_search_uses_web_results_and_one_vetting_call(monkeypatch):
+    import asyncio
+
+    from prolific.shorts.services import money_shot as ms
+
+    calls = {"search": 0, "videos": 0}
+
+    def item(vid, license, licensed=False, desc="Filmed at our farm."):
+        return {"id": vid, "snippet": {"title": f"t {vid}", "description": desc, "channelTitle": f"ch {vid}", "channelId": f"c{vid}"},
+                "status": {"license": license}, "contentDetails": {"licensedContent": licensed}}
+
+    class Req:
+        def __init__(self, payload):
+            self.payload = payload
+
+        def execute(self):
+            return self.payload
+
+    class Videos:
+        def list(self, part, id):
+            calls["videos"] += 1
+            pool = {"a": item("a", "creativeCommon"), "b": item("b", "youtube"), "c": item("c", "youtube", licensed=True),
+                    "d": item("d", "youtube")}
+            return Req({"items": [pool[v] for v in id.split(",") if v in pool]})
+
+    class Search:
+        def list(self, **kw):
+            calls["search"] += 1
+            return Req({"items": [{"id": {"videoId": "d"}}]})
+
+    class Client:
+        def videos(self):
+            return Videos()
+
+        def search(self):
+            return Search()
+
+    monkeypatch.setattr(ms, "_get_search_client", lambda: Client())
+
+    async def web(query, cc_only, limit=30):
+        return [{"id": "a", "duration": 50}, {"id": "b", "duration": 120}, {"id": "c", "duration": 90},
+                {"id": "d", "duration": 600}, {"id": "e", "duration": None}]
+
+    monkeypatch.setattr(ms, "_web_search", web)
+    short_any = asyncio.run(ms._search_candidates("q", "any"))
+    assert [(c["url"][-1], c["license_kind"]) for c in short_any] == [("a", "cc"), ("b", "fair_use")]
+    medium_any = asyncio.run(ms._search_candidates("q", "any", video_duration="medium"))
+    assert [c["url"][-1] for c in medium_any] == ["d"]
+    assert calls["search"] == 0
+
+    async def web_down(query, cc_only, limit=30):
+        return None
+
+    monkeypatch.setattr(ms, "_web_search", web_down)
+    fallback = asyncio.run(ms._search_candidates("q", "any"))
+    assert [c["url"][-1] for c in fallback] == ["d"] and calls["search"] == 1

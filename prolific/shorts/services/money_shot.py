@@ -204,14 +204,72 @@ def vet_candidate(item: dict, video_license: str) -> str:
     return ""
 
 
-async def _search_candidates(query: str, video_license: str, max_results: int = 8) -> list[dict]:
+_WEB_SEARCH_CACHE: dict[tuple[str, bool], list[dict]] = {}
+
+
+async def _web_search(query: str, cc_only: bool, limit: int = 30) -> list[dict] | None:
+    from urllib.parse import quote_plus
+
+    from prolific.shorts.services.clip_downloader import get_clip_downloader, proxy_url
+
+    key = (query.strip().lower(), cc_only)
+    if key in _WEB_SEARCH_CACHE:
+        return _WEB_SEARCH_CACHE[key]
+    target = (
+        f"https://www.youtube.com/results?search_query={quote_plus(query)}&sp=EgIwAQ%253D%253D"
+        if cc_only else f"ytsearch{limit}:{query}"
+    )
+    yt_dlp = get_clip_downloader().yt_dlp
+    for _ in range(3):
+        proxy = proxy_url()
+        proc = await asyncio.create_subprocess_exec(
+            yt_dlp, *(["--proxy", proxy] if proxy else []), "--flat-playlist", "-J", "--no-warnings",
+            "--playlist-end", str(limit), target,
+            stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE,
+        )
+        try:
+            out, _err = await asyncio.wait_for(proc.communicate(), timeout=60)
+        except asyncio.TimeoutError:
+            proc.kill()
+            await proc.wait()
+            continue
+        if proc.returncode != 0:
+            continue
+        try:
+            entries = [
+                {"id": e["id"], "duration": e.get("duration")}
+                for e in json.loads(out.decode()).get("entries", []) if e.get("id")
+            ]
+        except (ValueError, KeyError, AttributeError):
+            continue
+        if len(_WEB_SEARCH_CACHE) > 300:
+            _WEB_SEARCH_CACHE.clear()
+        _WEB_SEARCH_CACHE[key] = entries
+        return entries
+    logger.warning(f"money-shot web search failed for '{query}', using the Data API")
+    return None
+
+
+def duration_band(video_duration: str) -> tuple[float, float]:
+    return (0.0, 240.0) if video_duration == "short" else (240.0, 1200.0)
+
+
+async def _search_candidates(
+    query: str, video_license: str, max_results: int = 8, video_duration: str = "short",
+) -> list[dict]:
+    entries = await _web_search(query, cc_only=video_license == "creativeCommon")
+
     def _search():
         yt = _get_search_client()
-        resp = yt.search().list(
-            part="snippet", q=query, type="video", videoLicense=video_license,
-            videoDuration="short", safeSearch="moderate", maxResults=max_results, order="relevance",
-        ).execute()
-        ids = [it["id"]["videoId"] for it in resp.get("items", [])]
+        if entries is None:
+            resp = yt.search().list(
+                part="snippet", q=query, type="video", videoLicense=video_license,
+                videoDuration=video_duration, safeSearch="moderate", maxResults=max_results, order="relevance",
+            ).execute()
+            ids = [it["id"]["videoId"] for it in resp.get("items", [])]
+        else:
+            low, high = duration_band(video_duration)
+            ids = [e["id"] for e in entries if e.get("duration") and low < float(e["duration"]) <= high][: max_results * 2]
         if not ids:
             return []
         details = yt.videos().list(part="snippet,status,contentDetails", id=",".join(ids)).execute()
@@ -230,13 +288,13 @@ async def _search_candidates(query: str, video_license: str, max_results: int = 
                 "title": item["snippet"]["title"],
                 "creator": item["snippet"]["channelTitle"],
                 "channel_id": item["snippet"].get("channelId", ""),
-                "license_kind": "cc" if video_license == "creativeCommon" else "fair_use",
+                "license_kind": "cc" if item.get("status", {}).get("license") == "creativeCommon" else "fair_use",
             })
-        return out
+        return out[:max_results]
 
     try:
         cands = await asyncio.get_event_loop().run_in_executor(None, _search)
-        logger.info(f"money-shot: {len(cands)} {video_license} candidates for '{query}'")
+        logger.info(f"money-shot: {len(cands)} {video_license} {video_duration} candidates for '{query}'")
         return cands
     except Exception as exc:
         logger.warning(f"money-shot search failed for '{query}' ({video_license}): {exc}")
@@ -636,8 +694,9 @@ async def _locate_event(
         "doing the event."
     )
     prompt = (
-        "You check whether a downloaded video shows a specific event. The image is a strip of "
-        f"{frame_count} frames from the video in time order, numbered 1 to {frame_count} from left to right. "
+        "You check whether a downloaded video shows a specific event. The image holds "
+        f"{frame_count} frames from the video in time order, numbered 1 to {frame_count} in reading order "
+        "(left to right, then the next row). "
         "Be strict about the event: the frames must show the specific action or thing, not only the "
         "subject resting, a title card, a person talking to the camera, or text on screen.\n\n"
         f"THE EVENT WE NEED TO SEE: \"{event_description}\"\n{subject_line}\n\n"
@@ -662,6 +721,108 @@ async def _locate_event(
         f"{verdict.what_is_actually_shown[:90]}"
     )
     return bool(verdict.shows_event), int(verdict.best_frame or 0), bool(verdict.shows_subject), mark
+
+
+def _storyboard_grid(info: dict, num_frames: int = 12, per_row: int = 6, proxy: str = "") -> tuple[str | None, list[float]]:
+    import io
+    import urllib.request
+
+    from PIL import Image, ImageDraw
+
+    boards = [f for f in info.get("formats", []) if str(f.get("format_id", "")).startswith("sb") and f.get("fragments")]
+    duration = float(info.get("duration") or 0)
+    if not boards or duration <= 0:
+        return None, []
+    board = max(boards, key=lambda f: f.get("width") or 0)
+    rows, cols, fps = int(board.get("rows") or 0), int(board.get("columns") or 0), float(board.get("fps") or 0)
+    tile_w, tile_h = int(board.get("width") or 0), int(board.get("height") or 0)
+    if not (rows and cols and fps and tile_w and tile_h):
+        return None, []
+    starts, t = [], 0.0
+    for frag in board["fragments"]:
+        starts.append(t)
+        t += float(frag.get("duration") or rows * cols / fps)
+    opener = urllib.request.build_opener(urllib.request.ProxyHandler({"http": proxy, "https": proxy} if proxy else {}))
+    sprites: dict[int, Image.Image] = {}
+    frames, times = [], []
+    for i in range(num_frames):
+        want = duration * (0.04 + 0.92 * (i + 0.5) / num_frames)
+        j = max(k for k, st in enumerate(starts) if st <= want)
+        idx = min(int((want - starts[j]) * fps), rows * cols - 1)
+        try:
+            if j not in sprites:
+                sprites[j] = Image.open(io.BytesIO(opener.open(board["fragments"][j]["url"], timeout=20).read())).convert("RGB")
+        except Exception as exc:
+            logger.warning(f"money-shot storyboard fetch failed: {exc}")
+            return None, []
+        r, c = divmod(idx, cols)
+        tile = sprites[j].crop((c * tile_w, r * tile_h, (c + 1) * tile_w, (r + 1) * tile_h)).resize((240, 180))
+        draw = ImageDraw.Draw(tile)
+        draw.rectangle([0, 0, 30, 24], fill=(0, 0, 0))
+        draw.text((6, 5), str(len(frames) + 1), fill=(255, 255, 0))
+        frames.append(tile)
+        times.append(round(starts[j] + idx / fps, 2))
+    grid_rows = (len(frames) + per_row - 1) // per_row
+    grid = Image.new("RGB", (240 * per_row, 180 * grid_rows))
+    for n, tile in enumerate(frames):
+        grid.paste(tile, ((n % per_row) * 240, (n // per_row) * 180))
+    buf = io.BytesIO()
+    grid.save(buf, format="JPEG", quality=82)
+    return base64.b64encode(buf.getvalue()).decode(), times
+
+
+async def _try_long_videos(
+    event_query: str, licenses: list[str], event_description: str, subject: str, output_dir: str,
+    filename: str, duration_seconds: float, skip_urls: set[str], cooling: set[str], own_channel: str,
+) -> MoneyShotResult | None:
+    from prolific.shorts.services.clip_downloader import get_clip_downloader
+
+    found, seen = [], set(skip_urls)
+    for video_license in licenses:
+        for cand in await _search_candidates(event_query, video_license, video_duration="medium"):
+            if cand["url"] not in seen:
+                seen.add(cand["url"])
+                found.append(cand)
+    downloader = get_clip_downloader()
+    tries = 0
+    for cand in interleave_licenses(found):
+        if tries >= int(getattr(settings, "shorts_money_shot_long_video_tries", 2)):
+            break
+        if own_channel and cand.get("channel_id") == own_channel:
+            continue
+        if cand["license_kind"] == "fair_use" and cand.get("channel_id") in cooling:
+            continue
+        if not await _uploader_films_own_footage(cand):
+            continue
+        tries += 1
+        info, proxy = await downloader.video_info(cand["url"])
+        if not info or not (30 <= float(info.get("duration") or 0) <= 1500):
+            continue
+        grid, times = await asyncio.get_event_loop().run_in_executor(None, lambda: _storyboard_grid(info, proxy=proxy))
+        if not grid:
+            continue
+        shows, best, _, mark = await _locate_event(event_description, grid, len(times), subject)
+        if not shows or not same_owner(mark, cand["creator"]):
+            continue
+        moment = times[best - 1] if 1 <= best <= len(times) else times[len(times) // 2]
+        start, seconds = excerpt_window(moment, float(info["duration"]), duration_seconds + 6.0)
+        src = await downloader.download_section(info, proxy, output_dir, f"{filename}_lv{tries}", start, start + seconds)
+        if not src:
+            continue
+        strip, strip_times = _frames_strip(src, num_frames=6)
+        ok, best2, has_subject2, mark2 = (
+            await _locate_event(event_description, strip, len(strip_times), subject) if strip else (False, 0, False, "")
+        )
+        if not (ok or has_subject2) or not same_owner(mark2, cand["creator"]):
+            Path(src).unlink(missing_ok=True)
+            continue
+        best_time = strip_times[best2 - 1] if 1 <= best2 <= len(strip_times) else strip_times[len(strip_times) // 2]
+        logger.info(f"money-shot long video hit: {cand['creator']} {cand['url']} @ {start + best_time:.1f}s")
+        result = await _cut_money_shot(src, cand, best_time, output_dir, filename, duration_seconds, "event")
+        Path(src).unlink(missing_ok=True)
+        if result:
+            return result
+    return None
 
 
 def excerpt_window(best_time: float, source_seconds: float, window_seconds: float) -> tuple[float, float]:
@@ -804,8 +965,6 @@ async def find_verified_clip(
     if fallback_query and fallback_query.strip().lower() != event_query.strip().lower():
         seen_urls = {c["url"] for c in candidates}
         candidates += [c for c in await _gather(fallback_query) if c["url"] not in seen_urls]
-    if not candidates:
-        return None
 
     candidates = interleave_licenses(candidates)
 
@@ -851,6 +1010,19 @@ async def find_verified_clip(
             subject_only = (src, best_time, cand)
             continue
         Path(src).unlink(missing_ok=True)
+
+    try:
+        long_hit = await _try_long_videos(
+            event_query, licenses, event_description, subject, output_dir, filename, duration_seconds,
+            exclude_urls | {c["url"] for c in candidates}, cooling, own_channel,
+        )
+    except Exception as exc:
+        logger.warning(f"money-shot long-video search failed (non-fatal): {exc}")
+        long_hit = None
+    if long_hit:
+        if subject_only:
+            Path(subject_only[0]).unlink(missing_ok=True)
+        return long_hit
 
     if subject_only:
         src, best_time, cand = subject_only

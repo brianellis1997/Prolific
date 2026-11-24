@@ -104,8 +104,8 @@ Really check-ins" and Claude re-creates the job with this prompt:
   fceecc18). Re-create it on Nov 29.
 - One-shots: none open (6059470d ran Nov 22 20:23 ET; 4d2ae36a was cancelled after the 15:00 short was
   checked at once, before the redeploy reset the logs).
-- Last check-in: Nov 23 14:47 ET (13 of 13 slots, no real status problem, no copyright email, no
-  repeated viewer complaint). Last full review: Nov 22. Next full review: Nov 25.
+- Last check-in: Nov 24 14:47 ET (16 of 16 slots, no status problem, no copyright email). Last full
+  review: Nov 22. Next full review: Nov 25.
 - Fair-use source log (/app/data/money_shot_sources.json): Movember (UCuISjZcTmzLbBQ6OEAoUSqA) since
   Nov 23 10:07 ET.
 - Experiment under test: Round 2 (since Nov 19 00:13 ET) plus real clips: CC only from Nov 22 14:14 ET
@@ -115,7 +115,11 @@ Really check-ins" and Claude re-creates the job with this prompt:
   during each shot and rank action scenes first; both queries are searched for the event; medium
   videos are searched through their storyboard thumbnails and only the needed seconds are pulled;
   search runs through yt-dlp (0 API units); the riser sound is gone (Brian: "rocket ship" sound).
-  SHORTS_MONEY_SHOT_MAX_PER_VIDEO=5. A run now takes about 8 to 10 minutes.
+  SHORTS_MONEY_SHOT_MAX_PER_VIDEO=5.
+  Nov 24 15:24 ET (commits eb66297, bc9ead0), first short 20:00 ET Nov 24: subject pool (stock shots
+  that name the subject get a window cut from the real-clip sources, rotated, at most 3 uses per
+  source), explainer-title filter, competitor explainers count as re-posts, public domain archives
+  accepted, non-CC stock footage sellers skipped. A run now takes about 15 minutes.
 - API quota: Wait Really, Ask Grim and Slumber use ONE Google Cloud project (same OAuth client), so
   every Data API search (100 units) competes with Ask Grim's uploads. Never add search.list calls; the
   money-shot search only falls back to it when yt-dlp search fails 3 times.
@@ -133,15 +137,14 @@ Really check-ins" and Claude re-creates the job with this prompt:
 
 | Date | Viewer | Short | Request | Action | Status |
 | --- | --- | --- | --- | --- | --- |
-| Nov 21 | @ronettviljoen9449 | Jacana dads (ZtZUPTzqfUo, Nov 19) | "Please show the actual animal in question... they just need more footage of the animal or objects" | The short showed stock of a lapwing, not a jacana. Real clips of the actual subject since Nov 22; matched to the spoken words and long videos since Nov 23. Next: check that stock shots show the right species (Pending, Nov 24). | In progress |
+| Nov 21 | @ronettviljoen9449 | Jacana dads (ZtZUPTzqfUo, Nov 19) | "Please show the actual animal in question... they just need more footage of the animal or objects" | The short showed stock of a lapwing, not a jacana. Real clips of the actual subject since Nov 22; matched to the spoken words and long videos since Nov 23; stock shots that name the animal now use real footage of it from the subject pool since Nov 24 (cow test: 8 of 15 shots real). | Done, watch |
 | Nov 22 | (comment) | Blue raspberry | The origin story is wrong: ICEE made it blue because cherry was already red | Backlog 5: fact check on the hook claim | Open |
 
 ## Pending
 
-- [ ] Nov 24, after the 10:00 ET short: stock shots must show the right species (the jacana short showed a
-  lapwing). Measure how much of the 10:00 short is still stock, then check each stock pick against the
-  short's subject with the vision model and use a real clip of the subject (or a photo of the exact
-  species) when the stock clip shows something else.
+- [x] Nov 24: stock shots must show the right species. Built as the subject pool (live 15:24 ET).
+- [ ] Nov 25 full review: check the 20:00 Nov 24 short and later ones for pool shots (log line
+  "SUBJECT POOL"), run time, and proxy traffic left in the DataImpulse dashboard.
 
 - [x] Nov 24: blue raspberry source report (see the Results log, Nov 24).
 - [ ] Nov 26: Round 2 one-week checkpoint row in the tracking doc.

@@ -701,3 +701,15 @@ def test_subject_pool_rotates_sources(monkeypatch, tmp_path):
             {"path": "b.mp4", "seconds": 60.0, "creator": "B", "used": [(5.0, 6.0)]}]
     got = [asyncio.run(scs._cut_from_pool(pool, str(tmp_path / f"c{i}.mp4"), 2.0, "cow")) for i in range(5)]
     assert got == ["A", "B", "A", "B", ""]
+
+
+def test_stock_sellers_only_allowed_when_cc():
+    from prolific.shorts.services.money_shot import vet_candidate
+
+    def item(channel, license):
+        return {"snippet": {"title": "Spider wraps a gift", "description": "", "channelTitle": channel},
+                "status": {"license": license}, "contentDetails": {"licensedContent": False}}
+
+    assert vet_candidate(item("Patrick Cooper Stock Footage", "youtube"), "any") == "stock footage seller (not CC)"
+    assert vet_candidate(item("Dollar Stock Video", "creativeCommon"), "any") == ""
+    assert vet_candidate(item("Africa Gómez", "youtube"), "any") == ""

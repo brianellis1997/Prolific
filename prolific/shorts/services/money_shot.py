@@ -179,6 +179,7 @@ _EXPLAINER_TITLE_PATTERN = __import__("re").compile(
     r"^\s*(why|how|what|this is why|here'?s why|the (real|secret|hidden|true|actual) reason)\b"
     r"|\bexplained\b|\bfacts?\b|\bdid you know\b|\bthe truth about\b|\byou won'?t believe\b"
 )
+_STOCK_SELLER_PATTERN = __import__("re").compile(r"\bstock\b|\bfootage (library|agency|licensing)\b|\bb-?roll\b")
 _REUPLOAD_PATTERN = __import__("re").compile(
     r"\b(compilation|re-?upload(?:ed)?|all rights reserved|copyright|courtesy of|fair use|"
     r"i do not own|i don'?t own|not my (?:video|footage)|top \d+)\b"
@@ -211,6 +212,8 @@ def vet_candidate(item: dict, video_license: str) -> str:
         return "looks like a re-upload"
     if _EXPLAINER_TITLE_PATTERN.search((snippet.get("title") or "").lower()):
         return "explainer title (another facts channel)"
+    if status.get("license") != "creativeCommon" and _STOCK_SELLER_PATTERN.search((snippet.get("channelTitle") or "").lower()):
+        return "stock footage seller (not CC)"
     return ""
 
 

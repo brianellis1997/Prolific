@@ -22,6 +22,76 @@ class ScriptOutput(BaseModel):
     on_screen_hook: str = ""
 
 
+class FactCheckOutput(BaseModel):
+    fixes: list[str] = Field(default_factory=list)
+    hook: str = ""
+    setup: str = ""
+    value_body: str = ""
+    cta_loop: str = ""
+    on_screen_hook: str = ""
+
+
+FACT_CHECK_SYSTEM = """You are a strict fact checker for a 30-second facts video. Viewers correct us in the comments
+when a claim is wrong, so every claim must be true.
+
+TOPIC: {topic}
+
+SOURCES (web search results):
+{sources}
+
+SCRIPT PARTS:
+hook: {hook}
+setup: {setup}
+value_body: {value_body}
+cta_loop: {cta_loop}
+on_screen_hook: {on_screen_hook}
+
+Check every claim. A claim is wrong when it is false, when it is stronger than the facts (an absolute such as
+"zero", "never", "only", "all", "invented to" when the truth is partial), or when it gives a made-up motive,
+number or quote. Examples: "white chocolate has zero chocolate components" is wrong (cocoa butter comes from
+the cocoa bean); "blue raspberry was invented to stop kids from panicking" is a made-up motive.
+
+Fix only the wrong sentences, with the smallest change that makes them true. Keep the hook short, punchy and
+claim-first, keep the same four parts and about the same length. Return every part, changed or not. In fixes,
+write one line per change: "was: ... now: ... because: ...". If nothing is wrong, return the parts unchanged
+and an empty fixes list."""
+
+
+async def fact_check_script(topic: str, result: "ScriptOutput") -> tuple["ScriptOutput", list[str]]:
+    from prolific.services.web_search import get_web_search_service
+
+    lead = first_sentence(f"{result.hook} {result.setup}")
+    found = []
+    for query in dict.fromkeys([topic, lead]):
+        try:
+            found += await get_web_search_service().search(query=query, max_results=4, search_depth="basic") or []
+        except Exception as exc:
+            logger.warning(f"Fact check search failed for '{query[:60]}': {exc}")
+    if not found:
+        return result, []
+    sources = "\n".join(f"- {r.title}: {r.snippet[:300]} ({r.url})" for r in found[:8])
+    checked = await get_llm_service().invoke_with_structured_output(
+        messages=[
+            SystemMessage(content=FACT_CHECK_SYSTEM.format(
+                topic=topic, sources=sources, hook=result.hook, setup=result.setup, value_body=result.value_body,
+                cta_loop=result.cta_loop, on_screen_hook=result.on_screen_hook,
+            )),
+            HumanMessage(content="Check the script now."),
+        ],
+        output_schema=FactCheckOutput,
+        tier="research",
+        temperature=0.0,
+    )
+    fixes = [f for f in (checked.fixes or []) if f.strip()]
+    if not fixes or not all([checked.hook, checked.setup, checked.value_body, checked.cta_loop]):
+        return result, []
+    fixed = result.model_copy(update={
+        "hook": checked.hook, "setup": checked.setup, "value_body": checked.value_body,
+        "cta_loop": checked.cta_loop, "on_screen_hook": checked.on_screen_hook or result.on_screen_hook,
+    })
+    return fixed, fixes
+
+
 HOOK_MAX_WORDS = 10
 _SLOW_OPENERS = ("you think", "you probably", "most people", "imagine")
 
@@ -102,6 +172,18 @@ async def script_writing_node(state: ShortsPipelineState) -> dict:
             logger.info(f"Hook rewritten: {first_sentence(_full(result))[:120]}")
         else:
             logger.warning("Hook rewrite still breaks the rules, keeping the first draft")
+
+    if uses_hook_rules:
+        try:
+            result, fixes = await fact_check_script(state["topic"], result)
+            for fix in fixes:
+                logger.info(f"Fact check fix: {fix[:220]}")
+            if not fixes:
+                logger.info("Fact check: no wrong claims found")
+            elif hook_problem(_full(result)):
+                logger.warning(f"Fact-checked hook breaks a hook rule, keeping it for accuracy: {first_sentence(_full(result))[:120]}")
+        except Exception as exc:
+            logger.warning(f"Fact check failed (non-fatal): {exc}")
 
     full_text = _full(result)
     word_count = len(full_text.split())

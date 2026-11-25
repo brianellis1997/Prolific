@@ -62,9 +62,8 @@ Round 2 sections with checkpoint rows).
 4. Double down on winners: the scoreboard already steers topics. On each full review, look at the top 5
    and bottom 5 by same-age ratio and move the rotation toward the winners. So far: weird food and
    everyday-object origins won (blue raspberry 23.7k, stop signs 1.3k), word origins lost (buck, 87).
-5. Fact check on the hook claim. The blue raspberry short said a 1970s dye ban forced the flavor;
-   a viewer replied that ICEE made it blue because cherry was already red. Add a source check on the
-   one claim the hook makes before the script is final.
+5. Fact check on the hook claim: BUILT Nov 25 after two viewer corrections (blue raspberry origin,
+   white chocolate "zero chocolate components").
 6. People topics: the vision check accepted an Einstein lookalike from a Movember ad as "Einstein
    writing on a chalkboard" (Nov 23). For a real person, reject actors, costumes, statues and lookalikes.
 7. Slot test: Ask Grim found its 7 PM ET short beat noon on 5 of 6 days. Compare our 10 / 15 / 20
@@ -104,8 +103,12 @@ Really check-ins" and Claude re-creates the job with this prompt:
   fceecc18). Re-create it on Nov 29.
 - One-shots: none open (6059470d ran Nov 22 20:23 ET; 4d2ae36a was cancelled after the 15:00 short was
   checked at once, before the redeploy reset the logs).
-- Last check-in: Nov 24 14:47 ET (16 of 16 slots, no status problem, no copyright email). Last full
-  review: Nov 22. Next full review: Nov 25.
+- Last check-in: Nov 25 14:47 ET (19 of 19 slots, no status problem, no copyright email). Last full
+  review: Nov 25. Next full review: Nov 28.
+- Proxy balance: 3.19 GB on Nov 25 (about 375 MB a day, so top up near Dec 1).
+- Fact check (backlog 5, two viewer corrections): every curiosity script is checked against a web
+  search after it is written; wrong or overstated sentences are fixed (log lines "Fact check fix").
+  Deploy after the 15:00 ET Nov 25 run.
 - Fair-use source log (/app/data/money_shot_sources.json): Movember (UCuISjZcTmzLbBQ6OEAoUSqA) since
   Nov 23 10:07 ET.
 - Experiment under test: Round 2 (since Nov 19 00:13 ET) plus real clips: CC only from Nov 22 14:14 ET
@@ -138,7 +141,8 @@ Really check-ins" and Claude re-creates the job with this prompt:
 | Date | Viewer | Short | Request | Action | Status |
 | --- | --- | --- | --- | --- | --- |
 | Nov 21 | @ronettviljoen9449 | Jacana dads (ZtZUPTzqfUo, Nov 19) | "Please show the actual animal in question... they just need more footage of the animal or objects" | The short showed stock of a lapwing, not a jacana. Real clips of the actual subject since Nov 22; matched to the spoken words and long videos since Nov 23; stock shots that name the animal now use real footage of it from the subject pool since Nov 24 (cow test: 8 of 15 shots real). | Done, watch |
-| Nov 22 | (comment) | Blue raspberry | The origin story is wrong: ICEE made it blue because cherry was already red | Backlog 5: fact check on the hook claim | Open |
+| Nov 24 | @jonathansuber1551 | White chocolate (U9rjb7Binws) | "Zero chocolate components. Lists Cocoa butter a chocolate component." | Right: cocoa butter comes from the cocoa bean. Fact check built Nov 25; on this script it rewrote the hook to "zero cocoa solids". | Done, watch |
+| Nov 22 | (comment) | Blue raspberry | The origin story is wrong: ICEE made it blue because cherry was already red | Fact check built Nov 25; on this script it replaced the made-up motive and the dates (blue raspberry dates from 1958). | Done, watch |
 
 ## Pending
 
@@ -153,6 +157,13 @@ Really check-ins" and Claude re-creates the job with this prompt:
   shorts without, same age, plus any copyright claim). Doc rev 22 after the Nov 22 update.
 
 ## Results log (newest first)
+
+- Nov 25 full review: 19 of 19 slots. Round 2 median 1.46x the old normal (n=16), hook rate 50.6%
+  (n=11) against 45.7%: keep. Real clips: with 1.31x (n=6), without 1.47x (n=10), ratio 0.89, so by
+  the Rules give it 3 more days; the current version (word matching, long videos, subject pool) only
+  began with the 20:00 Nov 24 short, so judge it at the Nov 29 row. Runs since Nov 24 14:47: spiders 4
+  clips (1 event, 3 subject), white chocolate 2 events, orcas 2 subject plus 3 pool shots. Next
+  backlog item started: the fact check (two viewer corrections in a week).
 
 - Nov 24 14:47 ET check-in: 16 of 16 slots, median 1.46x the old normal (n=13), hook rate 48.4% (n=9)
   against 45.7%. Real clips: with 1.43x (n=3), without 1.47x (n=10), too early. Bat bomb short (10:00):

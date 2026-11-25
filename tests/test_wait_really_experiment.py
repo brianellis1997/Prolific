@@ -713,3 +713,34 @@ def test_stock_sellers_only_allowed_when_cc():
     assert vet_candidate(item("Patrick Cooper Stock Footage", "youtube"), "any") == "stock footage seller (not CC)"
     assert vet_candidate(item("Dollar Stock Video", "creativeCommon"), "any") == ""
     assert vet_candidate(item("Africa Gómez", "youtube"), "any") == ""
+
+
+def test_fact_check_applies_fixes_and_keeps_script_when_clean(monkeypatch):
+    import asyncio
+    from types import SimpleNamespace
+
+    from prolific.shorts.nodes import script_writing as sw
+
+    class Search:
+        async def search(self, query, max_results, search_depth):
+            return [SimpleNamespace(title="Cocoa butter", snippet="Cocoa butter is the fat of the cocoa bean.", url="https://x")]
+
+    replies = []
+
+    class LLM:
+        async def invoke_with_structured_output(self, messages, output_schema, tier, temperature):
+            return replies.pop(0)
+
+    import prolific.services.web_search as ws
+    monkeypatch.setattr(ws, "get_web_search_service", lambda: Search())
+    monkeypatch.setattr(sw, "get_llm_service", lambda: LLM())
+    script = sw.ScriptOutput(hook="White chocolate contains zero chocolate components.", setup="s.", value_body="v.", cta_loop="c.")
+
+    replies.append(sw.FactCheckOutput(fixes=["was: zero chocolate components now: zero cocoa solids because: cocoa butter"],
+                                      hook="White chocolate contains zero cocoa solids.", setup="s.", value_body="v.", cta_loop="c."))
+    fixed, fixes = asyncio.run(sw.fact_check_script("white chocolate", script))
+    assert fixed.hook == "White chocolate contains zero cocoa solids." and len(fixes) == 1
+
+    replies.append(sw.FactCheckOutput(fixes=[], hook=script.hook, setup="s.", value_body="v.", cta_loop="c."))
+    same, none = asyncio.run(sw.fact_check_script("white chocolate", script))
+    assert same is script and none == []

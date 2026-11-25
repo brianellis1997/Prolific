@@ -108,7 +108,7 @@ Really check-ins" and Claude re-creates the job with this prompt:
 - Proxy balance: 3.19 GB on Nov 25 (about 375 MB a day, so top up near Dec 1).
 - Fact check (backlog 5, two viewer corrections): every curiosity script is checked against a web
   search after it is written; wrong or overstated sentences are fixed (log lines "Fact check fix").
-  Deploy after the 15:00 ET Nov 25 run.
+  Live since 15:08 ET Nov 25 (commit 4016ebf), first short 20:00 ET Nov 25.
 - Fair-use source log (/app/data/money_shot_sources.json): Movember (UCuISjZcTmzLbBQ6OEAoUSqA) since
   Nov 23 10:07 ET.
 - Experiment under test: Round 2 (since Nov 19 00:13 ET) plus real clips: CC only from Nov 22 14:14 ET

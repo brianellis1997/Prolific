@@ -66,7 +66,10 @@ Round 2 sections with checkpoint rows).
    white chocolate "zero chocolate components").
 6. People topics: the vision check accepted an Einstein lookalike from a Movember ad as "Einstein
    writing on a chalkboard" (Nov 23). For a real person, reject actors, costumes, statues and lookalikes.
-7. Slot test: Ask Grim found its 7 PM ET short beat noon on 5 of 6 days. Compare our 10 / 15 / 20
+7. "Part 2" continuations: 6 of the last 13 shorts carry "Part 2" (elephants twice, crows, Einstein,
+   cows, orcas). A viewer in the feed has not seen Part 1. At the Nov 28 review, compare Part 2 shorts
+   with the rest at the same age; if they are lower, stop the label or the continuations.
+8. Slot test: Ask Grim found its 7 PM ET short beat noon on 5 of 6 days. Compare our 10 / 15 / 20
    slots on same-age ratio before you move them.
 
 ## The check-in job
@@ -103,7 +106,7 @@ Really check-ins" and Claude re-creates the job with this prompt:
   fceecc18). Re-create it on Nov 29.
 - One-shots: none open (6059470d ran Nov 22 20:23 ET; 4d2ae36a was cancelled after the 15:00 short was
   checked at once, before the redeploy reset the logs).
-- Last check-in: Nov 25 14:47 ET (19 of 19 slots, no status problem, no copyright email). Last full
+- Last check-in: Nov 26 14:47 ET (22 of 22 slots, no status problem, no copyright email). Last full
   review: Nov 25. Next full review: Nov 28.
 - Proxy balance: 3.19 GB on Nov 25 (about 375 MB a day, so top up near Dec 1).
 - Fact check (backlog 5, two viewer corrections): every curiosity script is checked against a web
@@ -151,12 +154,19 @@ Really check-ins" and Claude re-creates the job with this prompt:
   "SUBJECT POOL"), run time, and proxy traffic left in the DataImpulse dashboard.
 
 - [x] Nov 24: blue raspberry source report (see the Results log, Nov 24).
-- [ ] Nov 26: Round 2 one-week checkpoint row in the tracking doc.
+- [x] Nov 26: Round 2 one-week row filled (doc rev 24, "On track").
 - [ ] Dec 3: Round 2 two-week checkpoint row in the tracking doc.
 - [ ] Nov 29: "Real clips, first read" row in the tracking doc (shorts with a real clip against
   shorts without, same age, plus any copyright claim). Doc rev 22 after the Nov 22 update.
 
 ## Results log (newest first)
+
+- Nov 26 check-in: 22 of 22 slots. Median 1.27x the old normal (n=19), with real clips 1.21x (n=9),
+  without 1.47x (n=10). Confounded: the no-clip shorts came during the blue raspberry spike (channel
+  23k views on Nov 21), and the later set has more "Part 2" and non-animal topics. First read row
+  filled: median 1,106 views (22 shorts) against 251 and 858, 68% over 1k, hook 50.8%. Fact check
+  live: 2 fixes in each of the last 2 scripts (for example "twice as hard as oak" became "roughly three
+  times as hard as white oak"). Elephants 20:00: 3 event clips plus 6 pool shots.
 
 - Nov 25 full review: 19 of 19 slots. Round 2 median 1.46x the old normal (n=16), hook rate 50.6%
   (n=11) against 45.7%: keep. Real clips: with 1.31x (n=6), without 1.47x (n=10), ratio 0.89, so by

@@ -51,6 +51,10 @@ Check every claim. A claim is wrong when it is false, when it is stronger than t
 number or quote. Examples: "white chocolate has zero chocolate components" is wrong (cocoa butter comes from
 the cocoa bean); "blue raspberry was invented to stop kids from panicking" is a made-up motive.
 
+Also soften or remove vivid details that the sources do not state: "perfect", "sharp", "exactly", "every
+single", precise numbers, or a look the footage will not show. Example: wombat droppings are roughly cube-shaped
+with rounded edges, so "cubes with sharp right angles" is wrong (a viewer pointed out they look rounded).
+
 Fix only the wrong sentences, with the smallest change that makes them true. Keep the hook short, punchy and
 claim-first, keep the same four parts and about the same length. Return every part, changed or not. In fixes,
 write one line per change: "was: ... now: ... because: ...". If nothing is wrong, return the parts unchanged

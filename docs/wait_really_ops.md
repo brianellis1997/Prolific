@@ -106,7 +106,7 @@ Really check-ins" and Claude re-creates the job with this prompt:
   fceecc18). Re-create it on Nov 29.
 - One-shots: none open (6059470d ran Nov 22 20:23 ET; 4d2ae36a was cancelled after the 15:00 short was
   checked at once, before the redeploy reset the logs).
-- Last check-in: Nov 26 14:47 ET (22 of 22 slots, no status problem, no copyright email). Last full
+- Last check-in: Nov 27 14:47 ET (25 of 25 slots, no status problem, no copyright email). Last full
   review: Nov 25. Next full review: Nov 28.
 - Proxy balance: 3.19 GB on Nov 25 (about 375 MB a day, so top up near Dec 1).
 - Fact check (backlog 5, two viewer corrections): every curiosity script is checked against a web
@@ -143,6 +143,8 @@ Really check-ins" and Claude re-creates the job with this prompt:
 
 | Date | Viewer | Short | Request | Action | Status |
 | --- | --- | --- | --- | --- | --- |
+| Nov 27 | @dr.chemical8231 | Wombat cubes (CnlhgmEPNcI) | 'Those "sharp right angles" look pretty rounded to me' | Right. The fact check now softens vivid details the sources do not state; on this script it gave "distinct edges" and "dozens of blocks each night". Deploy after the 15:00 Nov 27 run. | Done, watch |
+| Nov 26 | @MrMelichor | White chocolate (U9rjb7Binws) | "Clickbait bullshit" (title: "White Chocolate is a Lie") | The title claimed more than the script. Plan: a truth check on titles (keep curiosity, no false claim) at the Nov 28 review. | Open |
 | Nov 21 | @ronettviljoen9449 | Jacana dads (ZtZUPTzqfUo, Nov 19) | "Please show the actual animal in question... they just need more footage of the animal or objects" | The short showed stock of a lapwing, not a jacana. Real clips of the actual subject since Nov 22; matched to the spoken words and long videos since Nov 23; stock shots that name the animal now use real footage of it from the subject pool since Nov 24 (cow test: 8 of 15 shots real). | Done, watch |
 | Nov 24 | @jonathansuber1551 | White chocolate (U9rjb7Binws) | "Zero chocolate components. Lists Cocoa butter a chocolate component." | Right: cocoa butter comes from the cocoa bean. Fact check built Nov 25; on this script it rewrote the hook to "zero cocoa solids". | Done, watch |
 | Nov 22 | (comment) | Blue raspberry | The origin story is wrong: ICEE made it blue because cherry was already red | Fact check built Nov 25; on this script it replaced the made-up motive and the dates (blue raspberry dates from 1958). | Done, watch |
@@ -150,6 +152,8 @@ Really check-ins" and Claude re-creates the job with this prompt:
 ## Pending
 
 - [x] Nov 24: stock shots must show the right species. Built as the subject pool (live 15:24 ET).
+- [ ] Nov 28 full review: a truth check on titles (the white chocolate "is a Lie" title drew
+  "Clickbait bullshit"): curiosity stays, a false claim goes.
 - [ ] Nov 25 full review: check the 20:00 Nov 24 short and later ones for pool shots (log line
   "SUBJECT POOL"), run time, and proxy traffic left in the DataImpulse dashboard.
 
@@ -160,6 +164,11 @@ Really check-ins" and Claude re-creates the job with this prompt:
   shorts without, same age, plus any copyright claim). Doc rev 22 after the Nov 22 update.
 
 ## Results log (newest first)
+
+- Nov 27 check-in: 25 of 25 slots. Median 1.33x the old normal (n=22), with real clips 1.26x (n=12),
+  without 1.47x (n=10). Hook rate 52.2% (n=18) against 45.7%, rising each day. Runs: Roman statues 1
+  clip, Japanese bees 4 clips plus 3 pool shots, wombat cubes 4 clips plus 4 pool shots. Fact check:
+  2, 3 and 1 fixes. Two viewer complaints logged and acted on (see Viewer requests).
 
 - Nov 26 check-in: 22 of 22 slots. Median 1.27x the old normal (n=19), with real clips 1.21x (n=9),
   without 1.47x (n=10). Confounded: the no-clip shorts came during the blue raspberry spike (channel

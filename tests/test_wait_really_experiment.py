@@ -744,3 +744,15 @@ def test_fact_check_applies_fixes_and_keeps_script_when_clean(monkeypatch):
     replies.append(sw.FactCheckOutput(fixes=[], hook=script.hook, setup="s.", value_body="v.", cta_loop="c."))
     same, none = asyncio.run(sw.fact_check_script("white chocolate", script))
     assert same is script and none == []
+
+
+def test_titles_lose_sequel_markers():
+    from prolific.shorts.nodes.metadata_generation import TITLE_RULES, strip_sequel_marker
+
+    assert strip_sequel_marker("Orcas Wear Dead Fish as Hats? (Part 2)") == "Orcas Wear Dead Fish as Hats?"
+    assert strip_sequel_marker("Part 2: The Secret Elephant Code for Deadly Bee Attacks") == "The Secret Elephant Code for Deadly Bee Attacks"
+    assert strip_sequel_marker("The Impossible Physics of Wombat Cubes: Part 2") == "The Impossible Physics of Wombat Cubes"
+    assert strip_sequel_marker("Vampire Bats Adopt Orphans? The Selfless Truth (Part II)") == "Vampire Bats Adopt Orphans? The Selfless Truth"
+    assert strip_sequel_marker("The Genius Reason Stop Signs Are Octagons") == "The Genius Reason Stop Signs Are Octagons"
+    assert strip_sequel_marker("Part Two") == "Part Two"
+    assert "Part 2" in TITLE_RULES and "true to the" in TITLE_RULES

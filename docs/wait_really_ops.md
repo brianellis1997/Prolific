@@ -66,9 +66,8 @@ Round 2 sections with checkpoint rows).
    white chocolate "zero chocolate components").
 6. People topics: the vision check accepted an Einstein lookalike from a Movember ad as "Einstein
    writing on a chalkboard" (Nov 23). For a real person, reject actors, costumes, statues and lookalikes.
-7. "Part 2" continuations: 6 of the last 13 shorts carry "Part 2" (elephants twice, crows, Einstein,
-   cows, orcas). A viewer in the feed has not seen Part 1. At the Nov 28 review, compare Part 2 shorts
-   with the rest at the same age; if they are lower, stop the label or the continuations.
+7. "Part 2" labels: JUDGED Nov 28. Part 2 shorts 1.17x the old normal (n=10) against 1.38x for the
+   rest (n=16), and 5 of the last 6 were Part 2. Titles now stand alone (topics may still be follow-ups).
 8. Slot test: Ask Grim found its 7 PM ET short beat noon on 5 of 6 days. Compare our 10 / 15 / 20
    slots on same-age ratio before you move them.
 
@@ -106,9 +105,11 @@ Really check-ins" and Claude re-creates the job with this prompt:
   fceecc18). Re-create it on Nov 29.
 - One-shots: none open (6059470d ran Nov 22 20:23 ET; 4d2ae36a was cancelled after the 15:00 short was
   checked at once, before the redeploy reset the logs).
-- Last check-in: Nov 27 14:47 ET (25 of 25 slots, no status problem, no copyright email). Last full
-  review: Nov 25. Next full review: Nov 28.
-- Proxy balance: 3.19 GB on Nov 25 (about 375 MB a day, so top up near Dec 1).
+- Last check-in: Nov 28 14:47 ET (28 of 28 slots, no status problem, no copyright email). Last full
+  review: Nov 28. Next full review: Dec 1.
+- Proxy balance: 1.73 GB on Nov 28 (about 490 MB a day, about $15 a month). Top up when under 1 GB
+  (expected Nov 30). The dashboard asks for an emailed 6-digit code at login; read it in Gmail
+  ("Access code" from DataImpulse).
 - Fact check (backlog 5, two viewer corrections): every curiosity script is checked against a web
   search after it is written; wrong or overstated sentences are fixed (log lines "Fact check fix").
   Live since 15:08 ET Nov 25 (commit 4016ebf), first short 20:00 ET Nov 25.
@@ -144,7 +145,7 @@ Really check-ins" and Claude re-creates the job with this prompt:
 | Date | Viewer | Short | Request | Action | Status |
 | --- | --- | --- | --- | --- | --- |
 | Nov 27 | @dr.chemical8231 | Wombat cubes (CnlhgmEPNcI) | 'Those "sharp right angles" look pretty rounded to me' | Right. The fact check now softens vivid details the sources do not state; on this script it gave "distinct edges" and "dozens of blocks each night". Live since 15:14 ET Nov 27 (commit 3c71e4f). | Done, watch |
-| Nov 26 | @MrMelichor | White chocolate (U9rjb7Binws) | "Clickbait bullshit" (title: "White Chocolate is a Lie") | The title claimed more than the script. Plan: a truth check on titles (keep curiosity, no false claim) at the Nov 28 review. | Open |
+| Nov 26 | @MrMelichor | White chocolate (U9rjb7Binws) | "Clickbait bullshit" (title: "White Chocolate is a Lie") | The title claimed more than the script. Title rule added Nov 28: titles stay curious but never claim more than the script. | Done, watch |
 | Nov 21 | @ronettviljoen9449 | Jacana dads (ZtZUPTzqfUo, Nov 19) | "Please show the actual animal in question... they just need more footage of the animal or objects" | The short showed stock of a lapwing, not a jacana. Real clips of the actual subject since Nov 22; matched to the spoken words and long videos since Nov 23; stock shots that name the animal now use real footage of it from the subject pool since Nov 24 (cow test: 8 of 15 shots real). | Done, watch |
 | Nov 24 | @jonathansuber1551 | White chocolate (U9rjb7Binws) | "Zero chocolate components. Lists Cocoa butter a chocolate component." | Right: cocoa butter comes from the cocoa bean. Fact check built Nov 25; on this script it rewrote the hook to "zero cocoa solids". | Done, watch |
 | Nov 22 | (comment) | Blue raspberry | The origin story is wrong: ICEE made it blue because cherry was already red | Fact check built Nov 25; on this script it replaced the made-up motive and the dates (blue raspberry dates from 1958). | Done, watch |
@@ -152,10 +153,9 @@ Really check-ins" and Claude re-creates the job with this prompt:
 ## Pending
 
 - [x] Nov 24: stock shots must show the right species. Built as the subject pool (live 15:24 ET).
-- [ ] Nov 28 full review: a truth check on titles (the white chocolate "is a Lie" title drew
-  "Clickbait bullshit"): curiosity stays, a false claim goes.
-- [ ] Nov 25 full review: check the 20:00 Nov 24 short and later ones for pool shots (log line
-  "SUBJECT POOL"), run time, and proxy traffic left in the DataImpulse dashboard.
+- [x] Nov 28: title truth rule and no "Part 2" labels (see the Results log).
+- [x] Pool shots, run time and proxy traffic are checked at each check-in now.
+- [ ] Nov 29: re-create the check-in job (6 days old) and fill the "Real clips, first read" row.
 
 - [x] Nov 24: blue raspberry source report (see the Results log, Nov 24).
 - [x] Nov 26: Round 2 one-week row filled (doc rev 24, "On track").
@@ -164,6 +164,15 @@ Really check-ins" and Claude re-creates the job with this prompt:
   shorts without, same age, plus any copyright claim). Doc rev 22 after the Nov 22 update.
 
 ## Results log (newest first)
+
+- Nov 28 full review: 28 of 28 slots. Median 1.33x the old normal (n=25), hook rate 51.1% (n=21)
+  against 45.7%. Real clips: with 1.27x (n=15), without 1.47x (n=10); without Part 2 shorts, with 1.30x
+  against 1.52x. So far real clips show no view lift, but the samples are small and confounded (the
+  no-clip shorts came with the blue raspberry spike, and 8 of the 15 clip shorts are Part 2). Keep them
+  (viewers asked, Brian asked), judge again on the Nov 29 row and Dec 3. Part 2 judged: 1.17x against
+  1.38x, so titles no longer carry "Part 2". Title truth rule added for the clickbait comment. Runs:
+  Jackson's parrot 4 event clips plus 1 pool shot (97 views at 0.8 days, weak), vampire bats 3 clips
+  plus 4 pool shots. Proxy 1.73 GB.
 
 - Nov 27 check-in: 25 of 25 slots. Median 1.33x the old normal (n=22), with real clips 1.26x (n=12),
   without 1.47x (n=10). Hook rate 52.2% (n=18) against 45.7%, rising each day. Runs: Roman statues 1

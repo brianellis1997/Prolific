@@ -110,6 +110,7 @@ Really check-ins" and Claude re-creates the job with this prompt:
 - Proxy balance: 1.73 GB on Nov 28 (about 490 MB a day, about $15 a month). Top up when under 1 GB
   (expected Nov 30). The dashboard asks for an emailed 6-digit code at login; read it in Gmail
   ("Access code" from DataImpulse).
+- Titles: no "Part 2" and a truth rule, live since 15:06 ET Nov 28 (commit 9c3ed8f), first short 20:00 ET.
 - Fact check (backlog 5, two viewer corrections): every curiosity script is checked against a web
   search after it is written; wrong or overstated sentences are fixed (log lines "Fact check fix").
   Live since 15:08 ET Nov 25 (commit 4016ebf), first short 20:00 ET Nov 25.
